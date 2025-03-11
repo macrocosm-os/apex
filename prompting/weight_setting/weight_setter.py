@@ -23,7 +23,8 @@ PAST_WEIGHTS: list[np.ndarray] = []
 
 
 def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
-    """Apply the reward function to the raw rewards. P adjusts the steepness of the function - p = 0.5 leaves
+    """
+    Apply the reward function to the raw rewards. P adjusts the steepness of the function - p = 0.5 leaves
     the rewards unchanged, p < 0.5 makes the function more linear (at p=0 all miners with positives reward values get the same reward),
     p > 0.5 makes the function more exponential (winner takes all).
     """
@@ -34,6 +35,7 @@ def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
     post_func_rewards = normalised_rewards**exponent
     all_rewards = post_func_rewards / (np.sum(post_func_rewards) + 1e-10)
     all_rewards[raw_rewards <= 0] = raw_rewards[raw_rewards <= 0]
+
     return all_rewards
 
 
@@ -41,6 +43,19 @@ def save_weights(weights: list[np.ndarray]):
     """Saves the list of numpy arrays to a file."""
     # Save all arrays into a single .npz file
     np.savez_compressed(FILENAME, *weights)
+
+
+def compute_averaged_weights(weights: np.ndarray) -> np.ndarray:
+    """
+    Computes the moving average of past weights to smooth fluctuations.
+    """
+    PAST_WEIGHTS.append(weights)
+    if len(PAST_WEIGHTS) > WEIGHTS_HISTORY_LENGTH:
+        PAST_WEIGHTS.pop(0)
+    averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
+    save_weights(PAST_WEIGHTS)
+
+    return averaged_weights
 
 
 def set_weights(
@@ -58,12 +73,10 @@ def set_weights(
 
         # Replace any NaN values with 0
         weights = np.nan_to_num(weights, nan=0.0)
-        # Calculate the average reward for each uid across non-zero values.
-        PAST_WEIGHTS.append(weights)
-        if len(PAST_WEIGHTS) > WEIGHTS_HISTORY_LENGTH:
-            PAST_WEIGHTS.pop(0)
-        averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
-        save_weights(PAST_WEIGHTS)
+
+        # Compute the average weights over the past 8 hours
+        averaged_weights = compute_averaged_weights(weights)
+
         # Process the raw weights to final_weights via subtensor limitations.
         (
             processed_weight_uids,
@@ -135,14 +148,13 @@ class WeightSetter(AsyncLoopRunner):
     reward_events: list[list[WeightedRewardEvent]] | None = None
     subtensor: bt.Subtensor | None = None
     metagraph: bt.Metagraph | None = None
-    # interval: int = 60
 
     class Config:
         arbitrary_types_allowed = True
 
     async def start(self, reward_events, name: str | None = None, **kwargs):
         self.reward_events = reward_events
-        global PAST_WEIGHTS
+        global PAST_WEIGHTS  # Keeps the past 8 hours of weights (WEIGHTS_HISTORY_LENGTH)
 
         try:
             with np.load(FILENAME) as data:
@@ -190,9 +202,7 @@ class WeightSetter(AsyncLoopRunner):
                         miner_rewards[task_config][uid]["reward"] += (
                             reward * reward_event.weight
                         )  # TODO: Double check I actually average at the end
-                        miner_rewards[task_config][uid]["count"] += (
-                            1 * reward_event.weight
-                        )  # TODO: Double check I actually average at the end
+                        miner_rewards[task_config][uid]["count"] += 1 * reward_event.weight
 
             for inference_event in inference_events:
                 for uid, reward in zip(inference_event.uids, inference_event.rewards):
@@ -209,6 +219,7 @@ class WeightSetter(AsyncLoopRunner):
                 if task_config.task == InferenceTask:
                     processed_rewards = r / max(1, (np.sum(r[r > 0]) + 1e-10))
                 else:
+                    # Applied directly to the raw rewards?
                     processed_rewards = apply_reward_func(raw_rewards=r, p=shared_settings.REWARD_STEEPNESS)
                 processed_rewards *= task_config.probability
                 # update reward dict
