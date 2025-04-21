@@ -311,7 +311,5 @@ if __name__ == "__main__":
     try:
         os.setpgrp()
     except BaseException:
-        logger.warning(
-            "Failed to set process group; emergency termination may not work."
-        )
+        logger.warning("Failed to set process group; emergency termination may not work.")
     asyncio.run(main())
