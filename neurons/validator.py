@@ -299,10 +299,10 @@ async def main(
             manager.shutdown()
 
             # 3. Sledgehammer.
-            if os.name == "posix":
+            try:
                 os.killpg(0, signal.SIGKILL)
-            else:
-                logger.error(f"Unsupported OS: {os.name}")
+            except Exception as e:
+                logger.error(f"Failed to kill process group: {e}")
     sys.exit(1)
 
 
