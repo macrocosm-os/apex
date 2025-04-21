@@ -59,7 +59,7 @@ class ModelManager(BaseModel):
         for model_config in self.always_active_models:
             await self.load_model(model_config=model_config)
 
-    async def load_model(self, model_config: ModelConfig, force: bool = True) -> ReproducibleVLLM:
+    async def load_model(self, model_config: ModelConfig, force: bool = False) -> ReproducibleVLLM:
         """Load model into GPU.
 
         Warning: This operation will block execution until the model is successfully loaded into VRAM.
@@ -69,13 +69,13 @@ class ModelManager(BaseModel):
             force: If enabled, will unload all other models.
         """
         async with self.lock:
-            if model_config in self.active_models.keys():
+            if model_config in self.active_models:
                 logger.debug(f"Model {model_config.llm_model_id} is already loaded.")
                 return self.active_models[model_config]
 
             if force:
                 logger.debug(f"Forcing model {model_config.llm_model_id} to load.")
-                for active_model in list(self.active_models.keys()):
+                for active_model in self.active_models:
                     if active_model in self.always_active_models:
                         continue
                     logger.debug(f"Unloading {active_model.llm_model_id} to make room for {model_config.llm_model_id}")

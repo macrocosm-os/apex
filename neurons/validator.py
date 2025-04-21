@@ -3,6 +3,7 @@ import os
 import signal
 import sys
 from multiprocessing.managers import AcquirerProxy
+from multiprocessing.synchronize import Event
 
 import netaddr
 import requests
@@ -102,6 +103,7 @@ def start_api(
     scoring_queue: list,
     reward_events: list,
     miners_dict: dict,
+    event: Event,
 ):
     from prompting.api.api import start_scoring_api  # noqa: F401
 
@@ -124,7 +126,7 @@ def start_api(
             logger.warning(f"Failed to serve scoring api to chain: {e}")
         await start_scoring_api(task_scorer, scoring_queue, reward_events, miners_dict)
 
-        while True:
+        while event.is_set():
             await asyncio.sleep(10)
 
     asyncio.run(start())
@@ -134,6 +136,7 @@ def start_task_sending_loop(
     task_queue: list,
     scoring_queue: list,
     miners_dict: dict,
+    event_stop: Event,
 ):
     async def spawn_loops(task_queue, scoring_queue, miners_dict: dict):
         from prompting.tasks.task_sending import TaskSender
@@ -142,7 +145,7 @@ def start_task_sending_loop(
         task_sender = TaskSender()
         asyncio.create_task(task_sender.start(task_queue, scoring_queue, miners_dict, simultaneous_loops=1))
         logger.debug("Task sending loop started")
-        while True:
+        while event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Task sending loop is running")
 
@@ -155,13 +158,13 @@ def start_task_sending_loop(
         raise
 
 
-def start_availability_checking_loop(miners_dict: dict):
+def start_availability_checking_loop(miners_dict: dict, event_stop: Event):
     async def spawn_loops(miners_dict: dict):
         from prompting.miner_availability.miner_availability import availability_checking_loop
 
         logger.info("Starting availability checking loop in validator...")
         asyncio.create_task(availability_checking_loop.start(miners_dict))
-        while True:
+        while event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Availability checking loop is running")
 
@@ -174,13 +177,13 @@ def start_availability_checking_loop(miners_dict: dict):
         raise
 
 
-def start_weight_setter_loop(reward_events):
+def start_weight_setter_loop(reward_events, event_stop: Event):
     async def spawn_loops(reward_events):
         from prompting.weight_setting.weight_setter import weight_setter
 
         logger.info("Starting weight setter loop in validator...")
         asyncio.create_task(weight_setter.start(reward_events))
-        while True:
+        while event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Weight setter loop is running")
 
@@ -208,6 +211,7 @@ async def main(
         mp_lock = manager.Lock()
         processes: list[mp.Process] = []
         tasks: list[asyncio.Task] = []
+        event_stop = mp.Event()
 
         model_scheduler = AsyncModelScheduler(llm_model_manager=ModelManager(), mp_lock=mp_lock, sync=True)
 
@@ -216,14 +220,14 @@ async def main(
             if settings.shared_settings.DEPLOY_SCORING_API and not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
                 # Use multiprocessing to bypass API blocking issue
                 api_process = mp.Process(
-                    target=start_api, args=(scoring_queue, reward_events, miners_dict), name="APIProcess"
+                    target=start_api, args=(scoring_queue, reward_events, miners_dict, event_stop), name="APIProcess"
                 )
                 api_process.start()
                 processes.append(api_process)
 
             availability_process = mp.Process(
                 target=start_availability_checking_loop,
-                args=(miners_dict,),
+                args=(miners_dict, event_stop),
                 name="AvailabilityProcess",
             )
             availability_process.start()
@@ -243,7 +247,7 @@ async def main(
 
             sending_task = mp.Process(
                 target=start_task_sending_loop,
-                args=(task_queue, scoring_queue, miners_dict),
+                args=(task_queue, scoring_queue, miners_dict, event_stop),
                 name="SendingTaskProcess",
             )
             sending_task.start()
@@ -251,7 +255,7 @@ async def main(
 
             weight_setter_process = mp.Process(
                 target=start_weight_setter_loop,
-                args=(reward_events,),
+                args=(reward_events, event_stop),
                 name="WeightSetterProcess",
             )
             weight_setter_process.start()
@@ -267,6 +271,7 @@ async def main(
                     block - settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID] > 500
                     and step > 150
                 ):
+                    event_stop.set()
                     last_update_block = settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID]
                     logger.warning(
                         f"Metagraph hasn't been updated for {block - last_update_block} blocks. "
@@ -276,17 +281,19 @@ async def main(
                 step += 1
 
         except KeyboardInterrupt:
+            event_stop.set()
             logger.info("KeyboardInterrupt detected. Shutting down gracefully...")
         except Exception as e:
             logger.error(f"Main loop error: {e}")
             raise
         finally:
-            logger.warning("🚨  Force‑killing entire process‑group")
+            logger.warning("🚨 Force‑killing entire process‑group")
 
             # 1. Cancel in‑process tasks so they stop touching the Manager.
             for t in tasks:
                 t.cancel()
             await asyncio.gather(*tasks, return_exceptions=True)
+            await asyncio.sleep(5)
 
             # 2. Manager cleanup *first* (so its socket vanishes).
             manager.shutdown()
@@ -301,4 +308,10 @@ async def main(
 
 # The main function parses the configuration and runs the validator.
 if __name__ == "__main__":
+    try:
+        os.setpgrp()
+    except BaseException:
+        logger.warning(
+            "Failed to set process group. It may result in not being able to kill process in case of emergency."
+        )
     asyncio.run(main())
