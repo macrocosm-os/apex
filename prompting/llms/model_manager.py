@@ -53,7 +53,7 @@ class ModelManager(BaseModel):
     total_ram: float = settings.shared_settings.LLM_MODEL_RAM
     active_models: dict[ModelConfig, ReproducibleVLLM] = {}
     used_ram: float = 0.0
-    lock: ClassVar[AsyncRLock] = AsyncRLock()
+    rlock: ClassVar[AsyncRLock] = AsyncRLock()
 
     async def load_always_active_models(self):
         for model_config in self.always_active_models:
@@ -68,15 +68,14 @@ class ModelManager(BaseModel):
             model_config: Model config to load.
             force: If enabled, will unload all other models.
         """
-        async with self.lock:
-            active_models = list(self.active_models)
-            if model_config in active_models:
+        async with self.rlock:
+            if model_config in self.active_models:
                 logger.debug(f"Model {model_config.llm_model_id} is already loaded.")
                 return self.active_models[model_config]
 
             if force:
                 logger.debug(f"Forcing model {model_config.llm_model_id} to load.")
-                for active_model in active_models:
+                for active_model in self.active_models:
                     if active_model in self.always_active_models:
                         continue
                     logger.debug(f"Unloading {active_model.llm_model_id} to make room for {model_config.llm_model_id}")
@@ -145,7 +144,8 @@ class ModelManager(BaseModel):
             return
 
         try:
-            model_instance = self.active_models.pop(model_config)
+            async with self.rlock:
+                model_instance = self.active_models.pop(model_config)
 
             # Record initial memory state for debugging.
             initial_free_memory = GPUInfo.free_memory
@@ -166,9 +166,9 @@ class ModelManager(BaseModel):
         GPUInfo.log_gpu_info()
 
     async def get_model(self, llm_model: ModelConfig | str) -> ReproducibleVLLM:
-        async with self.lock:
+        async with self.rlock:
             if not llm_model:
-                llm_model = list(self.active_models.keys())[0] if self.active_models else ModelZoo.get_random()
+                llm_model = next(iter(self.active_models.keys())) if self.active_models else ModelZoo.get_random()
             if isinstance(llm_model, str):
                 llm_model = ModelZoo.get_model_by_id(llm_model)
             if llm_model in self.active_models:
@@ -189,7 +189,7 @@ class ModelManager(BaseModel):
         else:
             dict_messages = [{"content": message, "role": role} for message, role in zip(messages, roles)]
 
-        async with self.lock:
+        async with self.rlock:
             if isinstance(model, str):
                 model = ModelZoo.get_model_by_id(model)
             if not model:
@@ -197,7 +197,7 @@ class ModelManager(BaseModel):
 
         model_instance: ReproducibleVLLM = await self.get_model(model)
 
-        async with self.lock:
+        async with self.rlock:
             if model_instance is None:
                 raise ValueError("Model is None, which may indicate the model is still loading.")
             responses = await model_instance.generate(
