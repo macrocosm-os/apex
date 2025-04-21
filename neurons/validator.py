@@ -103,7 +103,7 @@ def start_api(
     scoring_queue: list,
     reward_events: list,
     miners_dict: dict,
-    event: Event,
+    event_stop: Event,
 ):
     from prompting.api.api import start_scoring_api  # noqa: F401
 
@@ -126,7 +126,7 @@ def start_api(
             logger.warning(f"Failed to serve scoring api to chain: {e}")
         await start_scoring_api(task_scorer, scoring_queue, reward_events, miners_dict)
 
-        while event.is_set():
+        while not event_stop.is_set():
             await asyncio.sleep(10)
 
     asyncio.run(start())
@@ -145,7 +145,8 @@ def start_task_sending_loop(
         task_sender = TaskSender()
         asyncio.create_task(task_sender.start(task_queue, scoring_queue, miners_dict, simultaneous_loops=1))
         logger.debug("Task sending loop started")
-        while event_stop.is_set():
+
+        while not event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Task sending loop is running")
 
@@ -164,7 +165,7 @@ def start_availability_checking_loop(miners_dict: dict, event_stop: Event):
 
         logger.info("Starting availability checking loop in validator...")
         asyncio.create_task(availability_checking_loop.start(miners_dict))
-        while event_stop.is_set():
+        while not event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Availability checking loop is running")
 
@@ -183,7 +184,7 @@ def start_weight_setter_loop(reward_events, event_stop: Event):
 
         logger.info("Starting weight setter loop in validator...")
         asyncio.create_task(weight_setter.start(reward_events))
-        while event_stop.is_set():
+        while not event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Weight setter loop is running")
 
