@@ -69,13 +69,14 @@ class ModelManager(BaseModel):
             force: If enabled, will unload all other models.
         """
         async with self.lock:
-            if model_config in self.active_models:
+            active_models = list(self.active_models)
+            if model_config in active_models:
                 logger.debug(f"Model {model_config.llm_model_id} is already loaded.")
                 return self.active_models[model_config]
 
             if force:
                 logger.debug(f"Forcing model {model_config.llm_model_id} to load.")
-                for active_model in self.active_models:
+                for active_model in active_models:
                     if active_model in self.always_active_models:
                         continue
                     logger.debug(f"Unloading {active_model.llm_model_id} to make room for {model_config.llm_model_id}")
