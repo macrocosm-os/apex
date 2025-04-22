@@ -191,21 +191,17 @@ class ReproducibleVLLM:
             if hasattr(self.model, "llm_engine") and hasattr(self.model.llm_engine, "driver_worker"):
                 del self.model.llm_engine.driver_worker
             if hasattr(self.model, "model"):
-                self.model = None
                 del self.model
             if hasattr(self.model, "tokenizer"):
-                self.tokenizer = None
                 del self.tokenizer
 
             gc.collect()
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
             if torch.distributed.is_initialized():
                 torch.distributed.destroy_process_group()
-
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
             logger.info("Successfully deleted the LLM pipeline and freed GPU memory")
-
-        except Exception as e:
+        except BaseException as e:
             logger.error(f"An error occurred during model unloading: {e}")
             gc.collect()
             if torch.cuda.is_available():

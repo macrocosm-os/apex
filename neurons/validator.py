@@ -270,7 +270,7 @@ async def main(
                 block = settings.shared_settings.block
                 if (
                     block - settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID] > 500
-                    and step > 150
+                    and step > 120
                 ):
                     event_stop.set()
                     last_update_block = settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID]

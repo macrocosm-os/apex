@@ -49,17 +49,14 @@ class AsyncRLock:
 
 class ModelManager(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    always_active_models: list[ModelConfig] = []
     total_ram: float = settings.shared_settings.LLM_MODEL_RAM
     active_models: dict[ModelConfig, ReproducibleVLLM] = {}
+    loading_tasks: dict[ModelConfig, asyncio.Future] = {}
     used_ram: float = 0.0
-    rlock: ClassVar[AsyncRLock] = AsyncRLock()
+    lock: ClassVar[AsyncRLock] = AsyncRLock()
+    # lock: ClassVar[AsyncRLock] = asyncio.Lock()
 
-    async def load_always_active_models(self):
-        for model_config in self.always_active_models:
-            await self.load_model(model_config=model_config)
-
-    async def load_model(self, model_config: ModelConfig, force: bool = False) -> ReproducibleVLLM:
+    async def load_model(self, model_config: ModelConfig, force: bool = True) -> ReproducibleVLLM:
         """Load model into GPU.
 
         Warning: This operation will block execution until the model is successfully loaded into VRAM.
@@ -68,57 +65,41 @@ class ModelManager(BaseModel):
             model_config: Model config to load.
             force: If enabled, will unload all other models.
         """
-        async with self.rlock:
-            if model_config in self.active_models:
+        async with self.lock:
+            # Copy active models, since they will be modified in the loop.
+            active_models = set(self.active_models.keys())
+
+            if model_config in active_models:
                 logger.debug(f"Model {model_config.llm_model_id} is already loaded.")
                 return self.active_models[model_config]
 
             if force:
                 logger.debug(f"Forcing model {model_config.llm_model_id} to load.")
-                for active_model in self.active_models:
-                    if active_model in self.always_active_models:
-                        continue
+                for active_model in active_models:
                     logger.debug(f"Unloading {active_model.llm_model_id} to make room for {model_config.llm_model_id}")
-
                     await self._unload_model(active_model)
                 await self.cleanup()
 
-            retries_max = 1
-            retry_counter = 0
-            retry_delay = 15
-            while True:
-                try:
-                    GPUInfo.log_gpu_info()
-                    model_class = model_factory(model_config.llm_model_id)
-                    model = model_class(
-                        model_id=model_config.llm_model_id,
-                        device=settings.shared_settings.NEURON_DEVICE,
-                        sampling_params=settings.shared_settings.SAMPLING_PARAMS,
-                    )
-                    self.used_ram += model_config.min_ram
-                    logger.info(
-                        f"Model {model_config.llm_model_id} has been successfully loaded. "
-                        f"Approx. used VRAM: {self.used_ram:.0f}GB"
-                    )
-                    self.active_models[model_config] = model
-                    await asyncio.sleep(1.0)
-                    return model
-                except BaseException as e:
-                    if retry_counter > retries_max:
-                        logger.error(f"Failed to load model after {retries_max} retries. Terminating process")
-                        await self.cleanup()
-                        # In case of VRAM leak, raise an exception to terminate the process.
-                        raise MemoryError
-
-                    retry_counter += 1
-                    retry_delay += retry_counter
-                    await self.cleanup()
-                    logger.error(
-                        f"Failed to load model {model_config.llm_model_id}. Retrying in {retry_delay} seconds. "
-                        f"Error: {str(e)}"
-                    )
-                    logger.debug(f"Current active models: {self.active_models}")
-                    await asyncio.sleep(retry_delay)
+            try:
+                GPUInfo.log_gpu_info()
+                model_class = model_factory(model_config.llm_model_id)
+                model = model_class(
+                    model_id=model_config.llm_model_id,
+                    device=settings.shared_settings.NEURON_DEVICE,
+                    sampling_params=settings.shared_settings.SAMPLING_PARAMS,
+                )
+                self.active_models[model_config] = model
+                self.used_ram += model_config.min_ram
+                logger.info(
+                    f"Model {model_config.llm_model_id} has been successfully loaded. "
+                    f"Approx. used VRAM: {self.used_ram:.0f}GB"
+                )
+                await asyncio.sleep(1.0)
+                return model
+            except BaseException as e:
+                await self.cleanup()
+                # In case of VRAM leak, raise an exception to terminate the process.
+                raise MemoryError(f"Failed to load model {model_config.llm_model_id}: {e}")
 
     async def _cleanup_model(self, model_instance: ReproducibleVLLM, cpu_offload: bool = False):
         """Free VRAM from given model."""
@@ -144,13 +125,10 @@ class ModelManager(BaseModel):
             return
 
         try:
-            async with self.rlock:
-                model_instance = self.active_models.pop(model_config)
-
-            # Record initial memory state for debugging.
             initial_free_memory = GPUInfo.free_memory
             logger.debug(f"Initial free GPU memory before unloading: {initial_free_memory} GB")
-
+            # async with self.rlock:
+            model_instance = self.active_models.pop(model_config)
             await self._cleanup_model(model_instance, cpu_offload=False)
             await self.cleanup()
 
@@ -166,7 +144,7 @@ class ModelManager(BaseModel):
         GPUInfo.log_gpu_info()
 
     async def get_model(self, llm_model: ModelConfig | str) -> ReproducibleVLLM:
-        async with self.rlock:
+        async with self.lock:
             if not llm_model:
                 llm_model = next(iter(self.active_models.keys())) if self.active_models else ModelZoo.get_random()
             if isinstance(llm_model, str):
@@ -174,7 +152,7 @@ class ModelManager(BaseModel):
             if llm_model in self.active_models:
                 return self.active_models[llm_model]
 
-        return await self.load_model(llm_model, force=True)
+        return await self.load_model(llm_model)
 
     async def generate(
         self,
@@ -189,7 +167,7 @@ class ModelManager(BaseModel):
         else:
             dict_messages = [{"content": message, "role": role} for message, role in zip(messages, roles)]
 
-        async with self.rlock:
+        async with self.lock:
             if isinstance(model, str):
                 model = ModelZoo.get_model_by_id(model)
             if not model:
@@ -197,7 +175,7 @@ class ModelManager(BaseModel):
 
         model_instance: ReproducibleVLLM = await self.get_model(model)
 
-        async with self.rlock:
+        async with self.lock:
             if model_instance is None:
                 raise ValueError("Model is None, which may indicate the model is still loading.")
             responses = await model_instance.generate(
