@@ -200,11 +200,29 @@ def start_weight_setter_loop(reward_events, event_stop: Event):
         raise
 
 
-def health_check(parent_pid: int, event_stop: Event):
+def health_check(task_queue: list, scoring_queue: list, reward_events: list, parent_pid: int, event_stop: Event):
     """Monitor parent process and kill all child processes in case of emergency."""
     step = 0
+    staled_queues = 0
+    prev_tasks_len = len(task_queue)
+    prev_scoring_len = len(scoring_queue)
+    prev_rewards_len = len(reward_events)
     while True:
         try:
+            if (
+                prev_scoring_len == len(scoring_queue)
+                or prev_tasks_len == len(task_queue)
+                or prev_rewards_len == len(reward_events)
+            ):
+                staled_queues += 1
+            else:
+                staled_queues = 0
+
+            if staled_queues > 20:
+                event_stop.set()
+                logger.warning("Staled queues detected. Killing all child processes")
+                os.killpg(0, signal.SIGKILL)
+
             if not psutil.pid_exists(parent_pid):
                 event_stop.set()
                 logger.warning("Parent process died, killing all child processes")
@@ -219,6 +237,7 @@ def health_check(parent_pid: int, event_stop: Event):
                     f"Staled block: {block}, Last update: {last_update_block}"
                 )
                 os.killpg(0, signal.SIGKILL)
+
             step += 1
 
         except Exception as e:

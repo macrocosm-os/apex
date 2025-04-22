@@ -51,10 +51,8 @@ class ModelManager(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     total_ram: float = settings.shared_settings.LLM_MODEL_RAM
     active_models: dict[ModelConfig, ReproducibleVLLM] = {}
-    loading_tasks: dict[ModelConfig, asyncio.Future] = {}
     used_ram: float = 0.0
     lock: ClassVar[AsyncRLock] = AsyncRLock()
-    # lock: ClassVar[AsyncRLock] = asyncio.Lock()
 
     async def load_model(self, model_config: ModelConfig, force: bool = True) -> ReproducibleVLLM:
         """Load model into GPU.
@@ -233,7 +231,7 @@ class ModelManager(BaseModel):
 class AsyncModelScheduler(AsyncLoopRunner):
     llm_model_manager: ModelManager
     mp_lock: AcquirerProxy
-    interval: int = 1200
+    interval: int = 1800
     scoring_queue: list | None = None
     memory_error: MemoryError | None = None
 
