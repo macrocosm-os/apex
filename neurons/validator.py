@@ -3,10 +3,12 @@ import atexit
 import os
 import signal
 import sys
+import time
 from multiprocessing.managers import AcquirerProxy
 from multiprocessing.synchronize import Event
 
 import netaddr
+import psutil
 import requests
 import torch
 import torch.multiprocessing as mp
@@ -198,6 +200,34 @@ def start_weight_setter_loop(reward_events, event_stop: Event):
         raise
 
 
+def health_check(parent_pid: int, event_stop: Event):
+    """Monitor parent process and kill all child processes in case of emergency."""
+    step = 0
+    while True:
+        try:
+            if not psutil.pid_exists(parent_pid):
+                event_stop.set()
+                logger.warning("Parent process died, killing all child processes")
+                os.killpg(0, signal.SIGKILL)
+
+            block = settings.shared_settings.block
+            if block - settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID] > 320 and step > 60:
+                event_stop.set()
+                last_update_block = settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID]
+                logger.warning(
+                    f"Metagraph hasn't been updated for {block - last_update_block} blocks. "
+                    f"Staled block: {block}, Last update: {last_update_block}"
+                )
+                os.killpg(0, signal.SIGKILL)
+            step += 1
+
+        except Exception as e:
+            logger.error(f"Failed to kill process group: {e}")
+        finally:
+            sys.exit(1)
+        time.sleep(60)
+
+
 async def main(
     cache_rewards: list | None = None,
     cache_scores: list | None = None,
@@ -269,24 +299,18 @@ async def main(
             weight_setter_process.start()
             processes.append(weight_setter_process)
 
-            GPUInfo.log_gpu_info()
+            health_check_process = mp.Process(
+                target=health_check,
+                args=(os.getpid(), event_stop),
+                name="HealthCheckProcess",
+                daemon=True,
+            )
+            health_check_process.start()
+            processes.append(health_check_process)
 
-            step = 0
+            GPUInfo.log_gpu_info()
             while True:
                 await asyncio.sleep(30)
-                block = settings.shared_settings.block
-                if (
-                    block - settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID] > 500
-                    and step > 120
-                ):
-                    event_stop.set()
-                    last_update_block = settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID]
-                    logger.warning(
-                        f"Metagraph hasn't been updated for {block - last_update_block} blocks. "
-                        f"Staled block: {block}, Last update: {last_update_block}"
-                    )
-                    break
-                step += 1
 
         except KeyboardInterrupt:
             event_stop.set()
