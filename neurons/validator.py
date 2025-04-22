@@ -211,8 +211,8 @@ def health_check(task_queue: list, scoring_queue: list, reward_events: list, par
         try:
             if (
                 prev_scoring_len == len(scoring_queue)
-                or prev_tasks_len == len(task_queue)
-                or prev_rewards_len == len(reward_events)
+                and prev_tasks_len == len(task_queue)
+                and prev_rewards_len == len(reward_events)
             ):
                 staled_queues += 1
             else:
