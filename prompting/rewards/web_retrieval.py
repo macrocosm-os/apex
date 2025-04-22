@@ -117,9 +117,9 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
         """
         fallback_age = 1_000_000
         try:
-            w = whois.whois(domain)
+            w = await asyncio.to_thread(whois.whois, domain)
             creation_date = w.creation_date
-            if isinstance(creation_date, list):
+            if isinstance(creation_date, list) and creation_date:
                 creation_date = creation_date[0]
 
             if creation_date is None:
@@ -260,7 +260,7 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
 
     @staticmethod
     def _parse_response(completion: str) -> tuple[str | None, ...]:
-        result = []
+        result: list[WebsiteResult] = []
         try:
             data = json.loads(completion)
             if not isinstance(data, list) and isinstance(data, dict):
@@ -273,6 +273,6 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
                 response_relevant = website.get("relevant")
                 result.append(WebsiteResult(url=response_url, content=response_content, relevant=response_relevant))
             return result
-        except json.JSONDecodeError:
+        except BaseException:
             result = []
         return result

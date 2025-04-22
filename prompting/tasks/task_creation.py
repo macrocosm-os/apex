@@ -7,8 +7,6 @@ from pydantic import ConfigDict
 from prompting.miner_availability.miner_availability import MinerAvailabilities
 from prompting.tasks.task_registry import TaskRegistry
 from shared import settings
-
-# from shared.logging import ErrorLoggingEvent, ValidatorLoggingEvent
 from shared.loop_runner import AsyncLoopRunner
 from shared.timer import Timer
 
@@ -20,7 +18,7 @@ RETRIES = 3
 class TaskLoop(AsyncLoopRunner):
     is_running: bool = False
     thread: threading.Thread = None
-    interval: int = 0
+    interval: int = 1
     task_queue: list | None = []
     scoring_queue: list | None = []
     miners_dict: dict | None = None
@@ -41,14 +39,12 @@ class TaskLoop(AsyncLoopRunner):
             return None
         try:
             task = None
-            # Getting task and dataset
             for i in range(RETRIES):
                 try:
-                    logger.debug(f"Retry: {i}")
                     task = TaskRegistry.create_random_task_with_dataset()
                     break
                 except Exception as ex:
-                    logger.exception(ex)
+                    logger.error(f"Failed to get task or dataset entry: {ex}")
                 await asyncio.sleep(0.1)
 
             if (
@@ -68,7 +64,6 @@ class TaskLoop(AsyncLoopRunner):
                 logger.warning(f"Dataset for task {task.__class__.__name__} returned None. Skipping step.")
                 return None
 
-            # Generate the query for the task
             with Timer(label=f"Generating query for task: {task.__class__.__name__}"):
                 if not task.query:
                     logger.debug(f"Generating query for task: {task.__class__.__name__}.")

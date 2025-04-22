@@ -1,11 +1,3 @@
-from loguru import logger
-
-try:
-    import torch
-    from transformers import AutoModelForImageTextToText, AutoProcessor
-except ImportError:
-    logger.warning("Transformers or torch is not installed. This module will not be available.")
-
 from prompting.llms.vllm_llm import ReproducibleVLLM
 
 

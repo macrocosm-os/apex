@@ -11,15 +11,31 @@ from shared import settings
 from shared.dendrite import DendriteResponseEvent
 
 shared_settings = settings.shared_settings
-INCORRECT_PENALTY = 1
-INCOMPLETE_PENALTY = 1
+INCORRECT_PENALTY = 0.5
+INCOMPLETE_PENALTY = 0.25
+MIN_SMOOTH_REWARD = 0.6
 VERIFICATION_RATIO = 0.1
 VERIFICATION_THRESHOLD = 0.9
 
 
-def normalize_timing(timing: float, timings: float) -> float:
+def smooth_timings_reward(timings_uid: list[float], min_reward: float = MIN_SMOOTH_REWARD) -> float:
+    """Return smooth stream ration based on the deviation between chunks timings.
+
+    Args:
+        timings_uid: List of timings for a specific miner.
+
+    Returns:
+        float: Smoothed penalty value.
     """
-    Normalize the timing so that a lower timing (i.e. faster response) is closer to 1.
+    if not timings_uid:
+        return 0.0
+
+    smooth_penalty = np.std(timings_uid)
+    return max(min_reward, 1.0 - smooth_penalty)
+
+
+def normalize_timing(timing: float, timings: float) -> float:
+    """Normalize the timing so that a lower timing (i.e. faster response) is closer to 1.
     Ensures the normalized value is between 0 and 1.
     """
 
@@ -34,16 +50,15 @@ def normalize_timing(timing: float, timings: float) -> float:
     return min(1, max(0, (last_chunk - timing) / last_chunk))
 
 
-def verify_single_logit(original_logits, verification_logits):
-    """
-    Verify logits by computing cosine similarity between original and verification logits.
+def verify_single_logit(original_logits: dict[str, float], verification_logits: dict[str, float]) -> float:
+    """Verify logits by computing cosine similarity between original and verification logits.
 
     Args:
-        original_logits: Original model logits
-        verification_logits: Verification model logits
+        original_logits: Original model logits.
+        verification_logits: Verification model logits.
 
     Returns:
-        float: Cosine similarity score
+        float: Cosine similarity score.
     """
     # Create aligned vectors with same token ordering
     all_tokens = set(original_logits.keys()) | set(verification_logits.keys())
@@ -64,7 +79,7 @@ def verify_single_logit(original_logits, verification_logits):
     # Calculate cosine similarity
     orig_vec = orig_vec / np.linalg.norm(orig_vec)
     verif_vec = verif_vec / np.linalg.norm(verif_vec)
-    return np.dot(orig_vec, verif_vec)
+    return float(np.dot(orig_vec, verif_vec))
 
 
 class LogitsRewardModel(BaseRewardModel):
@@ -76,11 +91,7 @@ class LogitsRewardModel(BaseRewardModel):
         model_manager: ModelManager,
         **kwargs,
     ) -> BatchRewardOutput:
-        """
-        Calculates rewards based on the logits of the response and verifies them.
-        """
-
-        # Check that the model_manager is set
+        """Calculate rewards based on the logits of the response and verifies them."""
         if model_manager is None:
             raise ValueError("Model manager must be set")
 
@@ -96,52 +107,48 @@ class LogitsRewardModel(BaseRewardModel):
             timings=np.array([0.0] * len(completions)),
         )
 
-        max_length = 0
-        for chunk in all_chunks:
-            if chunk and max_length < len(chunk):
-                max_length = len(chunk)
-
-        if max_length == 0:
-            logger.debug("No chunks to verify, penalizing all")
+        if all(not chunk for chunk in all_chunks):
+            logger.warning("No chunks to verify, penalizing all miners")
             return PENALIZE_ALL
 
         if timeout <= 0:
-            logger.error("Timeout must be greater than 0. Received timeout: {}", timeout)
+            logger.error(f"Timeout must be greater than 0. Received timeout: {timeout}")
             raise ValueError("Timeout must be greater than 0.")
 
-        timing_outputs, rewards = [], []
-        num_verify = max(1, int(max_length * VERIFICATION_RATIO))
-        verify_indices = random.sample(
-            range(max_length - 1), num_verify - 1
-        )  # Sample one less to save room for last index
-        verify_indices.append(max_length - 1)  # Always verify the last index
-        verify_indices.sort()
-
-        # Iterate over each response event
-
+        # If max_tokens are not provided, always check for eos.
+        max_tokens = sampling_parameters.get("max_tokens", float("inf"))
+        model = await model_manager.get_model(task.llm_model_id)
+        eos_token = model.tokenizer.eos_token
+        timing_outputs = []
+        rewards = []
+        # Iterate over each miner response.
         for chunks, timings, chunk_dicts_raw, uid in zip(all_chunks, all_timings, all_chunk_dicts_raw, uids):
             try:
-                # If no response is provided, apply full penalty
+                # If no response is provided, apply full penalty.
                 if not chunks:
                     rewards.append(-INCORRECT_PENALTY)
                     timing_outputs.append(0.0)
                     continue
 
-                # Verify logits for selected indices
-                verification_scores = []
                 completion_length = len(chunks)
+                # Sample from 1 to 20 indices for verification.
+                num_verify = max(1, min(20, int(completion_length * VERIFICATION_RATIO)))
+                # Sample one less to save room for last index.
+                verify_indices = random.sample(range(completion_length - 1), num_verify - 1)
+                # Always verify the last index.
+                last_idx = completion_length - 1
+                verify_indices.append(last_idx)
+                verify_indices.sort()
+                # Verify logits for selected indices.
+                verification_scores = []
 
                 for idx in verify_indices:
                     check_idx = min(idx, completion_length - 1)
                     if not chunk_dicts_raw[check_idx].choices[0].logprobs:
-                        logger.debug(f"Miner {uid} failed to provide logprobs: {chunk_dicts_raw[check_idx]}")
-                        verification_scores.append(0.0)
-                        continue
+                        raise ValueError("No logprobs provided")
 
                     if chunk_dicts_raw[check_idx].choices[0].logprobs.content is None:
-                        logger.debug(f"Miner {uid} failed to provide logprobs content: {chunk_dicts_raw[check_idx]}")
-                        verification_scores.append(0.0)
-                        continue
+                        raise ValueError("Logprobs content is empty")
 
                     original_logits = {
                         info.token: info.logprob
@@ -157,28 +164,36 @@ class LogitsRewardModel(BaseRewardModel):
 
                     logit_score = verify_single_logit(original_logits, verification_output)
                     verification_scores.append(logit_score)
-                    if idx >= completion_length:
-                        break
-                final_score = np.mean(verification_scores)
 
-                # Compute timing reward
-                valid_chunks = []
+                    if idx == last_idx and completion_length < max_tokens:
+                        if eos_token and (eos_token not in original_logits or eos_token not in verification_output):
+                            # Do not set full penalty, since top_k = 50 and top_lobprobs = 10.
+                            # TODO: Make top_k equal to top_logprobs and check for token in top_logprobs.
+                            verification_scores = [-INCOMPLETE_PENALTY]
+
+                final_score = float(np.mean(verification_scores))
+                if final_score < VERIFICATION_THRESHOLD:
+                    rewards.append(0.0)
+                    timing_outputs.append(0.0)
+                    continue
+
+                valid_chunks: list[float] = []
                 for chunk, timing in zip(chunks, timings):
                     if chunk:
                         valid_chunks.append(normalize_timing(timing, all_timings))
+                timing_reward = float(np.mean(valid_chunks)) if valid_chunks else 0.0
+                smooth_reward = smooth_timings_reward(timings)
 
-                timing_reward = np.mean(valid_chunks) if valid_chunks else 0.0
-
-                rewards.append(float(final_score > VERIFICATION_THRESHOLD) * timing_reward)
+                rewards.append(final_score * timing_reward * smooth_reward)
                 timing_outputs.append(np.array(valid_chunks).mean())
-            except Exception as e:
-                logger.debug(f"Miner {uid} failed to provide logits chunk, setting reward to 0: {e}")
-                rewards.append(0.0)
+            except BaseException as e:
+                logger.debug(f"Miner {uid} failed to pass logits check: {e}")
+                rewards.append(-INCORRECT_PENALTY)
                 timing_outputs.append(0.0)
 
         reward_output = BatchRewardOutput(
             rewards=np.array(rewards),
             timings=np.array(timing_outputs),
         )
-        logger.debug(f"REWARD OUTPUT: {reward_output.model_dump()}")
+        logger.debug(f"Logits rewards: {reward_output.model_dump()}")
         return reward_output

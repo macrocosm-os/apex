@@ -186,13 +186,29 @@ class ReproducibleVLLM:
             torch.backends.cudnn.benchmark = False
 
     def unload_model(self):
-        destroy_model_parallel()
-        del self.model.llm_engine.driver_worker
-        del self.model
-        gc.collect()
-        torch.cuda.empty_cache()
-        torch.distributed.destroy_process_group()
-        logger.info("Successfully delete the llm pipeline and free the GPU memory!")
+        try:
+            destroy_model_parallel()
+            if hasattr(self.model, "llm_engine") and hasattr(self.model.llm_engine, "driver_worker"):
+                del self.model.llm_engine.driver_worker
+            if hasattr(self.model, "model"):
+                del self.model
+            if hasattr(self.model, "tokenizer"):
+                del self.tokenizer
+
+            gc.collect()
+            if torch.distributed.is_initialized():
+                torch.distributed.destroy_process_group()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            logger.info("Successfully deleted the LLM pipeline and freed GPU memory")
+        except BaseException as e:
+            logger.error(f"An error occurred during model unloading: {e}")
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+
+    def __del__(self):
+        self.unload_model()
 
     @staticmethod
     def format_messages(messages: list[str] | list[dict[str, str]]) -> list[dict[str, str | list[dict[str, str]]]]:

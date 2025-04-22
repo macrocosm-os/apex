@@ -241,10 +241,7 @@ def log_event(event: BaseEvent):
         if should_reinit_wandb():
             reinit_wandb()
         unpacked_event = recursive_model_dump(event)
-        # Attempt to serialize the event
         try:
-            serialized_event = json.dumps(unpacked_event)
-        except Exception as e:
-            logger.error(f"Error serializing event: {e}")
-            logger.error(f"Event: {unpacked_event}")
-        wandb.log(unpacked_event)
+            wandb.log(unpacked_event)
+        except BaseException as e:
+            logger.error(f"Error during wandb log {e}: {unpacked_event}")

@@ -47,7 +47,7 @@ class DDGDataset(BaseDataset):
                 website = trafilatura.fetch_url(url)
                 extracted = trafilatura.extract(website)
                 return extracted[:MAX_CHARS] if extracted else None
-            except Exception as ex:
+            except BaseException as ex:
                 exception = ex
         logger.debug(f"Failed to extract content from website {url} after {retries} retries: {exception}")
 

@@ -149,16 +149,16 @@ async def query_miners(
         responses_valid = 0
         responses_error = 0
         responses_exception = 0
-        exception_info: Exception | None = None
         results: list[SynapseStreamResult] = []
         for response, uid in zip(responses, uids):
             if isinstance(response, Exception):
                 responses_exception += 1
-                exception_info = response
                 results.append(SynapseStreamResult(exception=str(response)))
             elif isinstance(response, tuple) and isinstance(response[0], ChatCompletion):
                 if response and response[1]:
                     responses_valid += 1
+                else:
+                    responses_error += 1
                 results.append(
                     SynapseStreamResult(
                         uid=uid,
@@ -174,8 +174,8 @@ async def query_miners(
 
         logger.info(
             f"Responses success: {responses_valid}/{len(uids)}. "
-            f"Responses exception: {responses_exception}/{len(uids)} [{exception_info}]. "
-            f"Reponses error: {responses_error}/{len(uids)}"
+            f"Responses exception: {responses_exception}/{len(uids)}. "
+            f"Reponses invalid: {responses_error}/{len(uids)}"
         )
         return results
     except Exception as e:

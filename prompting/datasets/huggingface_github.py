@@ -16,7 +16,7 @@ MAX_FILE_SIZE = 100_000
 MIN_INPUT_LINES = 10
 OUTPUT_LINES = 10
 MAX_LINES = 500
-RETRIES = 50  # Increased retry limit
+RETRIES = 50
 DEFAULT_NUM_SHARDS = 1126
 RANDOM_SKIP = 100
 
@@ -76,11 +76,23 @@ class HuggingFaceGithubDataset(BaseDataset):
         )
 
     def _process_entry(self, entry: dict) -> HuggingFaceGithubDatasetEntry:
-        file_content = "\n".join(entry["content"].split("\n")[:MAX_LINES])
-        url = f"https://github.com/{entry['repo_name']}"
-        return HuggingFaceGithubDatasetEntry(
-            github_url=url, file_path=entry["path"], file_content=file_content, source=url
-        )
+        """Process and return HF sample for programming task.
+
+        Raises:
+            ValueError: If sample is corrupted.
+        """
+        if not entry:
+            raise ValueError("Empty file retrieved for programming task.")
+
+        content = entry.get("content")
+        repo_name = entry.get("repo_name")
+        path = entry.get("path")
+        if not content or not repo_name or not path:
+            raise ValueError("Corrupted file retrieved for programming task.")
+
+        file_content = "\n".join(content.split("\n")[:MAX_LINES])
+        url = f"https://github.com/{repo_name}"
+        return HuggingFaceGithubDatasetEntry(github_url=url, file_path=path, file_content=file_content, source=url)
 
     def _try_sample(self) -> dict[str, str]:
         """Return the next record from the current shard.
@@ -94,16 +106,22 @@ class HuggingFaceGithubDataset(BaseDataset):
             entry = next(HuggingFaceGithubDataset.current_shard_iterator)
         return entry
 
-    def next(self) -> HuggingFaceGithubDatasetEntry:
+    def next(self) -> HuggingFaceGithubDatasetEntry | None:
+        """Return HF sample for programming task.
+
+        Raises:
+            ValueError: If failed to obtain any sample from HF dataset.
+        """
         for _ in range(random.randint(0, RANDOM_SKIP)):
             self._try_sample()
 
-        while True:
+        for _ in range(RETRIES):
             try:
                 entry = self._try_sample()
                 return self._process_entry(entry)
             except BaseException as e:
-                logger.warning(f"Failed to sample from shard: {e}")
+                logger.debug(f"Failed to sample from shard, skipping: {e}")
+        raise ValueError(f"Failed to get sample from shard after {RETRIES} retries.")
 
     def get(self) -> HuggingFaceGithubDatasetEntry:
         return self.next()
