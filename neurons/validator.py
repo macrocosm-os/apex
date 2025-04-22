@@ -217,6 +217,9 @@ def health_check(task_queue: list, scoring_queue: list, reward_events: list, par
                 staled_queues += 1
             else:
                 staled_queues = 0
+                prev_tasks_len = len(task_queue)
+                prev_scoring_len = len(scoring_queue)
+                prev_rewards_len = len(reward_events)
 
             if staled_queues > 15:
                 event_stop.set()
