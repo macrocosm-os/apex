@@ -172,9 +172,8 @@ class LogitsRewardModel(BaseRewardModel):
                             verification_scores = [-INCOMPLETE_PENALTY]
 
                 final_score = float(np.mean(verification_scores))
-                logger.debug(f"Final score for miner {uid}: {final_score}")
                 if final_score < VERIFICATION_THRESHOLD:
-                    rewards.append(-INCORRECT_PENALTY)
+                    rewards.append(0.0)
                     timing_outputs.append(0.0)
                     continue
 
