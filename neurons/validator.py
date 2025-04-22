@@ -218,7 +218,7 @@ def health_check(task_queue: list, scoring_queue: list, reward_events: list, par
             else:
                 staled_queues = 0
 
-            if staled_queues > 20:
+            if staled_queues > 15:
                 event_stop.set()
                 logger.warning("Staled queues detected. Killing all child processes")
                 os.killpg(0, signal.SIGKILL)
@@ -320,7 +320,7 @@ async def main(
 
             health_check_process = mp.Process(
                 target=health_check,
-                args=(os.getpid(), event_stop),
+                args=(task_queue, scoring_queue, reward_events, os.getpid(), event_stop),
                 name="HealthCheckProcess",
                 daemon=True,
             )
