@@ -1,4 +1,5 @@
 import asyncio
+import atexit
 import os
 import signal
 import sys
@@ -221,7 +222,10 @@ async def main(
             if settings.shared_settings.DEPLOY_SCORING_API and not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
                 # Use multiprocessing to bypass API blocking issue
                 api_process = mp.Process(
-                    target=start_api, args=(scoring_queue, reward_events, miners_dict, event_stop), name="APIProcess"
+                    target=start_api,
+                    args=(scoring_queue, reward_events, miners_dict, event_stop),
+                    name="APIProcess",
+                    daemon=True,
                 )
                 api_process.start()
                 processes.append(api_process)
@@ -230,6 +234,7 @@ async def main(
                 target=start_availability_checking_loop,
                 args=(miners_dict, event_stop),
                 name="AvailabilityProcess",
+                daemon=True,
             )
             availability_process.start()
             processes.append(availability_process)
@@ -250,6 +255,7 @@ async def main(
                 target=start_task_sending_loop,
                 args=(task_queue, scoring_queue, miners_dict, event_stop),
                 name="SendingTaskProcess",
+                daemon=True,
             )
             sending_task.start()
             processes.append(sending_task)
@@ -258,6 +264,7 @@ async def main(
                 target=start_weight_setter_loop,
                 args=(reward_events, event_stop),
                 name="WeightSetterProcess",
+                daemon=True,
             )
             weight_setter_process.start()
             processes.append(weight_setter_process)
@@ -307,10 +314,18 @@ async def main(
     sys.exit(1)
 
 
+def kill_process_group():
+    try:
+        os.killpg(os.getpgid(0), signal.SIGKILL)
+    except Exception as e:
+        logger.error(f"Failed to kill process group: {e}")
+
+
 # The main function parses the configuration and runs the validator.
 if __name__ == "__main__":
     try:
         os.setpgrp()
+        atexit.register(kill_process_group)
     except BaseException:
         logger.warning("Failed to set process group; emergency termination may not work.")
     asyncio.run(main())
