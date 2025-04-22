@@ -170,12 +170,11 @@ class LogitsRewardModel(BaseRewardModel):
                             # Do not set full penalty, since top_k = 50 and top_lobprobs = 10.
                             # TODO: Make top_k equal to top_logprobs and check for token in top_logprobs.
                             verification_scores = [-INCOMPLETE_PENALTY]
-                            logger.debug(f"Incomplete response, setting reward to {-INCOMPLETE_PENALTY}")
 
                 final_score = float(np.mean(verification_scores))
                 logger.debug(f"Final score for miner {uid}: {final_score}")
                 if final_score < VERIFICATION_THRESHOLD:
-                    rewards.append(0.0)
+                    rewards.append(-INCORRECT_PENALTY)
                     timing_outputs.append(0.0)
                     continue
 
