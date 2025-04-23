@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from multiprocessing.managers import AcquirerProxy
 
 from loguru import logger
 from pydantic import ConfigDict
@@ -21,6 +22,7 @@ class TaskScorer(AsyncLoopRunner):
     This scoring loop will score the responses once the LLM needed is loaded in the model_manager and log the rewards.
     """
 
+    mp_lock: AcquirerProxy | None = None
     is_running: bool = False
     model_scheduler: AsyncModelScheduler | None = None
     thread: threading.Thread = None
@@ -31,11 +33,18 @@ class TaskScorer(AsyncLoopRunner):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def start(
-        self, model_scheduler: AsyncModelScheduler, scoring_queue, reward_events, name: str | None = None, **kwargs
+        self,
+        model_scheduler: AsyncModelScheduler,
+        scoring_queue,
+        reward_events,
+        mp_lock: AcquirerProxy,
+        name: str | None = None,
+        **kwargs,
     ):
         self.scoring_queue = scoring_queue
         self.reward_events = reward_events
         self.model_scheduler = model_scheduler
+        self.mp_lock = mp_lock
         return await super().start(name=name, **kwargs)
 
     def add_to_queue(
@@ -62,18 +71,16 @@ class TaskScorer(AsyncLoopRunner):
         await asyncio.sleep(0.1)
         # Only score responses for which the model is loaded
         await self.model_scheduler.llm_model_manager.lock.acquire()
-        scorable = [
-            scoring_config
-            for scoring_config in self.scoring_queue
-            if (scoring_config.task.llm_model in self.model_scheduler.llm_model_manager.active_models.keys())
-            or (scoring_config.task.llm_model is None)
-        ]
-        if len(scorable) == 0:
-            # Run a model_scheduler step to load a new model as there are no more tasks to be scored
-            # if len(self.scoring_queue) > 0:
-            #     await self.model_scheduler.run_step()
-            return
-        self.scoring_queue.remove(scorable[0])
+        with self.mp_lock:
+            scorable = [
+                scoring_config
+                for scoring_config in self.scoring_queue
+                if (scoring_config.task.llm_model in self.model_scheduler.llm_model_manager.active_models.keys())
+                or (scoring_config.task.llm_model is None)
+            ]
+            if len(scorable) == 0:
+                return
+            self.scoring_queue.remove(scorable[0])
         scoring_config: ScoringConfig = scorable.pop(0)
 
         # here we generate the actual reference

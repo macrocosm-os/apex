@@ -16,6 +16,7 @@ from typing import Any, Literal, Optional
 import bittensor as bt
 import dotenv
 from bittensor.core.metagraph import Metagraph
+from bittensor.core.subtensor import Subtensor
 from loguru import logger
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings
@@ -32,6 +33,9 @@ class SharedSettings(BaseSettings):
     _instance_mode: Optional[str] = None
     _last_metagraph: Metagraph = None
     _last_update_time: float = 0
+    _block_sync_last_time: float = 0
+    _block_sync_interval: float = 300
+    _subtensor: Subtensor | None = None
 
     mode: Literal["api", "validator", "miner", "mock"] = Field("validator", env="MODE")
     MOCK: bool = False
@@ -258,16 +262,20 @@ class SharedSettings(BaseSettings):
         return bt.wallet(name=wallet_name, hotkey=hotkey)
 
     @cached_property
-    def SUBTENSOR(self) -> bt.subtensor:
+    def SUBTENSOR(self) -> Subtensor:
+        """Lazy subtensor initialization."""
+        if self._subtensor is not None:
+            return self._subtensor
         # TODO: Move chain-related stuff out of settings.
         subtensor_network = self.SUBTENSOR_NETWORK or os.environ.get("SUBTENSOR_NETWORK", "local")
         # bt_config = config()
         if subtensor_network.lower() == "local":
             subtensor_network = os.environ.get("SUBTENSOR_CHAIN_ENDPOINT")  # bt_config.subtensor.chain_endpoint or
         else:
-            subtensor_network = subtensor_network.lower()  # bt_config.subtensor.network or
+            subtensor_network = subtensor_network.lower()
         logger.info(f"Instantiating subtensor with network: {subtensor_network}")
-        return bt.subtensor(network=subtensor_network)
+        self._subtensor = Subtensor(network=subtensor_network)
+        return self._subtensor
 
     @property
     def METAGRAPH(self) -> Metagraph:
@@ -294,11 +302,17 @@ class SharedSettings(BaseSettings):
         # TODO: Move chain-related stuff out of settings.
         return self.METAGRAPH.hotkeys.index(self.WALLET.hotkey.ss58_address)
 
-    @cached_property
-    def DENDRITE(self) -> bt.dendrite:
+    @property
+    def block(self) -> int:
         # TODO: Move chain-related stuff out of settings.
-        logger.info(f"Instantiating dendrite with wallet: {self.WALLET}")
-        return bt.dendrite(wallet=self.WALLET)
+        time_since_last_block = time.time() - self._block_sync_last_time
+        if time_since_last_block > self._block_sync_interval:
+            self._block = self.SUBTENSOR.get_current_block()
+            self._block_sync_last_time = time.time()
+            return self._block
+
+        blocks_passed = time_since_last_block // 12
+        return self._block + blocks_passed
 
 
 try:
