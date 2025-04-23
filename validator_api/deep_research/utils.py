@@ -25,7 +25,7 @@ def parse_llm_json(json_str):
     if code_block_matches:
         # Use the first code block found
         json_str = code_block_matches[0]
-        logger.info(f"Extracted JSON from code block: {json_str}")
+        # logger.info(f"Extracted JSON from code block: {json_str}")
     else:
         raise json.JSONDecodeError(f"No JSON found in the response {json_str}")
 
