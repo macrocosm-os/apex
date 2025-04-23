@@ -11,8 +11,8 @@ import netaddr
 import psutil
 import requests
 import torch
-import torch.multiprocessing as mp
 import wandb
+import torch.multiprocessing as mp
 from bittensor.core.extrinsics.serving import serve_extrinsic
 from loguru import logger
 
@@ -22,6 +22,27 @@ from prompting.rewards.scoring import task_scorer
 # ruff: noqa: E402
 from shared import settings
 from shared.logging import init_wandb
+
+
+def init_process_logging(name: str):
+    """Initialize logging for a new process."""
+    logger.remove()  # Remove any existing handlers
+    try:
+        # Add process-specific handlers
+        logger.add(
+            f"{name}_{os.getpid()}.log",
+            rotation="100 MB",
+            retention="10 days",
+            level="DEBUG",
+            enqueue=True,  # Use queue for thread-safe logging
+        )
+        logger.add(
+            f"{name}_err_{os.getpid()}.log", rotation="100 MB", retention="10 days", level="WARNING", enqueue=True
+        )
+        logger.add(sys.stderr, level=settings.shared_settings.LOG_LEVEL, enqueue=True)
+    except Exception as e:
+        print(f"Failed to initialize logging for process {os.getpid()}: {e}")
+
 
 settings.shared_settings = settings.SharedSettings.load(mode="validator")
 
@@ -108,7 +129,10 @@ def start_api(
     miners_dict: dict,
     event_stop: Event,
 ):
-    from prompting.api.api import start_scoring_api  # noqa: F401
+    init_process_logging(name="APIProcess")
+    from prompting.api.api import start_scoring_api
+
+    logger.info("Starting API process...")
 
     async def start():
         try:
@@ -141,6 +165,8 @@ def start_task_sending_loop(
     miners_dict: dict,
     event_stop: Event,
 ):
+    init_process_logging(name="TaskSending")  # Initialize logging for task sending process
+
     async def spawn_loops(task_queue, scoring_queue, miners_dict: dict):
         from prompting.tasks.task_sending import TaskSender
 
@@ -163,6 +189,8 @@ def start_task_sending_loop(
 
 
 def start_availability_checking_loop(miners_dict: dict, event_stop: Event):
+    init_process_logging(name="AvailabilityChecking")  # Initialize logging for availability checking process
+
     async def spawn_loops(miners_dict: dict):
         from prompting.miner_availability.miner_availability import availability_checking_loop
 
@@ -182,6 +210,8 @@ def start_availability_checking_loop(miners_dict: dict, event_stop: Event):
 
 
 def start_weight_setter_loop(reward_events, event_stop: Event):
+    init_process_logging(name="WeightSetter")  # Initialize logging for weight setter process
+
     async def spawn_loops(reward_events):
         from prompting.weight_setting.weight_setter import weight_setter
 
@@ -201,6 +231,7 @@ def start_weight_setter_loop(reward_events, event_stop: Event):
 
 
 def health_check(parent_pid: int, event_stop: Event):
+    init_process_logging(name="HealthCheck")  # Initialize logging for health check process
     """Monitor parent process and kill all child processes in case of emergency."""
     step = 0
     while True:
@@ -299,14 +330,14 @@ async def main(
             weight_setter_process.start()
             processes.append(weight_setter_process)
 
-            health_check_process = mp.Process(
-                target=health_check,
-                args=(os.getpid(), event_stop),
-                name="HealthCheckProcess",
-                daemon=True,
-            )
-            health_check_process.start()
-            processes.append(health_check_process)
+            # health_check_process = mp.Process(
+            #     target=health_check,
+            #     args=(os.getpid(), event_stop),
+            #     name="HealthCheckProcess",
+            #     daemon=True,
+            # )
+            # health_check_process.start()
+            # processes.append(health_check_process)
 
             GPUInfo.log_gpu_info()
             while True:
