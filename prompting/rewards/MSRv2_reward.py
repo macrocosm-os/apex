@@ -26,7 +26,7 @@ class MSRv2RewardModel(BaseRewardModel):
         reference: str,
         response_event: DendriteResponseEvent,
         task: "MSRv2Task",
-        task_queue: list | None = None,
+        task_queue: list,
         **kwargs,
     ) -> BatchRewardOutput:
         completions: list[str] = response_event.completions
@@ -54,8 +54,8 @@ class MSRv2RewardModel(BaseRewardModel):
                     # discriminator reward is (1-Squared Error)/N_Discriminators
                     comp_value = float(comp)
                     discriminator_rewards.append((1 - (task.ground_truth - comp_value) ** 2) / len(completions))
-                except (ValueError, TypeError) as e:
-                    logger.error(f"Error converting completion to float: {e}")
+                except (ValueError, TypeError):
+                    #logger.error(f"Error converting completion to float: {e}")
                     discriminator_rewards.append(0.0)  # Assign zero reward for invalid responses
             generator_reward = 1 - sum(discriminator_rewards)
 

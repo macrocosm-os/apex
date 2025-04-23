@@ -8,7 +8,7 @@ from prompting.rewards.MSRv2_reward import MSRv2RewardModel
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.tasks.multi_step_reasoning import MultiStepReasoningTask
 from shared.base import Context
-
+from prompting.llms.model_manager import ModelManager
 
 class MSRv2RewardConfig(BaseRewardConfig):
     reward_definitions: ClassVar[list[BaseRewardModel]] = [
@@ -53,11 +53,11 @@ class MSRv2Task(MultiStepReasoningTask):
 
         return self.reference or self.generative_miner_answer
 
-    async def make_reference(self, dataset_entry: Context):
+    async def make_reference(self, dataset_entry: Context, model_manager: ModelManager):
         if self.stage == "generative":
             # Generates a real reference with probability REAL_REFERENCE_PROBABILITY, otherwise waits for miner to generate an answer
             if random.random() < self.REAL_REFERENCE_PROBABILITY:
-                return super().make_reference(dataset_entry)
+                return super().make_reference(dataset_entry, model_manager = model_manager)
             else:
                 return self.reference
         else:

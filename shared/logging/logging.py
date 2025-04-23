@@ -177,7 +177,7 @@ class RewardLoggingEvent(BaseEvent):
     response_event: DendriteResponseEvent
     reward_events: list[WeightedRewardEvent]
     task_id: str
-    reference: str
+    reference: str | None
     challenge: str | list[dict]
     task: str
     task_dict: dict
