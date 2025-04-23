@@ -122,7 +122,7 @@ class ScoringQueue(AsyncLoopRunner):
             return
 
         uids = list(map(int, uids))
-        chunk_dict = {str(u): c for u, c in zip(uids, chunks)} # TODO: Remove chunk_dict if we have chunk_dicts_raw
+        chunk_dict = {str(u): c for u, c in zip(uids, chunks)}  # TODO: Remove chunk_dict if we have chunk_dicts_raw
         if chunk_dicts_raw:
             chunk_dict_raw = {str(u): c for u, c in zip(uids, chunk_dicts_raw)}
         else:

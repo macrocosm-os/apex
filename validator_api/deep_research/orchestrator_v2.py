@@ -105,12 +105,15 @@ async def search_web(question: str, n_results: int = 5, completions=None) -> dic
         "raw_results": [{"snippet": r.content, "url": r.url} for r in search_results.results],
     }
 
+
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=15), retry=retry_if_exception_type())
-async def make_mistral_request_with_json(messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]):
+async def make_mistral_request_with_json(
+    messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
+):
     """Makes a request to Mistral API and records the query"""
     raw_response, query_record = await make_mistral_request(messages, step_name, completions)
     try:
-        parse_llm_json(raw_response) # Test if the response is jsonable
+        parse_llm_json(raw_response)  # Test if the response is jsonable
         return raw_response, query_record
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse Mistral API response as JSON: {e}")

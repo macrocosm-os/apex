@@ -304,7 +304,9 @@ async def chat_completion(
         ]
 
         return StreamingResponse(
-            stream_from_first_response(response_tasks, collected_chunks_list, collected_chunks_raw_list, body, uids, timings_list),
+            stream_from_first_response(
+                response_tasks, collected_chunks_list, collected_chunks_raw_list, body, uids, timings_list
+            ),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -373,7 +375,11 @@ async def collect_remaining_nonstream_responses(
         # TODO: Add timings.
         # Append all collected responses to the scoring queue for later processing.
         await scoring_queue.scoring_queue.append_response(
-            uids=uids, body=body, chunks=chunks, chunk_dicts_raw=None, timings=None # We do not need chunk_dicts_raw or timings for non-stream responses.
+            uids=uids,
+            body=body,
+            chunks=chunks,
+            chunk_dicts_raw=None,
+            timings=None,  # We do not need chunk_dicts_raw or timings for non-stream responses.
         )
     except Exception as e:
         logger.error(f"Error appending non-stream responses to scoring queue: {e}")
