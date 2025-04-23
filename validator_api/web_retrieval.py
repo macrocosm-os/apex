@@ -114,7 +114,7 @@ async def web_retrieval(
         raise HTTPException(status_code=500, detail="No miner responded successfully")
 
     collected_chunks_list = [res.accumulated_chunks if res and res.accumulated_chunks else [] for res in stream_results]
-    asyncio.create_task(scoring_queue.scoring_queue.append_response(uids=uids, body=body, chunks=collected_chunks_list))
+    asyncio.create_task(scoring_queue.scoring_queue.append_response(uids=uids, body=body, chunks=collected_chunks_list, chunk_dicts_raw=None, timings=None))
     loaded_results = [json.loads(r) if isinstance(r, str) else r for r in loaded_results]
     flat_results = [item for sublist in loaded_results for item in sublist]
     unique_results = []

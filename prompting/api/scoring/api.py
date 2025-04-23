@@ -15,7 +15,7 @@ from shared.dendrite import DendriteResponseEvent
 from shared.epistula import SynapseStreamResult, verify_signature
 from shared.settings import shared_settings
 
-router = APIRouter()
+router = APIRouter() 
 
 
 async def verify_scoring_signature(request: Request):

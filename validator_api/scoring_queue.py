@@ -139,7 +139,7 @@ class ScoringQueue(AsyncLoopRunner):
             "chunk_dicts_raw": chunk_dict_raw,
         }
         scoring_item = ScoringPayload(payload=payload, date=datetime.datetime.now().replace(microsecond=0))
-
+        logger.info(f"Appending organic to scoring queue: {scoring_item}")
         async with self._scoring_lock:
             if len(self._scoring_queue) >= self._queue_maxlen:
                 scoring_payload = self._scoring_queue.popleft()
