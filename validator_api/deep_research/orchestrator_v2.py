@@ -141,7 +141,7 @@ async def make_mistral_request(
     model = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
     temperature = 0.15
     top_p = 1
-    max_tokens = 256000
+    max_tokens = 128000
     sample_params = {
         "top_p": top_p,
         "max_tokens": max_tokens,
