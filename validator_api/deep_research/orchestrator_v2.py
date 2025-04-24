@@ -9,6 +9,7 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from fastapi.exceptions import HTTPException
 
 from validator_api.deep_research.utils import parse_llm_json, with_retries
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
@@ -36,7 +37,7 @@ class LLMQuery(BaseModel):
     model: str  # Which model was used
 
 
-async def search_web(question: str, n_results: int = 5, completions=None) -> dict:
+async def search_web(question: str, n_results: int = 2, completions=None) -> dict:
     """
     Takes a natural language question, generates an optimized search query, performs web search,
     and returns a referenced answer based on the search results.
@@ -95,7 +96,11 @@ async def search_web(question: str, n_results: int = 5, completions=None) -> dic
     raw_answer, answer_record = await make_mistral_request_with_json(
         messages, "generate_referenced_answer", completions=completions
     )
-    answer_data = parse_llm_json(raw_answer)
+    try:
+        answer_data = parse_llm_json(raw_answer)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Mistral API response as JSON: {e}")
+        raise
 
     return {
         "question": question,
@@ -106,7 +111,9 @@ async def search_web(question: str, n_results: int = 5, completions=None) -> dic
     }
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=15), retry=retry_if_exception_type())
+@retry(stop=stop_after_attempt(5), 
+      wait=wait_exponential(multiplier=1, min=2, max=15), 
+      retry=retry_if_exception_type(json.JSONDecodeError))
 async def make_mistral_request_with_json(
     messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
 ):
@@ -120,14 +127,16 @@ async def make_mistral_request_with_json(
         raise
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=15), retry=retry_if_exception_type())
+@retry(stop=stop_after_attempt(5), 
+      wait=wait_exponential(multiplier=1, min=2, max=15), 
+      retry=retry_if_exception_type(BaseException))
 async def make_mistral_request(
     messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
 ) -> tuple[str, LLMQuery]:
     """Makes a request to Mistral API and records the query"""
 
     model = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
-    temperature = 0.1
+    temperature = 0.15
     top_p = 1
     max_tokens = 256000
     sample_params = {
@@ -138,14 +147,12 @@ async def make_mistral_request(
     }
     logger.info(f"Making request to Mistral API with model: {model}")
     request = CompletionsRequest(messages=messages, model=model, stream=False, sampling_parameters=sample_params)
-    logger.info(f"Request: {request}")
     response = await completions(request)
-    logger.info(f"Tokens in request: {len(str(messages).split(' '))}")
-    logger.info(f"Response: {response}")
     response_content = response.choices[0].message.content
     if not response_content:
         raise ValueError(f"No response content received from Mistral API, response: {response}")
-    # Record the query
+    if "Error" in response_content:
+        raise ValueError(f"Error in Mistral API response: {response_content}")
     query_record = LLMQuery(
         messages=messages, raw_response=response_content, step_name=step_name, timestamp=time.time(), model=model
     )
@@ -218,7 +225,7 @@ class WebSearchTool(Tool):
         - references: List of numbered references with titles and URLs
         - raw_results: Raw search results used"""
 
-    async def execute(self, question: str, n_results: int = 5) -> dict:
+    async def execute(self, question: str, n_results: int = 2) -> dict:
         return await search_web(question=question, n_results=n_results, completions=self.completions)
 
 
@@ -643,7 +650,7 @@ Format your response in the following JSON structure:
             self.todo_list = updated_todo_dict["updated_todo_list"]
             logger.info(f"Updated todo list with {len(updated_todo_dict['changes_made'])} changes")
             return updated_todo_dict
-        except json.JSONDecodeError as e:
+        except BaseException as e:
             logger.error(f"Failed to parse updated todo list as JSON: {e}")
             raise
         except KeyError as e:
@@ -716,7 +723,7 @@ Focus on providing a helpful, accurate answer to what the user actually asked.""
             self.query_history.append(query_record)
 
             return final_answer_dict
-        except json.JSONDecodeError as e:
+        except BaseException as e:
             logger.error(f"Failed to parse final answer as JSON: {e}")
             raise
         except KeyError as e:
