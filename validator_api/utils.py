@@ -46,7 +46,7 @@ class UpdateMinerAvailabilitiesForAPI(AsyncLoopRunner):
                 timeout=15,
             )
             self.miner_availabilities = response.json()
-        except Exception as e:
+        except Exception:
             # logger.error(f"Error while getting miner availabilities from validator API, fallback to all uids: {e}")
             self.miner_availabilities = self._fallback_availabilities(uids=uids)
         tracked_availabilities = [m for m in self.miner_availabilities.values() if m is not None]

@@ -9,7 +9,6 @@ from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
-from fastapi.exceptions import HTTPException
 
 from validator_api.deep_research.utils import parse_llm_json, with_retries
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
@@ -111,9 +110,11 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
     }
 
 
-@retry(stop=stop_after_attempt(5), 
-      wait=wait_exponential(multiplier=1, min=2, max=5), 
-      retry=retry_if_exception_type(json.JSONDecodeError))
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=5),
+    retry=retry_if_exception_type(json.JSONDecodeError),
+)
 async def make_mistral_request_with_json(
     messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
 ):
@@ -127,9 +128,11 @@ async def make_mistral_request_with_json(
         raise
 
 
-@retry(stop=stop_after_attempt(7), 
-      wait=wait_exponential(multiplier=1, min=2, max=5),
-      retry=retry_if_exception_type(BaseException))
+@retry(
+    stop=stop_after_attempt(7),
+    wait=wait_exponential(multiplier=1, min=2, max=5),
+    retry=retry_if_exception_type(BaseException),
+)
 async def make_mistral_request(
     messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
 ) -> tuple[str, LLMQuery]:
@@ -146,7 +149,9 @@ async def make_mistral_request(
         "do_sample": False,
     }
     logger.info(f"Making request to Mistral API with model: {model}")
-    request = CompletionsRequest(messages=messages, model=model, stream=False, sampling_parameters=sample_params, uids = [655])
+    request = CompletionsRequest(
+        messages=messages, model=model, stream=False, sampling_parameters=sample_params, uids=[655]
+    )
     response = await completions(request)
     response_content = response.choices[0].message.content
     logger.info(f"Response content: {response_content}")
