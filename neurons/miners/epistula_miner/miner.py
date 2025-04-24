@@ -6,6 +6,7 @@ shared_settings = settings.shared_settings
 
 import asyncio
 import json
+import random
 import time
 
 import httpx
@@ -128,13 +129,26 @@ class OpenAIMiner:
     async def create_chat_completion(self, request: Request):
         data = await request.json()
         headers = request.headers
-        if self.llm and request.headers.get("task", None) == "InferenceTask":
-            return await self.create_inference_completion(request)
+        if (
+            request.headers.get("task", None) == "multi_step_reasoning_v2"
+            and request.headers.get("stage", None) == "discriminative"
+        ):
+            return await self.create_multi_step_reasoning_completion(request)
         if request.headers.get("task", None) == "WebRetrievalTask":
             return await self.stream_web_retrieval(data, headers)
+        if self.llm and request.headers.get("task", None) == "InferenceTask":
+            return await self.create_inference_completion(request)
         req = self.client.build_request("POST", "chat/completions", json=await self.format_openai_query(request))
         r = await self.client.send(req, stream=True)
         return StreamingResponse(r.aiter_raw(), background=BackgroundTask(r.aclose), headers=r.headers)
+
+    async def create_multi_step_reasoning_completion(self, request: Request):
+        """
+        Randomly guess a float as the discriminator answer
+        """
+        data = {"choices": [{"delta": {"content": random.random()}, "index": 0, "finish_reason": None}]}
+        yield f"data: {json.dumps(data)}\n\n"
+        yield "data: [DONE]\n\n"
 
     async def create_inference_completion(self, request: Request):
         async def word_stream():

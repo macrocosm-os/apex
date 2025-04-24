@@ -33,6 +33,7 @@ class BaseTask(BaseModel, ABC):
     reference: Any = None
     task_id: str = Field(default_factory=lambda: str(uuid4()), allow_mutation=False)
     organic: bool = False
+    timeout: int = settings.shared_settings.NEURON_TIMEOUT
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -43,6 +44,14 @@ class BaseTask(BaseModel, ABC):
     @abstractmethod
     async def make_reference(self, **kwargs):
         raise NotImplementedError("Method make_reference must be implemented")
+
+    @property
+    def request_body(self) -> dict:
+        body = {
+            "task": self.__class__.__name__,
+            "timeout": self.timeout,
+        }
+        return body
 
 
 class BaseTextTask(BaseTask):
@@ -58,7 +67,6 @@ class BaseTextTask(BaseTask):
     augmentation_system_prompt: ClassVar[str | None] = None
     dataset_entry: DatasetEntry | None = None
     sampling_params: dict[str, float] = settings.shared_settings.SAMPLING_PARAMS
-    timeout: int = settings.shared_settings.NEURON_TIMEOUT
     max_tokens: int = settings.shared_settings.NEURON_MAX_TOKENS
     organic: bool = False
 
@@ -114,3 +122,12 @@ class BaseTextTask(BaseTask):
         )
         self.query = challenge
         return challenge
+
+    @property
+    def request_body(self) -> dict:
+        body = super().request_body
+        body["seed"] = self.seed
+        body["sampling_parameters"] = self.sampling_params
+        body["model"] = self.llm_model_id
+        body["messages"] = self.task_messages
+        return body

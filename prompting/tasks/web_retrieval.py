@@ -53,3 +53,9 @@ class WebRetrievalTask(BaseTextTask):
         ref_dict = dataset_entry.model_dump_json()
         self.reference = json.dumps(ref_dict)
         return self.reference
+
+    @property
+    def request_body(self) -> dict:
+        body = super().request_body
+        body["target_results"] = self.target_results
+        return body
