@@ -112,7 +112,7 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
 
 
 @retry(stop=stop_after_attempt(5), 
-      wait=wait_exponential(multiplier=1, min=2, max=15), 
+      wait=wait_exponential(multiplier=1, min=2, max=5), 
       retry=retry_if_exception_type(json.JSONDecodeError))
 async def make_mistral_request_with_json(
     messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
@@ -127,8 +127,8 @@ async def make_mistral_request_with_json(
         raise
 
 
-@retry(stop=stop_after_attempt(5), 
-      wait=wait_exponential(multiplier=1, min=2, max=15), 
+@retry(stop=stop_after_attempt(7), 
+      wait=wait_exponential(multiplier=1, min=2, max=5),
       retry=retry_if_exception_type(BaseException))
 async def make_mistral_request(
     messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
@@ -146,9 +146,10 @@ async def make_mistral_request(
         "do_sample": False,
     }
     logger.info(f"Making request to Mistral API with model: {model}")
-    request = CompletionsRequest(messages=messages, model=model, stream=False, sampling_parameters=sample_params)
+    request = CompletionsRequest(messages=messages, model=model, stream=False, sampling_parameters=sample_params, uids = [655])
     response = await completions(request)
     response_content = response.choices[0].message.content
+    logger.info(f"Response content: {response_content}")
     if not response_content:
         raise ValueError(f"No response content received from Mistral API, response: {response}")
     if "Error" in response_content:
