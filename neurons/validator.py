@@ -73,7 +73,14 @@ async def create_loop_process(
         )
         model_scheduler_task = asyncio.create_task(model_scheduler.start(scoring_queue), name="ModelScheduler")
         task_scorer_task = asyncio.create_task(
-            task_scorer.start(model_scheduler, scoring_queue, reward_events, mp_lock=mp_lock, task_queue=task_queue, simultaneous_loops=1),
+            task_scorer.start(
+                model_scheduler,
+                scoring_queue,
+                reward_events,
+                mp_lock=mp_lock,
+                task_queue=task_queue,
+                simultaneous_loops=1,
+            ),
             name="TaskScorer",
         )
         all_tasks.extend([profile, task_loop_task, model_scheduler_task, task_scorer_task])
