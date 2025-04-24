@@ -47,7 +47,7 @@ class UpdateMinerAvailabilitiesForAPI(AsyncLoopRunner):
             )
             self.miner_availabilities = response.json()
         except Exception as e:
-            logger.error(f"Error while getting miner availabilities from validator API, fallback to all uids: {e}")
+            # logger.error(f"Error while getting miner availabilities from validator API, fallback to all uids: {e}")
             self.miner_availabilities = self._fallback_availabilities(uids=uids)
         tracked_availabilities = [m for m in self.miner_availabilities.values() if m is not None]
         logger.info(f"Availabilities updated, tracked: {len(tracked_availabilities)}")
@@ -99,14 +99,14 @@ def filter_available_uids(
         filtered_uids.append(uid)
 
     if len(filtered_uids) == 0:
-        logger.error(
-            "Got an empty list of available UIDs, falling back to all uids. "
-            "Check VALIDATOR_API and SCORING_KEY in .env.api"
-        )
+        # logger.error(
+        #     "Got an empty list of available UIDs, falling back to all uids. "
+        #     "Check VALIDATOR_API and SCORING_KEY in .env.api"
+        # )
         filtered_uids = get_uids(sampling_mode="top_incentive", k=n_top_incentive)
 
-    logger.info(f"Filtered UIDs: {filtered_uids}")
+    # logger.info(f"Filtered UIDs: {filtered_uids}")
     filtered_uids = random.sample(filtered_uids, min(len(filtered_uids), n_miners))
 
-    logger.info(f"Filtered UIDs after sampling: {filtered_uids}")
+    # logger.info(f"Filtered UIDs after sampling: {filtered_uids}")
     return filtered_uids
