@@ -19,9 +19,9 @@ class InferenceRewardModel(BaseRewardModel):
         if model_manager is None:
             raise ValueError("Model manager must be set")
 
-        if model_id:
-            logits_reward_model = LogitsRewardModel()
-            return await logits_reward_model.reward(reference, response_event, task, model_manager=model_manager)
+        if not model_id or (task.organic and set(response_event.stream_results_all_chunk_dicts_raw) == {None}):
+            relevance_reward_model = RelevanceRewardModel()
+            return await relevance_reward_model.reward(reference, response_event, model_manager=model_manager)
 
-        relevance_reward_model = RelevanceRewardModel()
-        return await relevance_reward_model.reward(reference, response_event, model_manager=model_manager)
+        logits_reward_model = LogitsRewardModel()
+        return await logits_reward_model.reward(reference, response_event, task, model_manager=model_manager)

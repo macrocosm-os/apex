@@ -17,6 +17,7 @@ def parse_llm_json(json_str):
     Returns:
         dict: The parsed JSON object
     """
+    # logger.info(f"Parsing JSON from: {json_str}")
     # First try to extract JSON from code blocks if they exist
     code_block_pattern = r"```(?:json)?\s*([\s\S]*?)```"
     code_block_matches = re.findall(code_block_pattern, json_str)
@@ -24,6 +25,9 @@ def parse_llm_json(json_str):
     if code_block_matches:
         # Use the first code block found
         json_str = code_block_matches[0]
+        # logger.info(f"Extracted JSON from code block: {json_str}")
+    else:
+        raise json.JSONDecodeError("Expecting value", json_str, 0)
 
     # Replace escaped newlines with actual newlines
     json_str = json_str.replace("\\n", "\n")
