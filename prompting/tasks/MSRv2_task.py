@@ -50,8 +50,8 @@ class MSRv2Task(MultiStepReasoningTask):
             # Wrapped Query
             self.messages = [{"role": "user", "content": self.query}]
             return self.query
-
-        return self.reference or self.generative_miner_answer
+        else:
+            return self.reference or self.generative_miner_answer
 
     async def make_reference(self, dataset_entry: Context, model_manager: ModelManager):
         if self.stage == "generative":
