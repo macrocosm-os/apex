@@ -8,10 +8,9 @@ from prompting.llms.model_manager import ModelManager
 from prompting.rewards.exact_match import (
     INCORRECT_PENALTY,
     MIN_SMOOTH_PENALTY_SCALE,
-    VERIFICATION_THRESH_SIM,
-    VERIFICATION_THRESH_CONTAINS,
-    LogitsRewardModel,
     NO_EOS_PENALTY,
+    VERIFICATION_THRESH_SIM,
+    LogitsRewardModel,
 )
 from prompting.rewards.reward import BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
@@ -110,14 +109,8 @@ async def test_correct_completion(model_manager, task):
 
     with (
         patch("prompting.rewards.exact_match.MIN_VERIFY_TOKENS", 2),
-        patch(
-            "prompting.rewards.exact_match.LogitsRewardModel.verify_logit_similarity",
-            return_value=1
-        ),
-        patch(
-            "prompting.rewards.exact_match.LogitsRewardModel.verify_logit_contains",
-            return_value=1
-        ),
+        patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_similarity", return_value=1),
+        patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_contains", return_value=1),
     ):
         reward_model = LogitsRewardModel()
         result = await reward_model.reward(
@@ -156,10 +149,7 @@ async def test_mixed_completions(model_manager, task):
     with (
         patch("prompting.rewards.exact_match.MIN_VERIFY_TOKENS", 2),
         patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_similarity", side_effect=mock_verify_sim),
-        patch(
-            "prompting.rewards.exact_match.LogitsRewardModel.verify_logit_contains",
-            return_value=1
-        ),
+        patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_contains", return_value=1),
     ):
         reward_model = LogitsRewardModel()
         result = await reward_model.reward(
@@ -260,7 +250,7 @@ def test_smooth_reward_scale():
         (0.3, 0.3, 0.0),
         # At max boundary.
         (1.0, 0.3, 1.0),
-    ]
+    ],
 )
 def test_rescale_various_cases(value, min_value, expected):
     assert LogitsRewardModel.rescale(value, min_value=min_value) == pytest.approx(expected)
@@ -272,14 +262,14 @@ def test_rescale_various_cases(value, min_value, expected):
         # All valid.
         ([[0.1, 1.0], [5.0, 0.1], [6.5]], 0.55),
         # Mixed values.
-        ([[ -1.0, 0.5], [2.0, 0.1]], 1.05),
+        ([[-1.0, 0.5], [2.0, 0.1]], 1.05),
         # All negative.
         ([[-3.0, -0.1], [-2.5]], 1e-6),
         # Empty lists.
         ([[], []], 1e-6),
         # Zeros included.
         ([[0.0, -1.0], [0.0]], 0.0),
-    ]
+    ],
 )
 def test_fastest_timing_various_cases(values, expected):
     assert LogitsRewardModel.fastest_timing(values) == pytest.approx(expected)

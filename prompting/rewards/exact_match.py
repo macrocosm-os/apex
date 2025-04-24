@@ -141,7 +141,6 @@ class LogitsRewardModel(BaseRewardModel):
                 if score_contains_mean < VERIFICATION_THRESH_CONTAINS:
                     raise ValueError(f"Logits contains mean score is below threshold: {score_contains_mean:.2f}")
 
-
                 timing_verified.append(timings)
                 smooth_reward = self.smooth_timings_reward(timings)
                 # Min-max scale logits reward, e.g from [0.95; 1.0] to [0.0, 1.0].
@@ -219,9 +218,7 @@ class LogitsRewardModel(BaseRewardModel):
 
     @staticmethod
     def verify_logit_contains(
-        candidate_token: str,
-        candidate_logits: dict[str, float],
-        gt_logits: dict[str, float]
+        candidate_token: str, candidate_logits: dict[str, float], gt_logits: dict[str, float]
     ) -> float:
         """Verify if the selected token and logprobs are present in the verification output."""
         if candidate_token not in candidate_logits.keys():
@@ -234,9 +231,7 @@ class LogitsRewardModel(BaseRewardModel):
 
     @staticmethod
     def verify_logit_similarity(
-        original_logits: dict[str, float],
-        verification_logits: dict[str, float],
-        fill_value: float = -100.0
+        original_logits: dict[str, float], verification_logits: dict[str, float], fill_value: float = -100.0
     ) -> float:
         all_tokens = sorted(set(original_logits) | set(verification_logits))
         orig_vec = np.array([original_logits.get(t, fill_value) for t in all_tokens], dtype=np.float64)
