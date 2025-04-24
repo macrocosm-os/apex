@@ -72,7 +72,12 @@ class BaseRewardModel(ABC, BaseModel):
 
     @abstractmethod
     async def reward(
-        self, reference: str, response_event: DendriteResponseEvent, model_manager: ModelManager = None, task_queue: list[BaseTextTask] | None = None, **kwargs
+        self,
+        reference: str,
+        response_event: DendriteResponseEvent,
+        model_manager: ModelManager = None,
+        task_queue: list[BaseTextTask] | None = None,
+        **kwargs,
     ) -> BatchRewardOutput:
         raise NotImplementedError("You must implement the reward method")
 
@@ -87,7 +92,7 @@ class BaseRewardModel(ABC, BaseModel):
         task_queue: list[BaseTextTask] | None = None,
         **kwargs,
     ) -> WeightedRewardEvent:
-        if task_queue is None: 
+        if task_queue is None:
             raise ValueError("Task queue must be provided to BaseRewardModel.apply()")
         t0 = time.time()
         comparator = reference if reward_type == "reward" else challenge
@@ -157,7 +162,7 @@ class BaseRewardConfig(ABC, BaseModel):
         model_manager: ModelManager | None = None,
         task_queue: list[BaseTextTask] | None = None,
     ) -> list[WeightedRewardEvent]:
-        if task_queue is None: 
+        if task_queue is None:
             raise ValueError("Task queue must be provided to BaseRewardConfig.apply()")
         reward_events = []
         for weighted_reward in cls.reward_definitions:

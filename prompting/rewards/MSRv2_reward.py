@@ -55,7 +55,7 @@ class MSRv2RewardModel(BaseRewardModel):
                     comp_value = float(comp)
                     discriminator_rewards.append((1 - (task.ground_truth - comp_value) ** 2) / len(completions))
                 except (ValueError, TypeError):
-                    #logger.error(f"Error converting completion to float: {e}")
+                    # logger.error(f"Error converting completion to float: {e}")
                     discriminator_rewards.append(0.0)  # Assign zero reward for invalid responses
             generator_reward = 1 - sum(discriminator_rewards)
 
