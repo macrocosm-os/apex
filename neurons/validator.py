@@ -337,14 +337,14 @@ async def main(
             weight_setter_process.start()
             processes.append(weight_setter_process)
 
-            health_check_process = mp.Process(
-                target=health_check,
-                args=(os.getpid(), event_stop),
-                name="HealthCheckProcess",
-                daemon=True,
-            )
-            health_check_process.start()
-            processes.append(health_check_process)
+            # health_check_process = mp.Process(
+            #     target=health_check,
+            #     args=(os.getpid(), event_stop),
+            #     name="HealthCheckProcess",
+            #     daemon=True,
+            # )
+            # health_check_process.start()
+            # processes.append(health_check_process)
 
             GPUInfo.log_gpu_info()
             while True:
