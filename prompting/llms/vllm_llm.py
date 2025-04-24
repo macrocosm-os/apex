@@ -73,10 +73,15 @@ class ReproducibleVLLM:
 
         # Convert sampling parameters to VLLM format
         params = sampling_params if sampling_params else self.sampling_params
+
+        max_tokens = params.get("max_new_tokens")
+        if max_tokens is None:
+            max_tokens = params.get("max_tokens", 512)
+
         vllm_params = SamplingParams(
             temperature=params.get("temperature", 1.0),
             top_p=params.get("top_p", 1.0),
-            max_tokens=params.get("max_new_tokens", 100),
+            max_tokens=max_tokens,
             presence_penalty=params.get("presence_penalty", 0.0),
             frequency_penalty=params.get("frequency_penalty", 0.0),
             top_k=params.get("top_k", -1),
@@ -118,7 +123,7 @@ class ReproducibleVLLM:
         # Set up sampling parameters for logit generation
         params = sampling_params if sampling_params else self.sampling_params
         params["max_tokens"] = 1
-        params["logprobs"] = 10
+        params["logprobs"] = top_n
         vllm_params = SamplingParams(
             **params,
         )

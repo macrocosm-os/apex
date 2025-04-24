@@ -7,7 +7,6 @@ from prompting.miner_availability.miner_availability import MinerAvailabilities
 from prompting.rewards.scoring_config import ScoringConfig
 from prompting.tasks.base_task import BaseTextTask
 from prompting.tasks.inference import InferenceTask
-from prompting.tasks.web_retrieval import WebRetrievalTask
 from shared import settings
 from shared.dendrite import DendriteResponseEvent
 from shared.epistula import query_miners
@@ -45,17 +44,7 @@ async def collect_responses(task: BaseTextTask, miners_dict: dict) -> DendriteRe
         logger.warning("No available miners. This should already have been caught earlier.")
         return
 
-    body = {
-        "seed": task.seed,
-        "sampling_parameters": task.sampling_params,
-        "task": task.__class__.__name__,
-        "model": task.llm_model_id,
-        "messages": task.task_messages,
-    }
-    if isinstance(task, WebRetrievalTask):
-        body["target_results"] = task.target_results
-    body["timeout"] = task.timeout
-    stream_results = await query_miners(uids, body, timeout_seconds=task.timeout)
+    stream_results = await query_miners(uids, task.request_body, timeout_seconds=task.timeout)
 
     response_event = DendriteResponseEvent(
         stream_results=stream_results,

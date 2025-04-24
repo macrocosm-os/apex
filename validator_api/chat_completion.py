@@ -131,6 +131,7 @@ async def stream_chunks(
 async def stream_from_first_response(
     responses: List[asyncio.Task],
     collected_chunks_list: List[List[str]],
+    collected_chunks_raw_list: List,
     body: dict[str, any],
     uids: List[int],
     timings_list: List[List[float]],
@@ -179,6 +180,7 @@ async def stream_from_first_response(
             collect_remaining_responses(
                 remaining=remaining,
                 collected_chunks_list=collected_chunks_list,
+                collected_chunks_raw_list=collected_chunks_raw_list,
                 body=body,
                 uids=uids,
                 timings_list=timings_list,
@@ -209,6 +211,7 @@ async def stream_from_first_response(
 async def collect_remaining_responses(
     remaining: asyncio.Task,
     collected_chunks_list: List[List[str]],
+    collected_chunks_raw_list: List,
     body: dict[str, any],
     uids: List[int],
     timings_list: List[List[float]],
@@ -230,6 +233,7 @@ async def collect_remaining_responses(
                     continue
                 timings_list[i + 1].append(time.monotonic() - response_start_time)
                 collected_chunks_list[i + 1].append(content)
+                collected_chunks_raw_list[i + 1].append(chunk)
 
     except Exception as e:
         logger.exception(f"Error collecting remaining responses: {e}")
@@ -271,6 +275,7 @@ async def chat_completion(
 
     # Initialize chunks collection for each miner
     collected_chunks_list = [[] for _ in uids]
+    collected_chunks_raw_list = [[] for _ in uids]
     timings_list = [[] for _ in uids]
 
     timeout_seconds = max(
@@ -299,7 +304,9 @@ async def chat_completion(
         ]
 
         return StreamingResponse(
-            stream_from_first_response(response_tasks, collected_chunks_list, body, uids, timings_list),
+            stream_from_first_response(
+                response_tasks, collected_chunks_list, collected_chunks_raw_list, body, uids, timings_list
+            ),
             media_type="text/event-stream",
             headers={
                 "Cache-Control": "no-cache",
@@ -365,12 +372,14 @@ async def collect_remaining_nonstream_responses(
 
     try:
         chunks = [response[1] if response else [] for response in collected_responses]
-        chunk_dicts_raw = [response[3] if response else [] for response in collected_responses]
         # TODO: Add timings.
-        # timings = [response[2] if response else [] for response in collected_responses]
         # Append all collected responses to the scoring queue for later processing.
         await scoring_queue.scoring_queue.append_response(
-            uids=uids, body=body, chunks=chunks, chunk_dicts_raw=chunk_dicts_raw
+            uids=uids,
+            body=body,
+            chunks=chunks,
+            chunk_dicts_raw=None,
+            timings=None,  # We do not need chunk_dicts_raw or timings for non-stream responses.
         )
     except Exception as e:
         logger.error(f"Error appending non-stream responses to scoring queue: {e}")

@@ -15,7 +15,7 @@ from validator_api.serializers import CompletionsRequest, TestTimeInferenceReque
 from validator_api.utils import filter_available_uids
 
 router = APIRouter()
-N_MINERS = 5
+N_MINERS = 10
 
 
 @router.post(

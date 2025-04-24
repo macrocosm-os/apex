@@ -36,7 +36,7 @@ class LLMQuery(BaseModel):
     model: str  # Which model was used
 
 
-async def search_web(question: str, n_results: int = 5, completions=None) -> dict:
+async def search_web(question: str, n_results: int = 2, completions=None) -> dict:
     """
     Takes a natural language question, generates an optimized search query, performs web search,
     and returns a referenced answer based on the search results.
@@ -92,10 +92,14 @@ async def search_web(question: str, n_results: int = 5, completions=None) -> dic
         {"role": "user", "content": "Please generate a referenced answer based on the search results."},
     ]
 
-    raw_answer, answer_record = await make_mistral_request(
+    raw_answer, answer_record = await make_mistral_request_with_json(
         messages, "generate_referenced_answer", completions=completions
     )
-    answer_data = parse_llm_json(raw_answer)
+    try:
+        answer_data = parse_llm_json(raw_answer)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Mistral API response as JSON: {e}")
+        raise
 
     return {
         "question": question,
@@ -106,14 +110,36 @@ async def search_web(question: str, n_results: int = 5, completions=None) -> dic
     }
 
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=15), retry=retry_if_exception_type())
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=5),
+    retry=retry_if_exception_type(json.JSONDecodeError),
+)
+async def make_mistral_request_with_json(
+    messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
+):
+    """Makes a request to Mistral API and records the query"""
+    raw_response, query_record = await make_mistral_request(messages, step_name, completions)
+    try:
+        parse_llm_json(raw_response)  # Test if the response is jsonable
+        return raw_response, query_record
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Mistral API response as JSON: {e}")
+        raise
+
+
+@retry(
+    stop=stop_after_attempt(7),
+    wait=wait_exponential(multiplier=1, min=2, max=5),
+    retry=retry_if_exception_type(BaseException),
+)
 async def make_mistral_request(
     messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
 ) -> tuple[str, LLMQuery]:
     """Makes a request to Mistral API and records the query"""
 
     model = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
-    temperature = 0.1
+    temperature = 0.15
     top_p = 1
     max_tokens = 128000
     sample_params = {
@@ -123,11 +149,16 @@ async def make_mistral_request(
         "do_sample": False,
     }
     logger.info(f"Making request to Mistral API with model: {model}")
-    response = await completions(
-        CompletionsRequest(messages=messages, model=model, stream=False, sampling_parameters=sample_params)
+    request = CompletionsRequest(
+        messages=messages, model=model, stream=False, sampling_parameters=sample_params, uids=[655]
     )
+    response = await completions(request)
     response_content = response.choices[0].message.content
-    # Record the query
+    logger.info(f"Response content: {response_content}")
+    if not response_content:
+        raise ValueError(f"No response content received from Mistral API, response: {response}")
+    if "Error" in response_content:
+        raise ValueError(f"Error in Mistral API response: {response_content}")
     query_record = LLMQuery(
         messages=messages, raw_response=response_content, step_name=step_name, timestamp=time.time(), model=model
     )
@@ -200,7 +231,7 @@ class WebSearchTool(Tool):
         - references: List of numbered references with titles and URLs
         - raw_results: Raw search results used"""
 
-    async def execute(self, question: str, n_results: int = 5) -> dict:
+    async def execute(self, question: str, n_results: int = 2) -> dict:
         return await search_web(question=question, n_results=n_results, completions=self.completions)
 
 
@@ -299,7 +330,7 @@ class OrchestratorV2(BaseModel):
             {"role": "user", "content": question},
         ]
 
-        assessment_result, query_record = await make_mistral_request(
+        assessment_result, query_record = await make_mistral_request_with_json(
             messages, "assess_question_suitability", completions=self.completions
         )
 
@@ -358,12 +389,16 @@ class OrchestratorV2(BaseModel):
             {"role": "user", "content": "Please plan the necessary tool executions for the next step."},
         ]
 
-        plan_output, query_record = await make_mistral_request(
+        plan_output, query_record = await make_mistral_request_with_json(
             messages, f"plan_tools_step_{self.current_step}", completions=self.completions
         )
 
         try:
-            tool_requests = parse_llm_json(plan_output)
+            try:
+                tool_requests = parse_llm_json(plan_output)
+            except json.JSONDecodeError as e:
+                logger.error(f"Failed to parse tool planning output as JSON: {e}. Plan output: {plan_output}")
+                raise
             query_record.parsed_response = tool_requests
             self.query_history.append(query_record)
 
@@ -538,7 +573,7 @@ Find the first unchecked item in the todo list (items without a ✓) and analyze
             },
         ]
 
-        thinking_output, query_record = await make_mistral_request(
+        thinking_output, query_record = await make_mistral_request_with_json(
             messages, f"thinking_step_{self.current_step}", completions=self.completions
         )
 
@@ -609,7 +644,7 @@ Format your response in the following JSON structure:
             {"role": "user", "content": f"Here is the conversation history for context:\n{self.user_messages}"},
         ]
 
-        updated_todo, query_record = await make_mistral_request(
+        updated_todo, query_record = await make_mistral_request_with_json(
             messages, f"update_todo_list_step_{self.current_step}", completions=self.completions
         )
 
@@ -621,7 +656,7 @@ Format your response in the following JSON structure:
             self.todo_list = updated_todo_dict["updated_todo_list"]
             logger.info(f"Updated todo list with {len(updated_todo_dict['changes_made'])} changes")
             return updated_todo_dict
-        except json.JSONDecodeError as e:
+        except BaseException as e:
             logger.error(f"Failed to parse updated todo list as JSON: {e}")
             raise
         except KeyError as e:
@@ -683,7 +718,7 @@ Focus on providing a helpful, accurate answer to what the user actually asked.""
             {"role": "user", "content": "Please generate a final answer based on the analysis performed."},
         ]
 
-        final_answer, query_record = await make_mistral_request(
+        final_answer, query_record = await make_mistral_request_with_json(
             messages, "generate_final_answer", completions=self.completions
         )
         logger.debug(f"Generated final answer:\n{final_answer}")
@@ -694,7 +729,7 @@ Focus on providing a helpful, accurate answer to what the user actually asked.""
             self.query_history.append(query_record)
 
             return final_answer_dict
-        except json.JSONDecodeError as e:
+        except BaseException as e:
             logger.error(f"Failed to parse final answer as JSON: {e}")
             raise
         except KeyError as e:

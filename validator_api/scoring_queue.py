@@ -111,7 +111,7 @@ class ScoringQueue(AsyncLoopRunner):
         uids: list[int],
         body: dict[str, Any],
         chunks: list[list[str]],
-        chunk_dicts_raw: list[ChatCompletionChunk | None],
+        chunk_dicts_raw: list[ChatCompletionChunk | None] | None = None,
         timings: list[list[float]] | None = None,
     ):
         if not shared_settings.SCORE_ORGANICS:
@@ -122,8 +122,11 @@ class ScoringQueue(AsyncLoopRunner):
             return
 
         uids = list(map(int, uids))
-        chunk_dict = {str(u): c for u, c in zip(uids, chunks)}
-        chunk_dict_raw = {str(u): c for u, c in zip(uids, chunk_dicts_raw)}
+        chunk_dict = {str(u): c for u, c in zip(uids, chunks)}  # TODO: Remove chunk_dict if we have chunk_dicts_raw
+        if chunk_dicts_raw:
+            chunk_dict_raw = {str(u): c for u, c in zip(uids, chunk_dicts_raw)}
+        else:
+            chunk_dict_raw = {}
         if timings:
             timing_dict = {str(u): t for u, t in zip(uids, timings)}
         else:
@@ -136,7 +139,7 @@ class ScoringQueue(AsyncLoopRunner):
             "chunk_dicts_raw": chunk_dict_raw,
         }
         scoring_item = ScoringPayload(payload=payload, date=datetime.datetime.now().replace(microsecond=0))
-
+        logger.info(f"Appending organic to scoring queue: {scoring_item}")
         async with self._scoring_lock:
             if len(self._scoring_queue) >= self._queue_maxlen:
                 scoring_payload = self._scoring_queue.popleft()

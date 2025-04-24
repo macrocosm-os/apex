@@ -29,7 +29,7 @@ class TaskScorer(AsyncLoopRunner):
     interval: int = 1
     scoring_queue: list | None = None
     reward_events: list | None = None
-
+    task_queue: list | None = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def start(
@@ -39,12 +39,14 @@ class TaskScorer(AsyncLoopRunner):
         reward_events,
         mp_lock: AcquirerProxy,
         name: str | None = None,
+        task_queue: list | None = None,
         **kwargs,
     ):
         self.scoring_queue = scoring_queue
         self.reward_events = reward_events
         self.model_scheduler = model_scheduler
         self.mp_lock = mp_lock
+        self.task_queue = task_queue
         return await super().start(name=name, **kwargs)
 
     def add_to_queue(
@@ -93,6 +95,8 @@ class TaskScorer(AsyncLoopRunner):
         # and there we then calculate the reward
         reward_pipeline = TaskRegistry.get_task_reward(scoring_config.task)
         with Timer(label=f"Scoring {scoring_config.task.__class__.__name__}"):
+            if self.task_queue is None:
+                raise ValueError("Task queue must be provided to TaskScorer.run_step()")
             reward_events = await reward_pipeline.apply(
                 response_event=scoring_config.response,
                 challenge=scoring_config.task.query,
@@ -100,6 +104,7 @@ class TaskScorer(AsyncLoopRunner):
                 model_id=scoring_config.task.llm_model,
                 task=scoring_config.task,
                 model_manager=self.model_scheduler.llm_model_manager,
+                task_queue=self.task_queue,
             )
         self.reward_events.append(reward_events)
 

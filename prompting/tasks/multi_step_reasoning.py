@@ -85,9 +85,8 @@ class MultiStepReasoningTask(WebQuestionAnsweringTask):
     async def make_query(self, dataset_entry: DDGDatasetEntry):
         query_prompt = QUERY_PROMPT_TEMPLATE.format(context=dataset_entry.website_content)
         question = await self.generate_query(messages=[query_prompt])
-        msgs = [p + ". " if i < len(question.split(". ")) - 1 else p for i, p in enumerate(question.split(". ")) if p]
         self.messages = [{"role": "system", "content": random.choice(SAMPLE_SYSTEM_PROMPTS)}] + [
-            {"role": random.choice(["user", "assistant"]), "content": msg} for msg in msgs
+            {"role": "user", "content": question}
         ]
         return self.query
 

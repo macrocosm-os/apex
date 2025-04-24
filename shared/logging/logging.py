@@ -154,7 +154,7 @@ class ValidatorLoggingEvent(BaseEvent):
     task_id: str
     forward_time: float | None = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, copy_on_model_validation=False)
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def __str__(self):
         sample_completions = [completion for completion in self.response_event.completions if len(completion) > 0]
@@ -177,7 +177,7 @@ class RewardLoggingEvent(BaseEvent):
     response_event: DendriteResponseEvent
     reward_events: list[WeightedRewardEvent]
     task_id: str
-    reference: str
+    reference: str | None
     challenge: str | list[dict]
     task: str
     task_dict: dict
