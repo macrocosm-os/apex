@@ -138,9 +138,7 @@ class ReproducibleVLLM:
             return {}
 
         logprobs = outputs[0].outputs[0].logprobs[0]
-        token_logprobs = {
-            self.tokenizer.decode([token]): logprob.logprob for token, logprob in logprobs.items()
-        }
+        token_logprobs = {self.tokenizer.decode([token]): logprob.logprob for token, logprob in logprobs.items()}
         sorted_token_logprobs = dict(sorted(token_logprobs.items(), key=lambda item: item[1], reverse=True))
         return sorted_token_logprobs, prompt
 

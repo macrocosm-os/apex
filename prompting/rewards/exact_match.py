@@ -1,10 +1,10 @@
 import random
 
 import numpy as np
-from loguru import logger
-from openai.types.chat import ChatCompletionChunk
 import torch
 import torch.nn.functional as F
+from loguru import logger
+from openai.types.chat import ChatCompletionChunk
 
 from prompting.llms.model_manager import ModelManager
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
@@ -18,7 +18,7 @@ NO_EOS_PENALTY = -0.1
 INCORRECT_PENALTY = -2
 MIN_SMOOTH_PENALTY_SCALE = 0.6
 MIN_TIME_PENALTY_SCALE = 0.3
-VERIFICATION_THRESH_CONTAINS = 0.90
+VERIFICATION_THRESH_CONTAINS = 0.92
 VERIFICATION_THRESH_SIM = 0.90
 MIN_VERIFY_TOKENS = 10
 MAX_VERIFY_TOKENS = 30
@@ -177,7 +177,7 @@ class LogitsRewardModel(BaseRewardModel):
         )
         logger.debug(f"Logits rewards: {reward_output.model_dump()}")
         return reward_output
-    
+
     @staticmethod
     def sample_verification_indices(completion_length: int) -> list[int]:
         """Sample random indices for verification, always add eos_token index."""
@@ -245,7 +245,7 @@ class LogitsRewardModel(BaseRewardModel):
         """Similarity between candidate and ground-truth logprobs."""
         if not gt_logits:
             return 0.0
-        
+
         if len(candidate_logits) != len(gt_logits):
             return 0.0
 
