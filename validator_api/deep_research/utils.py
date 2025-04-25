@@ -2,6 +2,7 @@ import json
 import re
 import traceback
 from functools import wraps
+from fastapi.responses import StreamingResponse
 
 from loguru import logger
 
@@ -86,3 +87,29 @@ def convert_to_gemma_messages(messages):
             )
         gemma_messages.append({"type": "text", "role": message["role"], "content": message["content"]})
     return gemma_messages
+
+
+async def extract_content_from_stream(streaming_response: StreamingResponse) -> str:
+    full_content = ""
+
+    async for chunk in streaming_response.body_iterator:
+        # Decode bytes to string if necessary
+        if isinstance(chunk, bytes):
+            chunk = chunk.decode("utf-8")
+
+        # Remove any 'data: ' prefixes and skip empty lines
+        for line in chunk.splitlines():
+            line = line.strip()
+            if not line or not line.startswith("data:"):
+                continue
+
+            try:
+                data = json.loads(line.removeprefix("data:").strip())
+                delta = data.get("choices", [{}])[0].get("delta", {})
+                content_piece = delta.get("content")
+                if content_piece:
+                    full_content += content_piece
+            except json.JSONDecodeError:
+                continue  # Optionally log/handle malformed chunks
+
+    return full_content
