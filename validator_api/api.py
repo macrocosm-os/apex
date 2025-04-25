@@ -13,8 +13,8 @@ shared_settings = settings.shared_settings
 from validator_api import scoring_queue
 from validator_api.api_management import router as api_management_router
 from validator_api.gpt_endpoints import router as gpt_router
-from validator_api.web_retrieval import router as web_retrieval_router
 from validator_api.utils import update_miner_availabilities_for_api
+from validator_api.web_retrieval import router as web_retrieval_router
 
 
 @contextlib.asynccontextmanager
