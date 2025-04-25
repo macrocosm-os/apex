@@ -175,8 +175,8 @@ async def test_mixed_completions(model_manager, task):
     ids=["eos_present", "eos_missing"],
 )
 async def test_eos_handling(eos_in_logits, expected_penalty, model_manager, task):
-    emitted  = ["Hello", ", ", "world", "!"]
-    timings  = [[0.1] * len(emitted)]
+    emitted = ["Hello", ", ", "world", "!"]
+    timings = [[0.1] * len(emitted)]
     response_event = await create_response_event_mock([emitted], timings)
     verify_logits = {"tokA": -0.1, "tokB": -0.5}
     if eos_in_logits:
