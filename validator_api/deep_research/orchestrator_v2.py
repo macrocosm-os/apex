@@ -150,7 +150,7 @@ async def make_mistral_request(
     }
     logger.info(f"Making request to Mistral API with model: {model}")
     request = CompletionsRequest(
-        messages=messages, model=model, stream=False, sampling_parameters=sample_params, uids=[655]
+        messages=messages, model=model, stream=False, sampling_parameters=sample_params,
     )
     response = await completions(request)
     response_content = response.choices[0].message.content
