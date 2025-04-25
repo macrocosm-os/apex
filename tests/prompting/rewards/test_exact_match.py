@@ -7,7 +7,9 @@ from openai.types.chat import ChatCompletionChunk
 from prompting.llms.model_manager import ModelManager
 from prompting.rewards.exact_match import (
     INCORRECT_PENALTY,
+    MAX_VERIFY_TOKENS,
     MIN_SMOOTH_PENALTY_SCALE,
+    MIN_VERIFY_TOKENS,
     NO_EOS_PENALTY,
     VERIFICATION_THRESH_SIM,
     LogitsRewardModel,
@@ -192,19 +194,19 @@ async def test_no_eos_token(model_manager, task):
 
 def test_verify_logit_similarity():
     """Test the verify_logit_similarity similarity metric."""
-    original = {"token1": -0.1, "token2": -0.5}
+    original = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "token4": -1.5, "token5": -2.0}
     # Identical distributions -> 1.0.
     assert LogitsRewardModel.verify_logit_similarity(original, original) == 1.0
 
     # Disjoint tokens -> near zero.
-    disjoint = {"foo": -0.1, "bar": -0.5}
+    disjoint = {"foo": -0.1, "bar": -0.5, "foo1": -1.0, "bar1": -1.5, "foo2": -2.0}
     sim = LogitsRewardModel.verify_logit_similarity(original, disjoint)
     assert 0 <= sim <= 0.01
 
     # Partial overlap -> between 0 and 1.
-    partial = {"token1": -0.1, "foo": -0.5}
+    partial = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "foo1": -1.5, "bar1": -2.0}
     sim2 = LogitsRewardModel.verify_logit_similarity(original, partial)
-    assert 0 < sim2 < 1.0
+    assert sim2 == 0.6
 
 
 def test_smooth_reward_scale():
@@ -273,3 +275,30 @@ def test_rescale_various_cases(value, min_value, expected):
 )
 def test_fastest_timing_various_cases(values, expected):
     assert LogitsRewardModel.fastest_timing(values) == pytest.approx(expected)
+
+
+@pytest.mark.parametrize(
+    "completion_length",
+    [
+        5,
+        (MIN_VERIFY_TOKENS + MAX_VERIFY_TOKENS) // 2,
+        MAX_VERIFY_TOKENS,
+        MAX_VERIFY_TOKENS + 5,
+    ],
+)
+def test_sample_verification_indices_properties(completion_length):
+    indices = LogitsRewardModel.sample_verification_indices(completion_length)
+
+    # Compute expected number of sampled tokens (before adding EOS)
+    expected_k = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS)) + 1
+
+    # The result should have expected_k samples plus one EOS index
+    assert isinstance(indices, list)
+    assert len(indices) == expected_k
+    assert indices == sorted(indices)
+    assert indices[-1] == completion_length
+    # All other indices should be in the range [0, completion_length).
+    sample_indices = indices[:-1]
+    assert all(0 <= idx < completion_length for idx in sample_indices)
+    # No duplicates overall.
+    assert len(set(indices)) == len(indices)

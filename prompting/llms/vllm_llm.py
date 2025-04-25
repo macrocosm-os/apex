@@ -106,43 +106,24 @@ class ReproducibleVLLM:
         seed: int | None = None,
         continue_last_message: bool = False,
     ) -> dict[str, float]:
-        """
-        Generate logits for the next token prediction.
+        """Generate logits for the next token prediction.
 
         Args:
-            messages: Input messages or text
-            top_n: Number of top logits to return (default: 10)
-            sampling_params: Generation parameters
-            seed: Random seed for reproducibility
-            continue_last_message: Whether to continue the last message in chat format
+            messages: Input messages or text.
+            top_n: Number of top logits to return (default: 10).
+            sampling_params: Generation parameters.
+            seed: Random seed for reproducibility.
+            continue_last_message: Whether to continue the last message in chat format.
 
         Returns:
-            dict: Dictionary mapping tokens to their log probabilities
+            Dictionary mapping tokens to their log probabilities.
         """
         self.set_random_seeds(seed)
-        # Set up sampling parameters for logit generation
         params = sampling_params if sampling_params else self.sampling_params
+        params = params.copy()
         params["max_tokens"] = 1
         params["logprobs"] = top_n
-        vllm_params = SamplingParams(
-            **params,
-        )
-
-        # Generate using VLLM
-        trailing_space = ""
-
-        if continue_last_message and messages[-1]["content"]:
-            content = messages[-1]["content"]
-            stripped = content.rstrip()
-            if len(content) > len(stripped):
-                trailing_space = content[len(stripped) :]
-
-        if not messages[-1]["content"]:
-            continue_last_message = False
-            messages = messages[:-1]
-        bot_token_id = self.tokenizer.bos_token_id
-        if not continue_last_message:
-            messages[-1]["content"] = f"{self.tokenizer.decode([bot_token_id])}{messages[-1]['content']}"
+        vllm_params = SamplingParams(**params)
 
         prompt = self.tokenizer.apply_chat_template(
             conversation=messages,
@@ -150,34 +131,18 @@ class ReproducibleVLLM:
             add_generation_prompt=not continue_last_message,
             continue_final_message=continue_last_message,
         )
-        if trailing_space:
-            prompt += trailing_space
 
         outputs = self.model.generate(prompt, vllm_params)
 
         if not outputs or not outputs[0].outputs[0].logprobs:
             return {}
 
-        # Extract logprobs from the first token
         logprobs = outputs[0].outputs[0].logprobs[0]
-
-        logprobs_list = [(k, v.logprob) for k, v in logprobs.items()]
-        sorted_logprobs = sorted(logprobs_list, key=lambda x: x[1], reverse=True)
-
-        top_token_ids = [x[0] for x in sorted_logprobs]
-        top_logprob_values = [x[1] for x in sorted_logprobs]
-
-        step_logprobs = {
-            "top_tokens": [self.tokenizer.decode([tid]) for tid in top_token_ids],
-            "top_logprobs": top_logprob_values,
-        }
-
-        # Create dictionary of token to logprob mapping
         token_logprobs = {
-            token: logprob for token, logprob in zip(step_logprobs["top_tokens"], step_logprobs["top_logprobs"])
+            self.tokenizer.decode([token]): logprob.logprob for token, logprob in logprobs.items()
         }
-
-        return token_logprobs, prompt
+        sorted_token_logprobs = dict(sorted(token_logprobs.items(), key=lambda item: item[1], reverse=True))
+        return sorted_token_logprobs, prompt
 
     def set_random_seeds(self, seed: int | None = 42):
         """Set random seeds for reproducibility across all relevant libraries."""
