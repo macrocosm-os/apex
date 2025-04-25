@@ -40,7 +40,7 @@ def model_manager():
 def task():
     """Mock Task for testing."""
     task = MagicMock(spec=BaseTextTask)
-    task.llm_model_id = "gpt-4"
+    task.llm_model_id = "mockmodel"
     task.task_messages = [
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Tell me a joke."},
@@ -120,7 +120,7 @@ async def test_correct_completion(model_manager, task):
         )
         assert isinstance(result, BatchRewardOutput)
         assert len(result.rewards) == 1
-        assert result.rewards[0] == 1.0
+        assert result.rewards[0] == pytest.approx(1.0)
 
 
 @pytest.mark.asyncio
@@ -166,47 +166,61 @@ async def test_mixed_completions(model_manager, task):
 
 
 @pytest.mark.asyncio
-async def test_no_eos_token(model_manager, task):
-    """Test case 3: Missing eos_token in logits -> zero reward."""
-    chunks = [["Hello", ", ", "world", "!"]]
-    timings = [[0.1, 0.2, 0.3, 0.4]]
-    response_event = await create_response_event_mock(chunks, timings)
+@pytest.mark.parametrize(
+    "eos_in_logits, expected_penalty",
+    [
+        (True, None),
+        (False, NO_EOS_PENALTY),
+    ],
+    ids=["eos_present", "eos_missing"],
+)
+async def test_eos_handling(eos_in_logits, expected_penalty, model_manager, task):
+    emitted  = ["Hello", ", ", "world", "!"]
+    timings  = [[0.1] * len(emitted)]
+    response_event = await create_response_event_mock([emitted], timings)
+    verify_logits = {"tokA": -0.1, "tokB": -0.5}
+    if eos_in_logits:
+        verify_logits["<|endoftext|>"] = -1.0
+    model_manager.generate_logits = AsyncMock(return_value=(verify_logits, "prompt"))
 
-    async def mock_generate_logits_no_eos(*args, **kwargs):
-        return {"token1": -0.1, "token2": -0.5}, "prompt"
-
-    model_manager.generate_logits = AsyncMock(side_effect=mock_generate_logits_no_eos)
-
-    # Replace last chunk without eos in its logprobs.
-    response_event.stream_results_all_chunk_dicts_raw[0][3] = create_chat_completion_chunk(
-        "!", {"token1": -0.1, "token2": -0.5}
-    )
-
-    with patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_similarity", return_value=0.95):
+    with (
+        patch("prompting.rewards.exact_match.MIN_VERIFY_TOKENS", 2),
+        patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_similarity", return_value=1),
+        patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_contains", return_value=1),
+    ):
         reward_model = LogitsRewardModel()
-        result = await reward_model.reward(
-            reference="", response_event=response_event, task=task, model_manager=model_manager
+        result: BatchRewardOutput = await reward_model.reward(
+            reference="",
+            response_event=response_event,
+            task=task,
+            model_manager=model_manager,
         )
-        assert isinstance(result, BatchRewardOutput)
-        assert len(result.rewards) == 1
-        assert result.rewards[0] == NO_EOS_PENALTY
+
+    assert isinstance(result, BatchRewardOutput)
+    assert len(result.rewards) == 1
+    if expected_penalty is None:
+        # eos present.
+        assert result.rewards[0] != NO_EOS_PENALTY
+    else:
+        # eos missing.
+        assert result.rewards[0] == pytest.approx(expected_penalty)
 
 
 def test_verify_logit_similarity():
     """Test the verify_logit_similarity similarity metric."""
     original = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "token4": -1.5, "token5": -2.0}
     # Identical distributions -> 1.0.
-    assert LogitsRewardModel.verify_logit_similarity(original, original) == 1.0
+    assert LogitsRewardModel.verify_logit_similarity(original, original) == pytest.approx(1.0)
 
     # Disjoint tokens -> near zero.
     disjoint = {"foo": -0.1, "bar": -0.5, "foo1": -1.0, "bar1": -1.5, "foo2": -2.0}
     sim = LogitsRewardModel.verify_logit_similarity(original, disjoint)
-    assert 0 <= sim <= 0.01
+    assert sim == pytest.approx(0.0)
 
     # Partial overlap -> between 0 and 1.
     partial = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "foo1": -1.5, "bar1": -2.0}
     sim2 = LogitsRewardModel.verify_logit_similarity(original, partial)
-    assert sim2 == 0.6
+    assert sim2 == pytest.approx(0.6)
 
 
 def test_smooth_reward_scale():
