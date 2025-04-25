@@ -87,7 +87,7 @@ class ScoringQueue(AsyncLoopRunner):
                 if response.status_code != 200:
                     # Raise an exception so that the retry logic in the except block handles it.
                     raise Exception(f"Non-200 response: {response.status_code} for uids {uids}")
-                logger.debug(f"Forwarding response completed with status {response.status_code}")
+                logger.debug(f"Forwarding response completed with status {response.status_code} to uid {vali_uid}")
         except httpx.ConnectError as e:
             logger.warning(f"Couldn't connect to validator {url} for Scoring {uids}. Exception: {e}")
         except Exception as e:
@@ -124,7 +124,10 @@ class ScoringQueue(AsyncLoopRunner):
         uids = list(map(int, uids))
         chunk_dict = {str(u): c for u, c in zip(uids, chunks)}  # TODO: Remove chunk_dict if we have chunk_dicts_raw
         if chunk_dicts_raw:
-            chunk_dict_raw = {str(u): c for u, c in zip(uids, chunk_dicts_raw)}
+            # Iterate over the chunk_dicts_raw and convert each chunk to a dictionary
+            chunk_dict_raw = {}
+            for u, c in zip(uids, chunk_dicts_raw):
+                chunk_dict_raw[str(u)] = [chunk.model_dump() for chunk in c]
         else:
             chunk_dict_raw = {}
         if timings:
