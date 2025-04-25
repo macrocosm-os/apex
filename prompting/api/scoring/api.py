@@ -22,8 +22,10 @@ async def verify_scoring_signature(request: Request):
     signed_by = request.headers.get("Epistula-Signed-By")
     signed_for = request.headers.get("Epistula-Signed-For")
     if signed_for != shared_settings.WALLET.hotkey.ss58_address:
+        logger.error(f"Bad Request, message is not intended for self")
         raise HTTPException(status_code=400, detail="Bad Request, message is not intended for self")
     if signed_by != shared_settings.API_HOTKEY:
+        logger.error(f"Signer not the expected ss58 address")
         raise HTTPException(status_code=401, detail="Signer not the expected ss58 address")
 
     body = await request.body()
@@ -71,7 +73,7 @@ async def score_response(
     uids = [int(uid) for uid in uids]
     model = body.get("model")
     logger.debug("About to check model")
-    if model and model != shared_settings.LLM_MODEL:
+    if model and model not in shared_settings.LLM_MODEL:
         logger.error(f"Model {model} not available for scoring on this validator.")
         return
     logger.debug("Model has been checked")
@@ -84,7 +86,7 @@ async def score_response(
         organic_task = InferenceTask(
             messages=body.get("messages"),
             llm_model=llm_model,
-            llm_model_id=llm_model,
+            llm_model_id=model,
             seed=int(body.get("seed", 0)),
             sampling_params=body.get("sampling_parameters", shared_settings.SAMPLING_PARAMS),
             query=body.get("messages"),
@@ -94,10 +96,10 @@ async def score_response(
             task=organic_task,
             response=DendriteResponseEvent(
                 uids=uids,
-                stream_results=[SynapseStreamResult(accumulated_chunks=chunks.get(str(uid), None)) for uid in uids],
+                stream_results=[SynapseStreamResult(accumulated_chunks=chunks.get(str(uid), [])) for uid in uids],
                 timeout=timeout,
-                stream_results_all_chunks_timings=[timings.get(str(uid), None) for uid in uids],
-                stream_results_all_chunk_dicts_raw=[chunk_dicts_raw.get(str(uid), None) for uid in uids],
+                stream_results_all_chunks_timings=[timings.get(str(uid), []) for uid in uids],
+                stream_results_all_chunk_dicts_raw=[chunk_dicts_raw.get(str(uid), []) for uid in uids],
             ),
             dataset_entry=DatasetEntry(),
             block=shared_settings.METAGRAPH.block,
@@ -123,7 +125,7 @@ async def score_response(
                 uids=uids,
                 stream_results=[SynapseStreamResult(accumulated_chunks=chunks.get(str(uid), [])) for uid in uids],
                 timeout=body.get("timeout", shared_settings.NEURON_TIMEOUT),
-                stream_results_all_chunk_dicts_raw=[chunk_dicts_raw.get(str(uid), None) for uid in uids],
+                stream_results_all_chunk_dicts_raw=[chunk_dicts_raw.get(str(uid), []) for uid in uids],
             ),
             dataset_entry=DDGDatasetEntry(search_term=search_term),
             block=shared_settings.METAGRAPH.block,
