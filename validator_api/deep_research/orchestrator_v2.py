@@ -10,7 +10,7 @@ from loguru import logger
 from pydantic import BaseModel
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from validator_api.deep_research.utils import parse_llm_json, with_retries, extract_content_from_stream
+from validator_api.deep_research.utils import extract_content_from_stream, parse_llm_json, with_retries
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
 from validator_api.web_retrieval import web_retrieval
 
@@ -150,9 +150,12 @@ async def make_mistral_request(
     }
     logger.info(f"Making request to Mistral API with model: {model}")
     request = CompletionsRequest(
-        messages=messages, model=model, stream=True, sampling_parameters=sample_params,
+        messages=messages,
+        model=model,
+        stream=True,
+        sampling_parameters=sample_params,
     )
-    # Iterate over the response then collect the content 
+    # Iterate over the response then collect the content
     response = await completions(request)
     response_content = await extract_content_from_stream(response)
     logger.info(f"Response content: {response_content}")
@@ -366,7 +369,7 @@ class OrchestratorV2(BaseModel):
                     {self.completed_steps}
 
                     Your task is to determine what tool executions, if any, are needed for the next unchecked step in the todo list.
-                    You can request multiple executions of the same tool with different parameters if needed. Constrain yourself to only using 2 tools at a time. 
+                    You can request multiple executions of the same tool with different parameters if needed. Constrain yourself to only using 2 tools at a time.
 
                     Format your response as a JSON array of tool requests, where each request has:
                     - tool_name: Name of the tool to execute

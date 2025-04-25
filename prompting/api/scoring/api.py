@@ -22,10 +22,10 @@ async def verify_scoring_signature(request: Request):
     signed_by = request.headers.get("Epistula-Signed-By")
     signed_for = request.headers.get("Epistula-Signed-For")
     if signed_for != shared_settings.WALLET.hotkey.ss58_address:
-        logger.error(f"Bad Request, message is not intended for self")
+        logger.error("Bad Request, message is not intended for self")
         raise HTTPException(status_code=400, detail="Bad Request, message is not intended for self")
     if signed_by != shared_settings.API_HOTKEY:
-        logger.error(f"Signer not the expected ss58 address")
+        logger.error("Signer not the expected ss58 address")
         raise HTTPException(status_code=401, detail="Signer not the expected ss58 address")
 
     body = await request.body()
