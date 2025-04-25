@@ -106,6 +106,8 @@ class TaskScorer(AsyncLoopRunner):
                 model_manager=self.model_scheduler.llm_model_manager,
                 task_queue=self.task_queue,
             )
+            if scoring_config.task.organic:
+                logger.info(f"Reward events: {reward_events}")
         self.reward_events.append(reward_events)
 
         logger.debug(
