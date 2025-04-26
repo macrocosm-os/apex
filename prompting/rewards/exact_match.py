@@ -1,6 +1,8 @@
 import random
 
 import numpy as np
+import torch
+import torch.nn.functional as F
 from loguru import logger
 from openai.types.chat import ChatCompletionChunk
 
@@ -11,15 +13,15 @@ from shared import settings
 from shared.dendrite import DendriteResponseEvent
 
 shared_settings = settings.shared_settings
-INCORRECT_PENALTY = -1
+
+NO_EOS_PENALTY = -0.1
+INCORRECT_PENALTY = -2
 MIN_SMOOTH_PENALTY_SCALE = 0.6
-MIN_TIMING_PENALTY_SCALE = 0.5
-MIN_TIME_REWARD_SCALE = 0.2
-VERIFICATION_THRESH_CONTAINS = 0.88
-VERIFICATION_THRESH_SIM = 0.84
+MIN_TIME_PENALTY_SCALE = 0.3
+VERIFICATION_THRESH_CONTAINS = 0.92
+VERIFICATION_THRESH_SIM = 0.90
 MIN_VERIFY_TOKENS = 10
-MAX_VERIFY_TOKENS = 20
-NO_EOS_PENALTY = 0
+MAX_VERIFY_TOKENS = 30
 
 
 class LogitsRewardModel(BaseRewardModel):
@@ -56,11 +58,11 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError("Timeout must be greater than 0.")
 
         # If max_tokens are not provided, always check for eos.
-        max_tokens = sampling_parameters.get("max_tokens", 128_000)
+        max_tokens = sampling_parameters.get("max_tokens", 64_000)
         model = await model_manager.get_model(task.llm_model_id)
         eos_token = model.tokenizer.eos_token
         timing_verified: list[list[float]] = []
-        rewards = []
+        rewards: list[float] = []
         logger.info(f"Verifying logits with model {task.llm_model_id}")
         # Iterate over each miner response.
         for chunks, timings, chunk_dicts_raw, uid in zip(all_chunks, all_timings, all_chunk_dicts_raw, uids):
@@ -85,56 +87,47 @@ class LogitsRewardModel(BaseRewardModel):
                     timing_verified.append([-1.0])
                     continue
 
-                # Sample random indices for verification.
-                num_verify = int(np.clip(completion_length, MIN_VERIFY_TOKENS, MAX_VERIFY_TOKENS))
-                # Always verify the last index.
-                verify_indices = random.sample(range(completion_length - 1), num_verify - 1)
-                last_idx = completion_length - 1
-                verify_indices.append(last_idx)
-                verify_indices.sort()
-                # Verify logits for selected indices.
+                eos_idx = completion_length
+                verify_indices = self.sample_verification_indices(completion_length)
                 scores_sim: list[float] = []
                 scores_contains: list[float] = []
                 for idx in verify_indices:
-                    check_idx = min(idx, completion_length - 1)
-                    if not chunk_dicts_raw[check_idx].choices[0].logprobs:
-                        raise ValueError("No logprobs provided")
-
-                    if chunk_dicts_raw[check_idx].choices[0].logprobs.content is None:
-                        raise ValueError("Logprobs content is empty")
-
-                    original_logits = {
-                        info.token: info.logprob
-                        for info in chunk_dicts_raw[check_idx].choices[0].logprobs.content[0].top_logprobs
-                    }
-
-                    verification_output, _ = await model_manager.generate_logits(
+                    check_idx = min(idx, completion_length)
+                    verification_logits, _ = await model_manager.generate_logits(
                         model=task.llm_model_id,
                         messages=task.task_messages + [{"role": "assistant", "content": "".join(chunks[:check_idx])}],
                         sampling_params=sampling_parameters,
                         continue_last_message=True,
                     )
+                    if check_idx < eos_idx:
+                        if not chunk_dicts_raw[check_idx].choices[0].logprobs:
+                            raise ValueError("No logprobs provided")
 
-                    logit_sim = self.verify_logit_similarity(original_logits, verification_output)
-                    scores_sim.append(logit_sim)
+                        if chunk_dicts_raw[check_idx].choices[0].logprobs.content is None:
+                            raise ValueError("Logprobs content is empty")
 
-                    logit_contains = self.verify_logit_contains(chunks[check_idx], original_logits, verification_output)
-                    scores_contains.append(logit_contains)
+                        original_logits = {
+                            info.token: info.logprob
+                            for info in chunk_dicts_raw[check_idx].choices[0].logprobs.content[0].top_logprobs
+                        }
 
-                    if idx == last_idx and completion_length < max_tokens:
-                        if eos_token and (eos_token not in original_logits or eos_token not in verification_output):
-                            if eos_token not in verification_output:
-                                logger.debug(f"EOS not found in verification: {verification_output}")
-                            if eos_token not in original_logits:
-                                logger.debug(f"EOS not found in original: {original_logits}")
-                            # TODO: Make top_k equal to top_logprobs.
-                            # Do not set full penalty since top_k > top_logprobs.
+                        logit_sim = self.verify_logit_similarity(original_logits, verification_logits)
+                        scores_sim.append(logit_sim)
+
+                        logit_contains = self.verify_logit_contains(
+                            chunks[check_idx], original_logits, verification_logits
+                        )
+                        scores_contains.append(logit_contains)
+
+                    elif check_idx == eos_idx and completion_length < max_tokens:
+                        if eos_token and eos_token not in verification_logits:
                             penalty = NO_EOS_PENALTY
                             raise ValueError("Partial completion")
 
                 score_sim_mean = float(np.mean(scores_sim))
                 score_contains_mean = float(np.mean(scores_contains))
-                logger.debug(f"Final score for miner {uid:.0f}: {score_sim_mean:.2f}, {score_contains_mean:.2f}")
+                logger.debug(f"Scores: {score_sim_mean}; {score_contains_mean}")
+
                 if score_sim_mean < VERIFICATION_THRESH_SIM:
                     raise ValueError(f"Logits similarity mean score is below threshold: {score_sim_mean:.2f}")
 
@@ -167,21 +160,34 @@ class LogitsRewardModel(BaseRewardModel):
                 continue
 
             # Scale rewards based on how relative current timings to the fastest response.
-            timing_reward = float(np.clip(fastest_chunk / time_per_chunk, MIN_TIME_REWARD_SCALE, 1))
+            timing_reward = float(np.clip(fastest_chunk / time_per_chunk, MIN_TIME_PENALTY_SCALE, 1))
             rewards[idx] *= timing_reward
             timing_outputs.append(timing_reward)
 
         if len(rewards) != len(timing_outputs) != len(uids):
             raise ValueError(
-                f"Rewards, timings or uids lists are not identical {len(rewards)} {len(timing_outputs)} {len(uids)}"
+                f"Rewards, timings or UIDs have different lengths {len(rewards)} {len(timing_outputs)} {len(uids)}"
             )
 
+        rewards = np.array(rewards)
+        logger.info(f"Success responses: {len(rewards[rewards > 0])}/{len(rewards)}")
+
         reward_output = BatchRewardOutput(
-            rewards=np.array(rewards),
+            rewards=rewards,
             timings=np.array(timing_outputs),
         )
         logger.debug(f"Logits rewards: {reward_output.model_dump()}")
         return reward_output
+
+    @staticmethod
+    def sample_verification_indices(completion_length: int) -> list[int]:
+        """Sample random indices for verification, always add eos_token index."""
+        num_verify = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS))
+        verify_indices = random.sample(range(completion_length), num_verify)
+        # Add eos_token index.
+        verify_indices.append(completion_length)
+        verify_indices.sort()
+        return verify_indices
 
     @staticmethod
     def rescale(value: float, min_value: float = VERIFICATION_THRESH_SIM) -> float:
@@ -221,6 +227,9 @@ class LogitsRewardModel(BaseRewardModel):
         candidate_token: str, candidate_logits: dict[str, float], gt_logits: dict[str, float]
     ) -> float:
         """Verify if the selected token and logprobs are present in the verification output."""
+        if not gt_logits:
+            return 0.0
+
         if candidate_token not in candidate_logits.keys():
             return 0.0
 
@@ -231,20 +240,32 @@ class LogitsRewardModel(BaseRewardModel):
 
     @staticmethod
     def verify_logit_similarity(
-        original_logits: dict[str, float], verification_logits: dict[str, float], fill_value: float = -100.0
+        candidate_logits: dict[str, float],
+        gt_logits: dict[str, float],
     ) -> float:
-        all_tokens = sorted(set(original_logits) | set(verification_logits))
-        orig_vec = np.array([original_logits.get(t, fill_value) for t in all_tokens], dtype=np.float64)
-        verif_vec = np.array([verification_logits.get(t, fill_value) for t in all_tokens], dtype=np.float64)
+        """Similarity between candidate and ground-truth logprobs."""
+        if not gt_logits:
+            return 0.0
 
-        def softmax(x: np.ndarray) -> np.ndarray:
-            x_shift = x - x.max()
-            exp_x = np.exp(x_shift)
-            return exp_x / exp_x.sum()
+        if len(candidate_logits) != len(gt_logits):
+            return 0.0
 
-        orig_prob = softmax(orig_vec)
-        verif_prob = softmax(verif_vec)
+        # Tokens common to both distributions.
+        overlap = set(candidate_logits) & set(gt_logits)
+        if not overlap:
+            return 0.0
 
-        orig_unit = orig_prob / np.linalg.norm(orig_prob)
-        verif_unit = verif_prob / np.linalg.norm(verif_prob)
-        return float(np.dot(orig_unit, verif_unit))
+        length = len(gt_logits)
+        pred_tensor = torch.zeros(length, dtype=torch.float32)
+        gt_tensor = torch.zeros(length, dtype=torch.float32)
+        for idx, token in enumerate(overlap):
+            pred_tensor[idx] = candidate_logits[token]
+            gt_tensor[idx] = gt_logits[token]
+        cos = float(F.cosine_similarity(pred_tensor, gt_tensor, dim=0, eps=1e-8).item())
+
+        # Weight by how much of verification is overlapped.
+        overlap_frac = len(overlap) / len(gt_logits)
+
+        # Map to [0, 1] and clamp minor numeric drift.
+        score = cos * overlap_frac
+        return max(0.0, min(1.0, score))
