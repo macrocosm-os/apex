@@ -168,7 +168,7 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError(
                 f"Rewards, timings or UIDs have different lengths {len(rewards)} {len(timing_outputs)} {len(uids)}"
             )
-        
+
         rewards = np.array(rewards)
         logger.info(f"Success responses: {len(rewards[rewards > 0])}/{len(rewards)}")
 
