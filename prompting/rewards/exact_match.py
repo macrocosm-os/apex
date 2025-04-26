@@ -121,8 +121,6 @@ class LogitsRewardModel(BaseRewardModel):
 
                     elif check_idx == eos_idx and completion_length < max_tokens:
                         if eos_token and eos_token not in verification_logits:
-                            # TODO: Make top_k equal to top_logprobs.
-                            # Do not set full penalty since top_k > top_logprobs.
                             penalty = NO_EOS_PENALTY
                             raise ValueError("Partial completion")
 
