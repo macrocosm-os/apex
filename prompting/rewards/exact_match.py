@@ -175,7 +175,7 @@ class LogitsRewardModel(BaseRewardModel):
         logger.info(f"Success responses: {len(rewards[rewards > 0])}/{len(rewards)}")
 
         reward_output = BatchRewardOutput(
-            rewards=np.array(rewards),
+            rewards=rewards,
             timings=np.array(timing_outputs),
         )
         logger.debug(f"Logits rewards: {reward_output.model_dump()}")
