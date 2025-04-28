@@ -45,9 +45,7 @@ class InferenceTask(BaseTextTask):
     reference: str | None = None
     system_prompt: str | None = None
     llm_model: ModelConfig | None = None
-    llm_model_id: str | None = Field(
-        default_factory=lambda: random.choice(ModelZoo.models_configs).llm_model_id
-    )
+    llm_model_id: str | None = Field(default_factory=lambda: random.choice(ModelZoo.models_configs).llm_model_id)
     seed: int = Field(default_factory=lambda: random.randint(0, 1_000_000), allow_mutation=False)
     sampling_params: dict[str, float] = shared_settings.SAMPLING_PARAMS.copy()
     messages: list[dict] | None = None
