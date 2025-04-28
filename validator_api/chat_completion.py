@@ -3,10 +3,10 @@ import json
 import math
 import random
 import time
-import httpx
-import httpcore
 from typing import Any, AsyncGenerator, Callable, List, Optional
 
+import httpcore
+import httpx
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger

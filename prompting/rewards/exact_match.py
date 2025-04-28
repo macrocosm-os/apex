@@ -23,7 +23,7 @@ NO_EOS_PENALTY = 0
 
 
 class LogitsRewardModel(BaseRewardModel):
-    async def reward(
+    async def reward(  # noqa: C901
         self,
         reference: str,
         response_event: DendriteResponseEvent,

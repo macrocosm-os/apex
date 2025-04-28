@@ -66,7 +66,7 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
             search_results = await web_retrieval(WebRetrievalRequest(search_query=optimized_query, n_results=n_results))
             if search_results.results:
                 break
-        except BaseException as e:
+        except BaseException:
             logger.warning(f"Try {i+1} failed")
     if not search_results.results:
         search_results = {"results": []}
