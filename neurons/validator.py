@@ -12,6 +12,7 @@ import psutil
 import requests
 import torch
 import torch.multiprocessing as mp
+import wandb
 from bittensor.core.extrinsics.serving import serve_extrinsic
 from loguru import logger
 
