@@ -77,7 +77,7 @@ class InferenceTask(BaseTextTask):
         assert model_manager is not None, f"Model manager must be provided for {self.__class__.__name__}"
         # With logits scoring there is no reference, and instead we need to generate the logits based
         # on the miner's completions.
-        if self.llm_model or self.llm_model_id:
+        if not self.organic and (self.llm_model or self.llm_model_id):
             self.reference = ""
             return self.reference
 

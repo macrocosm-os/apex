@@ -81,10 +81,10 @@ class ReproducibleVLLM:
         vllm_params = SamplingParams(
             temperature=params.get("temperature", 1.0),
             top_p=params.get("top_p", 1.0),
-            max_tokens=max_tokens,
+            max_tokens=int(max_tokens),
             presence_penalty=params.get("presence_penalty", 0.0),
             frequency_penalty=params.get("frequency_penalty", 0.0),
-            top_k=params.get("top_k", -1),
+            top_k=int(params.get("top_k", -1)),
             logprobs=params.get("logprobs", None),
         )
 
