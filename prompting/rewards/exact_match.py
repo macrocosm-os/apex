@@ -22,7 +22,7 @@ MAX_VERIFY_TOKENS = 20
 NO_EOS_PENALTY = 0
 
 
-class LogitsRewardModel(BaseRewardModel):  #
+class LogitsRewardModel(BaseRewardModel):
     async def reward(  # noqa: C901
         self,
         reference: str,

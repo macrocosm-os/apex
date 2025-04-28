@@ -61,7 +61,15 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
     )
 
     # Perform web search
-    search_results = await web_retrieval(WebRetrievalRequest(search_query=optimized_query, n_results=n_results))
+    for i in range(3):
+        try:
+            search_results = await web_retrieval(WebRetrievalRequest(search_query=optimized_query, n_results=n_results))
+            if search_results.results:
+                break
+        except BaseException:
+            logger.warning(f"Try {i+1} failed")
+    if not search_results.results:
+        search_results = {"results": []}
 
     # Generate referenced answer
     answer_prompt = f"""Based on the provided search results, generate a comprehensive answer to the question.

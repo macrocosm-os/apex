@@ -94,7 +94,7 @@ async def web_retrieval(
         ],
     }
 
-    timeout_seconds = 30  # TODO: We need to scale down this timeout
+    timeout_seconds = 15  # TODO: We need to scale down this timeout
     logger.debug(f"🔍 Querying miners: {uids} for web retrieval")
     stream_results = await query_miners(uids, body, timeout_seconds)
     results = [
