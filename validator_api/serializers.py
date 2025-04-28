@@ -27,7 +27,7 @@ class CompletionsRequest(BaseModel):
     model: Optional[str] = Field(
         default=None,
         description="Model identifier to filter available miners.",
-        example="hugging-quants/Meta-Llama-3.1-70B-Instruct-AWQ-INT4",
+        example="Default",
     )
     test_time_inference: bool = Field(
         default=False, description="Enable step-by-step reasoning mode that shows the model's thinking process."

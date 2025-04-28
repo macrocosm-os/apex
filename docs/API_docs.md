@@ -141,7 +141,7 @@ client = openai.AsyncOpenAI(
 )
 
 result = await client.chat.completions.create(
-    model="hugging-quants/Meta-Llama-3.1-70B-Instruct-AWQ-INT4",
+    model="mrfakename/mistral-small-3.1-24b-instruct-2503-hf",
     messages=[
             {"role": "user", "content": """How are you?"""},
         ],
