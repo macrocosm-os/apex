@@ -1,17 +1,16 @@
 import json
-import sys
 import os
+import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Literal
-import sys
 
-import wandb
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from wandb.wandb_run import Run
 
 import prompting
+import wandb
 from prompting.rewards.reward import WeightedRewardEvent
 from prompting.tasks.task_registry import TaskRegistry
 from shared import settings
@@ -290,11 +289,11 @@ def strip_largest_fields(event: dict, max_total_size=10 * 1024 * 1024):
         event[largest_field] = "[REMOVED TO FIT SIZE LIMIT]"
         removed_fields.append(largest_field)
 
-        if 'debug_info' not in event:
-            event['debug_info'] = {}
-        event['debug_info'][largest_field] = {
-            'reason': 'Too large for wandb log',
-            'status': 'Removed to meet size limit'
+        if "debug_info" not in event:
+            event["debug_info"] = {}
+        event["debug_info"][largest_field] = {
+            "reason": "Too large for wandb log",
+            "status": "Removed to meet size limit",
         }
 
         json_size = get_json_size_bytes(event)
