@@ -303,7 +303,7 @@ def log_event(event: BaseEvent):
             unpacked_event = recursive_model_dump(event)
 
             json_size = get_json_size_bytes(unpacked_event)
-            logger.debug(f"Initial size — Deep: {get_json_size_bytes / 1024:.2f} KB | JSON: {json_size / 1024:.2f} KB")
+            logger.debug(f"Initial size — Deep: {get_json_size_bytes(unpacked_event) / 1024:.2f} KB | JSON: {json_size / 1024:.2f} KB")
 
             if json_size > 10 * 1024 * 1024:
                 unpacked_event = strip_largest_fields(unpacked_event)
