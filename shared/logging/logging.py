@@ -240,15 +240,29 @@ def log_event(event: BaseEvent):
         logger.info(f"{event}")
 
     if settings.shared_settings.WANDB_ON:
-        if should_reinit_wandb():
-            reinit_wandb()
-        unpacked_event = recursive_model_dump(event)
         try:
+            if should_reinit_wandb():
+                reinit_wandb()
+
+            unpacked_event = recursive_model_dump(event)
+
+            json_size = get_json_size_bytes(unpacked_event)
+            logger.debug(f"Initial size — Deep: {json_size / 1024:.2f} KB | JSON: {json_size / 1024:.2f} KB")
+
+            if json_size > 10 * 1024 * 1024:
+                unpacked_event = strip_largest_fields(unpacked_event)
+
+            final_size = get_json_size_bytes(unpacked_event)
+            logger.debug(f"Final JSON size after potential stripping: {final_size / 1024:.2f} KB")
+
             wandb.log(unpacked_event)
+
         except Exception as e:
-            logger.error(f"Error serializing event: {e}")
-            logger.error(f"Event: {unpacked_event}")
-        wandb.log(unpacked_event)
+            logger.error(f"Error logging to Wandb: {e}")
+            try:
+                logger.error(f"Failed event (truncated): {json.dumps(unpacked_event)[:1000]}...")
+            except Exception as inner:
+                logger.error(f"Also failed to serialize the failed event: {inner}")
 
 
 def get_json_size_bytes(obj: dict) -> int:
@@ -289,33 +303,3 @@ def strip_largest_fields(event: dict, max_total_size=10 * 1024 * 1024):
     if removed_fields:
         logger.info(f"Removed fields to fit size limit: {', '.join(removed_fields)}")
     return event
-
-
-def log_event(event: BaseEvent):
-    if not settings.shared_settings.LOGGING_DONT_SAVE_EVENTS:
-        logger.info(f"{event}")
-
-    if settings.shared_settings.WANDB_ON:
-        try:
-            if should_reinit_wandb():
-                reinit_wandb()
-
-            unpacked_event = recursive_model_dump(event)
-
-            json_size = get_json_size_bytes(unpacked_event)
-            logger.debug(f"Initial size — Deep: {get_json_size_bytes(unpacked_event) / 1024:.2f} KB | JSON: {json_size / 1024:.2f} KB")
-
-            if json_size > 10 * 1024 * 1024:
-                unpacked_event = strip_largest_fields(unpacked_event)
-
-            final_size = get_json_size_bytes(unpacked_event)
-            logger.debug(f"Final JSON size after potential stripping: {final_size / 1024:.2f} KB")
-
-            wandb.log(unpacked_event)
-
-        except Exception as e:
-            logger.error(f"Error logging to Wandb: {e}")
-            try:
-                logger.error(f"Failed event (truncated): {json.dumps(unpacked_event)[:1000]}...")
-            except Exception as inner:
-                logger.error(f"Also failed to serialize the failed event: {inner}")
