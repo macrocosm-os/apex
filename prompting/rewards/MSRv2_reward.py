@@ -40,7 +40,7 @@ class MSRv2RewardModel(BaseRewardModel):
                 task.generator_uid = response_event.uids[0]
 
             # Add task back to the task queue but now in the discriminative stage
-            task_queue.append(task)
+            task_queue.insert(0, task)
 
             logger.debug(f"Generate stage with answer: {task.generative_miner_answer} scored and re-appended")
             output = BatchRewardOutput(rewards=np.array([]), timings=np.array([]), threshold=None, uids=np.array([]))
