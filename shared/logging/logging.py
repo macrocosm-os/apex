@@ -5,12 +5,12 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Literal
 
+import wandb
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from wandb.wandb_run import Run
 
 import prompting
-import wandb
 from prompting.rewards.reward import WeightedRewardEvent
 from prompting.tasks.task_registry import TaskRegistry
 from shared import settings
