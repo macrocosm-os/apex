@@ -115,29 +115,13 @@ class LogitsRewardModel(BaseRewardModel):
                             for info in chunk_dicts_raw[check_idx].choices[0].logprobs.content[0].top_logprobs
                         }
 
-
                         logit_sim = self.verify_logit_similarity(original_logits, verification_logits)
                         scores_sim.append(logit_sim)
 
                         logit_contains = self.verify_logit_contains(
                             chunks[check_idx], original_logits, verification_logits
                         )
-                        # if (
-                        #     check_idx == 0
-                        #     and logit_sim < VERIFICATION_THRESH_SIM
-                        #     and logit_contains < VERIFICATION_THRESH_CONTAINS
-                        # ):
-                        #     raise ValueError("First token verification failed")
-
                         scores_contains.append(logit_contains)
-                        if logit_sim < VERIFICATION_THRESH_SIM:
-                            messages=task.task_messages + [{"role": "assistant", "content": "".join(chunks[:check_idx])}]
-                            logger.debug(f"Failed single logit: {logit_sim}")
-                            logger.debug(f"Messages: {messages}")
-                            logger.debug(f"sampling_parameters: {sampling_parameters}")
-                            logger.debug(f"Verification: {verification_logits}")
-                            logger.debug(f"Original: {original_logits}")
-                            logger.debug("====================")
 
                     elif check_idx == eos_idx and completion_length < max_tokens:
                         if eos_token and eos_token not in verification_logits:
