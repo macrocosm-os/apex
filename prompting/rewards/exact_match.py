@@ -21,7 +21,7 @@ INCORRECT_PENALTY = -2
 MIN_SMOOTH_PENALTY_SCALE = 0.6
 MIN_TIME_PENALTY_SCALE = 0.3
 VERIFICATION_THRESH_CONTAINS = 0.96
-VERIFICATION_THRESH_SIM = 0.88
+VERIFICATION_THRESH_SIM = 0.87
 
 
 class LogitsRewardModel(BaseRewardModel):
@@ -130,7 +130,6 @@ class LogitsRewardModel(BaseRewardModel):
 
                 score_sim_mean = float(np.mean(scores_sim))
                 score_contains_mean = float(np.mean(scores_contains))
-                logger.debug(f"Scores: {score_sim_mean}; {score_contains_mean}")
 
                 if score_sim_mean < VERIFICATION_THRESH_SIM:
                     raise ValueError(f"Logits similarity mean score is below threshold: {score_sim_mean:.2f}")
