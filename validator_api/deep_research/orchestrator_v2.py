@@ -132,8 +132,17 @@ async def make_mistral_request_with_json(
         parse_llm_json(raw_response)  # Test if the response is jsonable
         return raw_response, query_record
     except json.JSONDecodeError as e:
+        # One retry by putting truncated response back into the messages
         logger.error(f"Failed to parse Mistral API response as JSON: {e}")
-        raise
+        retry_messages = messages.copy()
+        retry_messages.append({"role": "assistant", "content": raw_response})
+        raw_response, query_record = await make_mistral_request(retry_messages, step_name, completions)
+        try:
+            parse_llm_json(raw_response)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse Mistral API response as JSON: {e}")
+            raise
+        return raw_response, query_record
 
 
 @retry(
