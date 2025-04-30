@@ -13,7 +13,6 @@ from prompting.tasks.base_task import BaseTextTask
 from prompting.tasks.inference import InferenceRewardConfig, InferenceTask
 from prompting.tasks.MSRv2_task import MSRv2RewardConfig, MSRv2Task
 from prompting.tasks.programming_task import ProgrammingRewardConfig, ProgrammingTask
-from prompting.tasks.qa import QARewardConfig, WebQuestionAnsweringTask
 from prompting.tasks.web_retrieval import WebRetrievalRewardConfig, WebRetrievalTask
 from shared.base import BaseDataset
 
@@ -34,26 +33,20 @@ class TaskRegistry(BaseModel):
     task_configs: ClassVar[list[TaskConfig]] = [
         TaskConfig(task=MSRv2Task, probability=0.05, datasets=[DDGDataset], reward_model=MSRv2RewardConfig),
         TaskConfig(
-            task=WebQuestionAnsweringTask,
-            probability=0.05,
-            datasets=[DDGDataset],
-            reward_model=QARewardConfig,
-        ),
-        TaskConfig(
             task=InferenceTask,
-            probability=0.40,
+            probability=0.45,
             datasets=[SN13Dataset],
             reward_model=InferenceRewardConfig,
         ),
         TaskConfig(
             task=ProgrammingTask,
-            probability=0.20,
+            probability=0.10,
             datasets=[HuggingFaceGithubDataset],
             reward_model=ProgrammingRewardConfig,
         ),
         TaskConfig(
             task=WebRetrievalTask,
-            probability=0.3,
+            probability=0.40,
             datasets=[DDGDataset],
             reward_model=WebRetrievalRewardConfig,
         ),

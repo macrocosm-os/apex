@@ -303,10 +303,10 @@ def test_fastest_timing_various_cases(values, expected):
 def test_sample_verification_indices_properties(completion_length):
     indices = LogitsRewardModel.sample_verification_indices(completion_length)
 
-    # Compute expected number of sampled tokens (before adding EOS)
-    expected_k = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS)) + 1
+    # Compute expected number of sampled tokens with first and eos indices.
+    expected_k = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS))
 
-    # The result should have expected_k samples plus one EOS index
+    # The result should have expected_k samples plus one EOS index.
     assert isinstance(indices, list)
     assert len(indices) == expected_k
     assert indices == sorted(indices)

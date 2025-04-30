@@ -14,14 +14,14 @@ from shared.dendrite import DendriteResponseEvent
 
 shared_settings = settings.shared_settings
 
+MIN_VERIFY_TOKENS = 10
+MAX_VERIFY_TOKENS = 30
 NO_EOS_PENALTY = -0.1
 INCORRECT_PENALTY = -2
 MIN_SMOOTH_PENALTY_SCALE = 0.6
 MIN_TIME_PENALTY_SCALE = 0.3
-VERIFICATION_THRESH_CONTAINS = 0.92
-VERIFICATION_THRESH_SIM = 0.90
-MIN_VERIFY_TOKENS = 10
-MAX_VERIFY_TOKENS = 30
+VERIFICATION_THRESH_CONTAINS = 0.96
+VERIFICATION_THRESH_SIM = 0.86
 
 
 class LogitsRewardModel(BaseRewardModel):
@@ -93,11 +93,15 @@ class LogitsRewardModel(BaseRewardModel):
                 scores_contains: list[float] = []
                 for idx in verify_indices:
                     check_idx = min(idx, completion_length)
+                    messages = task.task_messages.copy()
+                    to_complete = "".join(chunks[:check_idx])
+                    if to_complete:
+                        messages.extend([{"role": "assistant", "content": to_complete}])
                     verification_logits, _ = await model_manager.generate_logits(
                         model=task.llm_model_id,
-                        messages=task.task_messages + [{"role": "assistant", "content": "".join(chunks[:check_idx])}],
+                        messages=messages,
                         sampling_params=sampling_parameters,
-                        continue_last_message=True,
+                        continue_last_message=len(to_complete) > 0,
                     )
                     if check_idx < eos_idx:
                         if not chunk_dicts_raw[check_idx].choices[0].logprobs:
@@ -126,7 +130,6 @@ class LogitsRewardModel(BaseRewardModel):
 
                 score_sim_mean = float(np.mean(scores_sim))
                 score_contains_mean = float(np.mean(scores_contains))
-                logger.debug(f"Scores: {score_sim_mean}; {score_contains_mean}")
 
                 if score_sim_mean < VERIFICATION_THRESH_SIM:
                     raise ValueError(f"Logits similarity mean score is below threshold: {score_sim_mean:.2f}")
@@ -181,9 +184,12 @@ class LogitsRewardModel(BaseRewardModel):
 
     @staticmethod
     def sample_verification_indices(completion_length: int) -> list[int]:
-        """Sample random indices for verification, always add eos_token index."""
-        num_verify = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS))
-        verify_indices = random.sample(range(completion_length), num_verify)
+        """Sample random indices for verification, always add 0 and eos_token index."""
+        # Sample indices without first and last index.
+        num_verify = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS)) - 2
+        verify_indices = random.sample(range(1, completion_length - 1), num_verify)
+        # Add first index.
+        verify_indices.append(0)
         # Add eos_token index.
         verify_indices.append(completion_length)
         verify_indices.sort()
