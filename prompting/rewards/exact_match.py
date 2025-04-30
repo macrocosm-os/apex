@@ -14,14 +14,14 @@ from shared.dendrite import DendriteResponseEvent
 
 shared_settings = settings.shared_settings
 
+MIN_VERIFY_TOKENS = 10
+MAX_VERIFY_TOKENS = 30
 NO_EOS_PENALTY = -0.1
 INCORRECT_PENALTY = -2
 MIN_SMOOTH_PENALTY_SCALE = 0.6
 MIN_TIME_PENALTY_SCALE = 0.3
-VERIFICATION_THRESH_CONTAINS = 0.92
-VERIFICATION_THRESH_SIM = 0.90
-MIN_VERIFY_TOKENS = 10
-MAX_VERIFY_TOKENS = 30
+VERIFICATION_THRESH_CONTAINS = 0.96
+VERIFICATION_THRESH_SIM = 0.88
 
 
 class LogitsRewardModel(BaseRewardModel):
@@ -93,11 +93,15 @@ class LogitsRewardModel(BaseRewardModel):
                 scores_contains: list[float] = []
                 for idx in verify_indices:
                     check_idx = min(idx, completion_length)
+                    messages = task.task_messages.copy()
+                    to_complete = "".join(chunks[:check_idx])
+                    if to_complete:
+                        messages.extend([{"role": "assistant", "content": to_complete}])
                     verification_logits, _ = await model_manager.generate_logits(
                         model=task.llm_model_id,
-                        messages=task.task_messages + [{"role": "assistant", "content": "".join(chunks[:check_idx])}],
+                        messages=messages,
                         sampling_params=sampling_parameters,
-                        continue_last_message=True,
+                        continue_last_message=len(to_complete) > 0,
                     )
                     if check_idx < eos_idx:
                         if not chunk_dicts_raw[check_idx].choices[0].logprobs:
@@ -111,13 +115,29 @@ class LogitsRewardModel(BaseRewardModel):
                             for info in chunk_dicts_raw[check_idx].choices[0].logprobs.content[0].top_logprobs
                         }
 
+
                         logit_sim = self.verify_logit_similarity(original_logits, verification_logits)
                         scores_sim.append(logit_sim)
 
                         logit_contains = self.verify_logit_contains(
                             chunks[check_idx], original_logits, verification_logits
                         )
+                        # if (
+                        #     check_idx == 0
+                        #     and logit_sim < VERIFICATION_THRESH_SIM
+                        #     and logit_contains < VERIFICATION_THRESH_CONTAINS
+                        # ):
+                        #     raise ValueError("First token verification failed")
+
                         scores_contains.append(logit_contains)
+                        if logit_sim < VERIFICATION_THRESH_SIM:
+                            messages=task.task_messages + [{"role": "assistant", "content": "".join(chunks[:check_idx])}]
+                            logger.debug(f"Failed single logit: {logit_sim}")
+                            logger.debug(f"Messages: {messages}")
+                            logger.debug(f"sampling_parameters: {sampling_parameters}")
+                            logger.debug(f"Verification: {verification_logits}")
+                            logger.debug(f"Original: {original_logits}")
+                            logger.debug("====================")
 
                     elif check_idx == eos_idx and completion_length < max_tokens:
                         if eos_token and eos_token not in verification_logits:
@@ -181,9 +201,12 @@ class LogitsRewardModel(BaseRewardModel):
 
     @staticmethod
     def sample_verification_indices(completion_length: int) -> list[int]:
-        """Sample random indices for verification, always add eos_token index."""
-        num_verify = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS))
-        verify_indices = random.sample(range(completion_length), num_verify)
+        """Sample random indices for verification, always add 0 and eos_token index."""
+        # Sample indices without first and last index.
+        num_verify = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS)) - 2
+        verify_indices = random.sample(range(1, completion_length - 1), num_verify)
+        # Add first index.
+        verify_indices.append(0)
         # Add eos_token index.
         verify_indices.append(completion_length)
         verify_indices.sort()
