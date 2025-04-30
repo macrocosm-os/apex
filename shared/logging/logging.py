@@ -252,8 +252,6 @@ def log_event(event: BaseEvent):
                 unpacked_event = strip_largest_fields(unpacked_event)
 
             final_size = get_json_size_bytes(unpacked_event)
-            logger.debug(f"Final JSON size after potential stripping: {final_size / 1024:.2f} KB")
-
             wandb.log(unpacked_event)
 
         except Exception as e:
@@ -281,7 +279,7 @@ def strip_largest_fields(event: dict, max_total_size=10 * 1024 * 1024):
         field_sizes = {k: get_json_size_bytes(v) for k, v in event.items()}
         largest_field = max(field_sizes, key=field_sizes.get)
 
-        logger.warning(
+        logger.debug(
             f"💣 Event too large ({json_size / 1024:.2f} KB). "
             f"Removing field: '{largest_field}' ({field_sizes[largest_field] / 1024:.2f} KB)"
         )
