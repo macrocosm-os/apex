@@ -53,6 +53,7 @@ class MSRv2RewardModel(BaseRewardModel):
                 try:
                     # discriminator reward is (1-Squared Error)/N_Discriminators
                     comp_value = float(comp)
+                    comp_value = min(1, max(0, comp_value))
                     discriminator_rewards.append((1 - (task.ground_truth - comp_value) ** 2) / len(completions))
                 except (ValueError, TypeError):
                     # logger.error(f"Error converting completion to float: {e}")
