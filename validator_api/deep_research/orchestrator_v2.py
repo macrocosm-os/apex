@@ -117,33 +117,43 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
         "raw_results": [{"snippet": r.content, "url": r.url} for r in search_results.results],
     }
 
-
 @retry(
     stop=stop_after_attempt(5),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(json.JSONDecodeError),
 )
 async def make_mistral_request_with_json(
-    messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
-):
-    """Makes a request to Mistral API and records the query"""
+    messages: list[dict[str, Any]],
+    step_name: str,
+    completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]],
+) -> tuple[str, Any]:
+    """Makes a request to the Mistral API and ensures the response is JSON-decodable."""
+    return await _make_and_parse_request(messages, step_name, completions)
+
+async def _make_and_parse_request(
+    messages: list[dict[str, Any]],
+    step_name: str,
+    completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]],
+) -> tuple[str, Any]:
     raw_response, query_record = await make_mistral_request(messages, step_name, completions)
+
     try:
-        parse_llm_json(raw_response)  # Test if the response is jsonable
-        return raw_response, query_record
-    except json.JSONDecodeError as e:
-        # One retry by putting truncated response back into the messages
-        logger.error(f"Failed to parse Mistral API response as JSON: {e}")
-        retry_messages = messages.copy()
-        retry_messages.append({"role": "assistant", "content": raw_response})
-        raw_response, query_record = await make_mistral_request(retry_messages, step_name, completions)
-        try:
-            parse_llm_json(raw_response)
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse Mistral API response as JSON: {e}")
-            raise
+        parse_llm_json(raw_response)
         return raw_response, query_record
 
+    except json.JSONDecodeError as e:
+        logger.warning(f"[{step_name}] First parse attempt failed: {e}. Retrying with assistant echo...")
+
+        # Try again with raw response echoed back into messages
+        retry_messages = messages + [{"role": "assistant", "content": raw_response}]
+        raw_response, query_record = await make_mistral_request(retry_messages, step_name, completions)
+
+        try:
+            parse_llm_json(raw_response)
+            return raw_response, query_record
+        except json.JSONDecodeError as e:
+            logger.error(f"[{step_name}] Final parse attempt failed after retry: {e}")
+            raise
 
 @retry(
     stop=stop_after_attempt(7),
