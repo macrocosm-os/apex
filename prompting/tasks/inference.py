@@ -49,6 +49,7 @@ class InferenceTask(BaseTextTask):
     seed: int = Field(default_factory=lambda: random.randint(0, 1_000_000), allow_mutation=False)
     sampling_params: dict[str, float] = shared_settings.SAMPLING_PARAMS.copy()
     messages: list[dict] | None = None
+    timeout: int = settings.shared_settings.INFERENCE_TIMEOUT
 
     @model_validator(mode="after")
     def random_llm_model_id(self):
