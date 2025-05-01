@@ -17,11 +17,11 @@ shared_settings = settings.shared_settings
 MIN_VERIFY_TOKENS = 10
 MAX_VERIFY_TOKENS = 30
 NO_EOS_PENALTY = -0.1
-INCORRECT_PENALTY = -2
+INCORRECT_PENALTY = -1.5
 NOT_ENOUGH_TOKENS_PENALTY_SCALE = 0.1
 MIN_SMOOTH_PENALTY_SCALE = 0.6
 MIN_TIME_PENALTY_SCALE = 0.3
-VERIFICATION_THRESH_CONTAINS = 0.96
+VERIFICATION_THRESH_CONTAINS = 0.92
 VERIFICATION_THRESH_SIM = 0.83
 
 
@@ -59,7 +59,7 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError("Timeout must be greater than 0.")
 
         # If max_tokens are not provided, always check for eos.
-        max_tokens = sampling_parameters.get("max_tokens", 64_000)
+        max_tokens = sampling_parameters.get("max_tokens", 8192)
         model = await model_manager.get_model(task.llm_model_id)
         eos_token = model.tokenizer.eos_token
         timing_verified: list[list[float]] = []

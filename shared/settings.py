@@ -66,7 +66,7 @@ class SharedSettings(BaseSettings):
 
     # Neuron parameters.
     NEURON_TIMEOUT: int = Field(20, env="NEURON_TIMEOUT")
-    INFERENCE_TIMEOUT: int = Field(60, env="INFERENCE_TIMEOUT")
+    INFERENCE_TIMEOUT: int = Field(40, env="INFERENCE_TIMEOUT")
     NEURON_DISABLE_SET_WEIGHTS: bool = Field(False, env="NEURON_DISABLE_SET_WEIGHTS")
     NEURON_MOVING_AVERAGE_ALPHA: float = Field(0.1, env="NEURON_MOVING_AVERAGE_ALPHA")
     NEURON_DECAY_ALPHA: float = Field(0.001, env="NEURON_DECAY_ALPHA")
