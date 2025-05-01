@@ -1,1 +1,1 @@
-from shared.logging.logging import *
+from shared.logging.logging import *  # noqa: F403

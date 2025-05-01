@@ -45,12 +45,11 @@ class InferenceTask(BaseTextTask):
     reference: str | None = None
     system_prompt: str | None = None
     llm_model: ModelConfig | None = None
-    llm_model_id: str | None = Field(
-        default_factory=lambda: ModelZoo.models_configs[0 if random.random() < 0.8 else 1].llm_model_id
-    )
+    llm_model_id: str | None = Field(default_factory=lambda: random.choice(ModelZoo.models_configs).llm_model_id)
     seed: int = Field(default_factory=lambda: random.randint(0, 1_000_000), allow_mutation=False)
     sampling_params: dict[str, float] = shared_settings.SAMPLING_PARAMS.copy()
     messages: list[dict] | None = None
+    timeout: int = shared_settings.INFERENCE_TIMEOUT
 
     @model_validator(mode="after")
     def random_llm_model_id(self):
@@ -79,7 +78,7 @@ class InferenceTask(BaseTextTask):
         assert model_manager is not None, f"Model manager must be provided for {self.__class__.__name__}"
         # With logits scoring there is no reference, and instead we need to generate the logits based
         # on the miner's completions.
-        if self.llm_model or self.llm_model_id:
+        if not self.organic and (self.llm_model or self.llm_model_id):
             self.reference = ""
             return self.reference
 

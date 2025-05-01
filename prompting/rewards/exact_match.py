@@ -14,18 +14,19 @@ from shared.dendrite import DendriteResponseEvent
 
 shared_settings = settings.shared_settings
 
+MIN_VERIFY_TOKENS = 10
+MAX_VERIFY_TOKENS = 30
 NO_EOS_PENALTY = -0.1
-INCORRECT_PENALTY = -2
+INCORRECT_PENALTY = -1.5
+NOT_ENOUGH_TOKENS_PENALTY_SCALE = 0.1
 MIN_SMOOTH_PENALTY_SCALE = 0.6
 MIN_TIME_PENALTY_SCALE = 0.3
 VERIFICATION_THRESH_CONTAINS = 0.92
-VERIFICATION_THRESH_SIM = 0.90
-MIN_VERIFY_TOKENS = 10
-MAX_VERIFY_TOKENS = 30
+VERIFICATION_THRESH_SIM = 0.83
 
 
 class LogitsRewardModel(BaseRewardModel):
-    async def reward(
+    async def reward(  # noqa: C901
         self,
         reference: str,
         response_event: DendriteResponseEvent,
@@ -58,7 +59,7 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError("Timeout must be greater than 0.")
 
         # If max_tokens are not provided, always check for eos.
-        max_tokens = sampling_parameters.get("max_tokens", 64_000)
+        max_tokens = sampling_parameters.get("max_tokens", 8192)
         model = await model_manager.get_model(task.llm_model_id)
         eos_token = model.tokenizer.eos_token
         timing_verified: list[list[float]] = []
@@ -67,6 +68,7 @@ class LogitsRewardModel(BaseRewardModel):
         # Iterate over each miner response.
         for chunks, timings, chunk_dicts_raw, uid in zip(all_chunks, all_timings, all_chunk_dicts_raw, uids):
             penalty = INCORRECT_PENALTY
+            reward_scale = 1.0
             try:
                 # If no response is provided, apply full penalty.
                 if not chunks:
@@ -82,10 +84,8 @@ class LogitsRewardModel(BaseRewardModel):
                     continue
 
                 if completion_length < MIN_VERIFY_TOKENS:
-                    # Not enough tokens to verify, set reward to 0.
-                    rewards.append(0)
-                    timing_verified.append([-1.0])
-                    continue
+                    # Not enough tokens to verify, still proceed to verification with scaled reward if checks will pass.
+                    reward_scale = NOT_ENOUGH_TOKENS_PENALTY_SCALE
 
                 eos_idx = completion_length
                 verify_indices = self.sample_verification_indices(completion_length)
@@ -93,11 +93,15 @@ class LogitsRewardModel(BaseRewardModel):
                 scores_contains: list[float] = []
                 for idx in verify_indices:
                     check_idx = min(idx, completion_length)
+                    messages = task.task_messages.copy()
+                    to_complete = "".join(chunks[:check_idx])
+                    if to_complete:
+                        messages.extend([{"role": "assistant", "content": to_complete}])
                     verification_logits, _ = await model_manager.generate_logits(
                         model=task.llm_model_id,
-                        messages=task.task_messages + [{"role": "assistant", "content": "".join(chunks[:check_idx])}],
+                        messages=messages,
                         sampling_params=sampling_parameters,
-                        continue_last_message=True,
+                        continue_last_message=len(to_complete) > 0,
                     )
                     if check_idx < eos_idx:
                         if not chunk_dicts_raw[check_idx].choices[0].logprobs:
@@ -126,7 +130,6 @@ class LogitsRewardModel(BaseRewardModel):
 
                 score_sim_mean = float(np.mean(scores_sim))
                 score_contains_mean = float(np.mean(scores_contains))
-                logger.debug(f"Scores: {score_sim_mean}; {score_contains_mean}")
 
                 if score_sim_mean < VERIFICATION_THRESH_SIM:
                     raise ValueError(f"Logits similarity mean score is below threshold: {score_sim_mean:.2f}")
@@ -139,8 +142,7 @@ class LogitsRewardModel(BaseRewardModel):
                 # Min-max scale logits reward, e.g from [0.95; 1.0] to [0.0, 1.0].
                 score_sim_mean = self.rescale(score_sim_mean, min_value=VERIFICATION_THRESH_SIM)
                 score_contains_mean = self.rescale(score_contains_mean, min_value=VERIFICATION_THRESH_CONTAINS)
-                logits_score = (score_sim_mean + score_contains_mean) / 2
-                rewards.append(logits_score * smooth_reward)
+                rewards.append(score_sim_mean * score_contains_mean * smooth_reward * reward_scale)
             except BaseException as e:
                 logger.debug(f"Miner {uid} failed to pass logits check: {e}")
                 rewards.append(penalty)
@@ -181,9 +183,12 @@ class LogitsRewardModel(BaseRewardModel):
 
     @staticmethod
     def sample_verification_indices(completion_length: int) -> list[int]:
-        """Sample random indices for verification, always add eos_token index."""
-        num_verify = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS))
-        verify_indices = random.sample(range(completion_length), num_verify)
+        """Sample random indices for verification, always add 0 and eos_token index."""
+        # Sample indices without first and last index.
+        num_verify = int(np.clip(completion_length, 1, MAX_VERIFY_TOKENS)) - 2
+        verify_indices = random.sample(range(1, completion_length - 1), num_verify)
+        # Add first index.
+        verify_indices.append(0)
         # Add eos_token index.
         verify_indices.append(completion_length)
         verify_indices.sort()

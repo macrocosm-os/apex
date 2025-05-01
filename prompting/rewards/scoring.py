@@ -106,13 +106,10 @@ class TaskScorer(AsyncLoopRunner):
                 model_manager=self.model_scheduler.llm_model_manager,
                 task_queue=self.task_queue,
             )
+            if scoring_config.task.organic:
+                logger.info(f"Reward events: {reward_events}")
         self.reward_events.append(reward_events)
 
-        # TODO: Remove this once we have a better way to handle organic tasks
-        if scoring_config.task.organic:
-            self.reward_events.append(
-                reward_events
-            )  # Add the organic a second time, doubling the weight of the organic
         logger.debug(
             f"Scored {scoring_config.task.__class__.__name__} {scoring_config.task.task_id} with model "
             f"{scoring_config.task.llm_model_id}"

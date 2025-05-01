@@ -75,7 +75,7 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
             body["task"] = "MultiStepReasoningTask"
         if body.get("model") == "Default":
             # By setting default, we are allowing a user to use whatever model we define as the standard, could also set to None.
-            body["model"] = "hugging-quants/Meta-Llama-3.1-70B-Instruct-AWQ-INT4"
+            body["model"] = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
         body["seed"] = int(body.get("seed") or random.randint(0, 1000000))
         if body.get("uids"):
             try:

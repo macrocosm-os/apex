@@ -5,6 +5,8 @@ import random
 import time
 from typing import Any, AsyncGenerator, Callable, List, Optional
 
+import httpcore
+import httpx
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger
@@ -225,15 +227,22 @@ async def collect_remaining_responses(
                 logger.error(f"Error collecting response from uid {uids[i+1]}: {response}")
                 continue
 
-            async for chunk in response:
-                if not chunk.choices or not chunk.choices[0].delta:
-                    continue
-                content = getattr(chunk.choices[0].delta, "content", None)
-                if content is None:
-                    continue
-                timings_list[i + 1].append(time.monotonic() - response_start_time)
-                collected_chunks_list[i + 1].append(content)
-                collected_chunks_raw_list[i + 1].append(chunk)
+            try:
+                async for chunk in response:
+                    if not chunk.choices or not chunk.choices[0].delta:
+                        continue
+                    content = getattr(chunk.choices[0].delta, "content", None)
+                    if content is None:
+                        continue
+
+                    timings_list[i + 1].append(time.monotonic() - response_start_time)
+                    collected_chunks_list[i + 1].append(content)
+                    collected_chunks_raw_list[i + 1].append(chunk)
+
+            except (httpx.ReadTimeout, httpcore.ReadTimeout) as e:
+                logger.warning(f"Stream timeout for index {i}: partial results collected. {e}")
+            except Exception as e:
+                logger.error(f"Unexpected error collecting stream for index {i}: {e}")
 
     except Exception as e:
         logger.exception(f"Error collecting remaining responses: {e}")

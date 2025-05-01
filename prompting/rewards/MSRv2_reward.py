@@ -40,7 +40,7 @@ class MSRv2RewardModel(BaseRewardModel):
                 task.generator_uid = response_event.uids[0]
 
             # Add task back to the task queue but now in the discriminative stage
-            task_queue.append(task)
+            task_queue.insert(0, task)
 
             logger.debug(f"Generate stage with answer: {task.generative_miner_answer} scored and re-appended")
             output = BatchRewardOutput(rewards=np.array([]), timings=np.array([]), threshold=None, uids=np.array([]))
@@ -53,6 +53,7 @@ class MSRv2RewardModel(BaseRewardModel):
                 try:
                     # discriminator reward is (1-Squared Error)/N_Discriminators
                     comp_value = float(comp)
+                    comp_value = min(1, max(0, comp_value))
                     discriminator_rewards.append((1 - (task.ground_truth - comp_value) ** 2) / len(completions))
                 except (ValueError, TypeError):
                     # logger.error(f"Error converting completion to float: {e}")
