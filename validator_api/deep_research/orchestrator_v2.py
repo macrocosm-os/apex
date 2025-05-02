@@ -72,7 +72,7 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
         search_results = {"results": []}
 
     # Generate referenced answer
-    answer_prompt = f"""Based on the provided search results, generate a comprehensive answer to the question.
+    answer_prompt = f"""Based on the provided search results, generate a concise but well-structured answer to the question.
     Include inline references to sources using markdown format [n] where n is the source number.
 
     Question: {question}
@@ -119,7 +119,7 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
 
 
 @retry(
-    stop=stop_after_attempt(5),
+    stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(json.JSONDecodeError),
 )
@@ -128,24 +128,18 @@ async def make_mistral_request_with_json(
     step_name: str,
     completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]],
 ):
-    """Makes a request to Mistral API, retries JSON parsing, and appends assistant responses if needed."""
-    max_parse_attempts = 2  # first try, then one fallback
-
-    for attempt in range(max_parse_attempts):
-        raw_response, query_record = await make_mistral_request(messages, step_name, completions)
-        try:
-            parse_llm_json(raw_response)
-            return raw_response, query_record
-        except json.JSONDecodeError as e:
-            logger.warning(f"[{step_name}] Attempt {attempt + 1} failed to parse JSON: {e}")
-            messages = messages + [{"role": "assistant", "content": raw_response}]
-
-    logger.error(f"[{step_name}] Failed to parse response as JSON after {max_parse_attempts} attempts")
-    raise json.JSONDecodeError("Mistral response could not be parsed as JSON", raw_response, 0)
+    """Makes a request to Mistral API and records the query"""
+    raw_response, query_record = await make_mistral_request(messages, step_name, completions)
+    try:
+        parse_llm_json(raw_response)  # Test if the response is jsonable
+        return raw_response, query_record
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Mistral API response as JSON: {e}")
+        raise
 
 
 @retry(
-    stop=stop_after_attempt(7),
+    stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(BaseException),
 )
@@ -168,12 +162,12 @@ async def make_mistral_request(
     request = CompletionsRequest(
         messages=messages,
         model=model,
-        stream=True,
+        stream=False,
         sampling_parameters=sample_params,
     )
     # Iterate over the response then collect the content
     response = await completions(request)
-    response_content = await extract_content_from_stream(response)
+    response_content = response.choices[0].message.content  # await extract_content_from_stream(response)
     logger.info(f"Response content: {response_content}")
     if not response_content:
         raise ValueError(f"No response content received from Mistral API, response: {response}")
