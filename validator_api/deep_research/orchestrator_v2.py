@@ -10,7 +10,7 @@ from loguru import logger
 from pydantic import BaseModel
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from validator_api.deep_research.utils import parse_llm_json, with_retries
+from validator_api.deep_research.utils import parse_llm_json, with_retries, extract_content_from_stream
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
 from validator_api.web_retrieval import web_retrieval
 
@@ -162,12 +162,12 @@ async def make_mistral_request(
     request = CompletionsRequest(
         messages=messages,
         model=model,
-        stream=False,
+        stream=True,
         sampling_parameters=sample_params,
     )
     # Iterate over the response then collect the content
     response = await completions(request)
-    response_content = response.choices[0].message.content  # await extract_content_from_stream(response)
+    response_content = await extract_content_from_stream(response)
     logger.info(f"Response content: {response_content}")
     if not response_content:
         raise ValueError(f"No response content received from Mistral API, response: {response}")
