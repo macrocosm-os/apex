@@ -166,6 +166,7 @@ async def stream_from_first_response(
                     # just skip and continue to the next task
 
         if first_valid_response is None:
+            # TODO: Still add to the scoring queue
             logger.error("No valid response received from any miner")
             yield 'data: {"error": "502 - No valid response received"}\n\n'
             return
