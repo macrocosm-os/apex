@@ -1,6 +1,8 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from validator_api.messages import Message, Messages
 
 
 class CompletionsRequest(BaseModel):
@@ -11,10 +13,18 @@ class CompletionsRequest(BaseModel):
         description="List of specific miner UIDs to query. If not provided, miners will be selected automatically.",
         example=[1, 2, 3],
     )
-    messages: List[Dict[str, str]] = Field(
+    messages: Union[List[Dict[str, Any]], Messages] = Field(
         ...,
-        description="List of message objects with 'role' and 'content' keys. Roles can be 'system', 'user', or 'assistant'.",
-        example=[{"role": "user", "content": "Tell me about neural networks"}],
+        description="List of message objects with 'role' and 'content' keys. Content can be a string or a list of ContentItems for multimodal inputs.",
+        example=[
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Tell me about this image"},
+                    {"type": "image", "image_url": {"url": "https://example.com/image.jpg"}},
+                ],
+            }
+        ],
     )
     seed: Optional[int] = Field(
         default=None,
@@ -59,6 +69,68 @@ class CompletionsRequest(BaseModel):
     )
     json_format: bool = Field(default=False, description="Enable JSON format for the response.", example=True)
     stream: bool = Field(default=False, description="Enable streaming for the response.", example=True)
+
+    @classmethod
+    def model_validate(cls, obj, *args, **kwargs):
+        """Custom validation to handle messages conversion."""
+        if isinstance(obj, dict) and "messages" in obj:
+            # Convert messages to a Messages object if it's a dictionary
+            if isinstance(obj["messages"], list):
+                # Process each message to ensure it uses the new format
+                processed_messages = []
+                for msg in obj["messages"]:
+                    if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                        # If content is a string, convert to new format
+                        if isinstance(msg["content"], str):
+                            msg = {"role": msg["role"], "content": [{"type": "text", "text": msg["content"]}]}
+                    processed_messages.append(msg)
+                obj["messages"] = Messages(messages=processed_messages)
+            elif isinstance(obj["messages"], dict):
+                obj["messages"] = Messages.from_dict(obj["messages"])
+        return super().model_validate(obj, *args, **kwargs)
+
+    def get_legacy_messages(self) -> List[Dict[str, str]]:
+        """Get messages in legacy format."""
+        if isinstance(self.messages, Messages):
+            return self.messages.to_legacy_format()
+
+        # If we have a list of messages, convert each to legacy format as needed
+        legacy_messages = []
+        for msg in self.messages:
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                if isinstance(msg["content"], list):
+                    # Convert content list to string (join text items)
+                    text_content = " ".join(
+                        [
+                            item.get("text", "")
+                            for item in msg["content"]
+                            if item.get("type") == "text" and item.get("text")
+                        ]
+                    )
+                    legacy_messages.append({"role": msg["role"], "content": text_content})
+                else:
+                    # Already in legacy format
+                    legacy_messages.append(msg)
+            elif isinstance(msg, Message):
+                legacy_messages.append(msg.to_legacy_format())
+
+        return legacy_messages
+
+    # Add model_validator to ensure messages are always a Messages object
+    @field_validator("messages")
+    @classmethod
+    def validate_messages(cls, v):
+        if isinstance(v, list):
+            # Process each message to ensure it uses the new format
+            processed_messages = []
+            for msg in v:
+                if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                    # If content is a string, convert to new format
+                    if isinstance(msg["content"], str):
+                        msg = {"role": msg["role"], "content": [{"type": "text", "text": msg["content"]}]}
+                processed_messages.append(msg)
+            return Messages(messages=processed_messages)
+        return v
 
 
 class WebRetrievalRequest(BaseModel):
@@ -106,21 +178,8 @@ class WebRetrievalResponse(BaseModel):
         return self.model_dump().update({"results": [r.model_dump() for r in self.results]})
 
 
-class TestTimeInferenceRequest(BaseModel):
-    """Request model for the /test_time_inference endpoint."""
-
-    uids: Optional[List[int]] = Field(
-        default=None,
-        description="List of specific miner UIDs to query. If not provided, miners will be selected automatically.",
-        example=[1, 2, 3],
-    )
-    messages: List[Dict[str, str]] = Field(
-        ...,
-        description="List of message objects with 'role' and 'content' keys. Roles can be 'system', 'user', or 'assistant'.",
-        example=[{"role": "user", "content": "Solve the equation: 3x + 5 = 14"}],
-    )
-    model: Optional[str] = Field(default=None, description="Model identifier to use for inference.", example="gpt-4")
-    json_format: bool = Field(default=False, description="Enable JSON format for the response.", example=True)
-
-    def to_dict(self):
-        return self.model_dump().update({"messages": [m.model_dump() for m in self.messages]})
+if __name__ == "__main__":
+    request = CompletionsRequest(messages=[{"role": "user", "content": "Tell me about neural networks"}])
+    print(request.get_legacy_messages())
+    print(request.messages)
+    print(request.model_dump())
