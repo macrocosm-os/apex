@@ -10,7 +10,7 @@ from loguru import logger
 from pydantic import BaseModel
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
-from validator_api.deep_research.utils import parse_llm_json, with_retries, extract_content_from_stream
+from validator_api.deep_research.utils import extract_content_from_stream, parse_llm_json, with_retries
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
 from validator_api.web_retrieval import web_retrieval
 
