@@ -48,12 +48,6 @@ def validate_api_key(
     2) Else, if 'Authorization' header exists and starts with Bearer, extract token and validate.
     3) Otherwise, raise a 403.
     """
-
-    if api_key:
-        if api_key not in _keys:
-            raise HTTPException(status_code=403, detail="Invalid API key")
-        return _keys[api_key]
-
     if authorization:
         scheme, _, token = authorization.partition(" ")
         if scheme.lower() != "bearer":
@@ -61,6 +55,11 @@ def validate_api_key(
         if token not in _keys:
             raise HTTPException(status_code=403, detail="Invalid API key")
         return _keys[token]
+
+    if api_key:
+        if api_key not in _keys:
+            raise HTTPException(status_code=403, detail="Invalid API key")
+        return _keys[api_key]
 
     raise HTTPException(status_code=403, detail="Missing API key")
 
