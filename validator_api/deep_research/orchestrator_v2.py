@@ -236,7 +236,7 @@ class WebSearchTool(Tool):
         return """Searches the web to answer a question. Provides a referenced answer with citations.
         Input parameters:
         - question: The natural language question to answer
-        - n_results: (optional) Number of search results to use (default: 5)
+        - n_results: (optional) Number of search results to use (default: 2)
 
         Returns a dictionary containing:
         - question: Original question asked
