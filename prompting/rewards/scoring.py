@@ -1,4 +1,5 @@
 import asyncio
+import copy
 import threading
 from multiprocessing.managers import AcquirerProxy
 
@@ -115,9 +116,15 @@ class TaskScorer(AsyncLoopRunner):
             f"{scoring_config.task.llm_model_id}"
         )
         if not scoring_config.task.organic:
+            # Reduce log size for raw chunks, wandb fails to log any data when overloaded.
+            response = copy.deepcopy(scoring_config.response)
+            response.stream_results_all_chunk_dicts_raw = []
+            for idx in range(len(response.stream_results)):
+                response.stream_results[idx].accumulated_chunk_dicts_raw = []
+
             log_event(
                 RewardLoggingEvent(
-                    response_event=scoring_config.response,
+                    response_event=response,
                     reward_events=reward_events,
                     reference=scoring_config.task.reference,
                     challenge=scoring_config.task.query,
