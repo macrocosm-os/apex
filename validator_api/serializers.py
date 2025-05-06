@@ -1,12 +1,13 @@
+import json
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
-import json
+
 
 class CompletionsRequest(BaseModel):
     """Request model for the /v1/chat/completions endpoint."""
 
-    @model_validator(mode='after')
+    @model_validator(mode="after")
     def add_tools(self):
         if self.tools:
             self.messages.append({"role": "tool", "content": json.dumps(self.tools)})
@@ -69,7 +70,16 @@ class CompletionsRequest(BaseModel):
         default=None,
         description="List of tools to use for the task.",
         # TODO: Add example that's not just from claude
-        example=[{"type": "function", "function": {"name": "get_current_time", "description": "Get the current time", "parameters": {"timezone": {"type": "string", "description": "The timezone to get the time in"}}}}],
+        example=[
+            {
+                "type": "function",
+                "function": {
+                    "name": "get_current_time",
+                    "description": "Get the current time",
+                    "parameters": {"timezone": {"type": "string", "description": "The timezone to get the time in"}},
+                },
+            }
+        ],
     )
 
 
