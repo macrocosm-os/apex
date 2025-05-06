@@ -25,7 +25,7 @@ class CompletionsRequest(BaseModel):
         default="InferenceTask", description="Task identifier to choose the inference type.", example="InferenceTask"
     )
     model: Optional[str] = Field(
-        default=None,
+        default="Default",
         description="Model identifier to filter available miners.",
         example="Default",
     )
