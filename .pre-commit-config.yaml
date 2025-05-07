@@ -6,23 +6,38 @@ repos:
     - id: end-of-file-fixer
     - id: trailing-whitespace
 
-- repo: https://github.com/charliermarsh/ruff-pre-commit
-  rev: v0.5.2
+- repo: local
   hooks:
     - id: ruff
-      args: [--fix]
+      name: ruff (linter)
+      entry: poetry run ruff check --fix
+      language: system
+      types: [python]
 
-- repo: https://github.com/psf/black
-  rev: 23.7.0
-  hooks:
     - id: black
       name: black (code formatter)
-      language_version: python3.10
-      additional_dependencies: ["black[jupyter]"]
+      entry: poetry run black
+      language: system
+      types: [python]
 
-- repo: https://github.com/pycqa/isort
-  rev: 5.13.2
-  hooks:
     - id: isort
       name: isort (import sorting)
-      args: ["--profile", "black"]
+      entry: poetry run isort
+      language: system
+      types: [python]
+
+# Ensure pyproject.toml has:
+# [tool.isort]
+# profile = "black"
+#
+# [tool.black]
+# line-length = 88 # Or your preferred line length
+# # other black configurations
+#
+# [tool.ruff]
+# line-length = 88 # Match black's line length
+# select = ["E", "F", "W", "I", "UP", "PL", "Q"] # Example - customize as needed
+# # You can add more Ruff configurations here
+# # e.g., ignore specific rules:
+# # ignore = ["E501"]
+# # extend-select = ["C90"] # for McCabe complexity if desired
