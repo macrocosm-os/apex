@@ -181,23 +181,18 @@ class ReproducibleVLLMTextImage:
     @staticmethod
     def format_messages(messages: list[str] | list[dict[str, str]]) -> list[dict[str, str | list[dict[str, str]]]]:
         """Convert standard chat messages to multimodal message format.
-        
+
         Args:
             messages: List of messages in standard chat format {'role': str, 'content': str}
-            
+
         Returns:
             List of messages in multimodal format with content as a list of content parts
         """
         formatted_messages = []
         for msg in messages:
-            if isinstance(msg, dict) and 'role' in msg and 'content' in msg:
-                formatted_msg = {
-                    'role': msg['role'],
-                    'content': [{'type': 'text', 'text': msg['content']}]
-                }
+            if isinstance(msg, dict) and "role" in msg and "content" in msg:
+                formatted_msg = {"role": msg["role"], "content": [{"type": "text", "text": msg["content"]}]}
                 formatted_messages.append(formatted_msg)
             else:
                 formatted_messages.append(msg)
         return formatted_messages
-
-        
