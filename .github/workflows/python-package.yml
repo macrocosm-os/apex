@@ -47,7 +47,7 @@ jobs:
 
     - name: Run isort (import sorting)
       run: |
-        poetry run isort --check-only --diff --profile black .
+        poetry run isort --check-only --diff --settings-path=.isort.cfg .
 
     - name: Run Ruff (linter)
       run: |

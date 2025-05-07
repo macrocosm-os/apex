@@ -22,12 +22,12 @@ repos:
 
     - id: isort-fix
       name: isort (import sorting & fixing)
-      entry: poetry run isort --profile black .
+      entry: poetry run isort --settings-path=.isort.cfg .
       language: system
       types: [python]
 
     - id: isort-check
       name: isort (import validation)
-      entry: poetry run isort --check-only --diff --profile black .
+      entry: poetry run isort --check-only --diff --settings-path=.isort.cfg .
       language: system
       types: [python]
