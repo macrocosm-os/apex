@@ -20,14 +20,19 @@ repos:
       language: system
       types: [python]
 
-    - id: isort-fix
-      name: isort (import sorting & fixing)
-      entry: poetry run isort .
-      language: system
-      types: [python]
-
+    # Only run check, don't auto-fix imports
     - id: isort-check
       name: isort (import validation)
-      entry: poetry run isort --check-only --diff .
+      entry: poetry run isort --check-only --diff --profile black --line-length 120 .
       language: system
       types: [python]
+      # Allow this hook to fail and show errors
+      verbose: true
+
+    # Only run after checking, to provide a way to fix issues
+    - id: isort-fix
+      name: isort (import sorting & fixing)
+      entry: poetry run isort --profile black --line-length 120 .
+      language: system
+      types: [python]
+      stages: [manual]
