@@ -10,7 +10,7 @@ import httpx
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from loguru import logger
-
+from openai.types.chat import ChatCompletionChunk
 from shared import settings
 
 shared_settings = settings.shared_settings
@@ -94,6 +94,7 @@ async def peek_first_chunk(
 async def stream_chunks(
     first_valid_response: AsyncGenerator,
     collected_chunks_list: List[List[str]],
+    collected_chunks_raw_list: List[List[ChatCompletionChunk]],
     timings_list: List[List[float]],
     response_start_time: float,
 ) -> AsyncGenerator[str, None]:
@@ -102,6 +103,7 @@ async def stream_chunks(
     Args:
         first_valid_response: The async generator containing response chunks
         collected_chunks_list: List to collect response chunks
+        collected_chunks_raw_list: List to collect raw response chunks
         timings_list: List to collect timing data
         response_start_time: Start time of the response for timing calculations
     """
@@ -118,6 +120,7 @@ async def stream_chunks(
         chunks_received = True
         timings_list[0].append(time.monotonic() - response_start_time)
         collected_chunks_list[0].append(content)
+        collected_chunks_raw_list[0].append(chunk)
         yield f"data: {json.dumps(chunk.model_dump())}\n\n"
 
     if not chunks_received:
@@ -133,7 +136,7 @@ async def stream_chunks(
 async def stream_from_first_response(
     responses: List[asyncio.Task],
     collected_chunks_list: List[List[str]],
-    collected_chunks_raw_list: List,
+    collected_chunks_raw_list: List[List[ChatCompletionChunk]],
     body: dict[str, any],
     uids: List[int],
     timings_list: List[List[float]],
@@ -159,6 +162,19 @@ async def stream_from_first_response(
                         continue
 
                     first_valid_response = rebuilt_generator
+                    # Start collecting remaining responses immediately
+                    remaining = asyncio.gather(*pending, return_exceptions=True)
+                    remaining_tasks = asyncio.create_task(
+                        collect_remaining_responses(
+                            remaining=remaining,
+                            collected_chunks_list=collected_chunks_list,
+                            collected_chunks_raw_list=collected_chunks_raw_list,
+                            body=body,
+                            uids=uids,
+                            timings_list=timings_list,
+                            response_start_time=response_start_time,
+                        )
+                    )
                     break
 
                 except Exception as e:
@@ -173,24 +189,15 @@ async def stream_from_first_response(
 
         # Stream the first valid response
         async for chunk_data in stream_chunks(
-            first_valid_response, collected_chunks_list, timings_list, response_start_time
+            first_valid_response, collected_chunks_list, collected_chunks_raw_list, timings_list, response_start_time
         ):
             yield chunk_data
 
-        # Continue collecting remaining responses in background for scoring
-        remaining = asyncio.gather(*pending, return_exceptions=True)
-        remaining_tasks = asyncio.create_task(
-            collect_remaining_responses(
-                remaining=remaining,
-                collected_chunks_list=collected_chunks_list,
-                collected_chunks_raw_list=collected_chunks_raw_list,
-                body=body,
-                uids=uids,
-                timings_list=timings_list,
-                response_start_time=response_start_time,
-            )
-        )
-        await remaining_tasks
+        # Wait for remaining responses to be collected
+        if remaining_tasks:
+            await remaining_tasks
+
+        # Send all collected data to scoring queue
         asyncio.create_task(
             scoring_queue.scoring_queue.append_response(
                 uids=uids,
@@ -205,6 +212,16 @@ async def stream_from_first_response(
         logger.info("Client disconnected, streaming cancelled")
         for task in responses:
             task.cancel()
+        # Send whatever we've collected so far to the scoring queue
+        asyncio.create_task(
+            scoring_queue.scoring_queue.append_response(
+                uids=uids,
+                body=body,
+                chunks=collected_chunks_list,
+                chunk_dicts_raw=collected_chunks_raw_list,
+                timings=timings_list,
+            )
+        )
         raise
     except Exception as e:
         logger.exception(f"Error during streaming: {e}")

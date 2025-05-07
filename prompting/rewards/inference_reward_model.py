@@ -3,6 +3,7 @@ from prompting.rewards.relevance import RelevanceRewardModel
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
 from shared.dendrite import DendriteResponseEvent
+from loguru import logger
 
 
 class InferenceRewardModel(BaseRewardModel):
@@ -19,9 +20,10 @@ class InferenceRewardModel(BaseRewardModel):
         if model_manager is None:
             raise ValueError("Model manager must be set")
 
-        if not model_id or task.organic:
-            relevance_reward_model = RelevanceRewardModel()
-            return await relevance_reward_model.reward(reference, response_event, model_manager=model_manager)
+        if model_id or task.organic:
+            logger.info("Using logits reward model")
+            logits_reward_model = LogitsRewardModel()
+            return await logits_reward_model.reward(reference, response_event, task, model_manager=model_manager)
 
-        logits_reward_model = LogitsRewardModel()
-        return await logits_reward_model.reward(reference, response_event, task, model_manager=model_manager)
+        relevance_reward_model = RelevanceRewardModel()
+        return await relevance_reward_model.reward(reference, response_event, model_manager=model_manager)
