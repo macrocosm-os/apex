@@ -213,15 +213,13 @@ async def create_chain_of_thought_job(
 
         body["seed"] = int(body.get("seed") or random.randint(0, 1000000))
 
-        if body.get("uids"):
-            try:
-                uids = list(map(int, body.get("uids")))
-            except Exception:
-                logger.error(f"Error in uids: {body.get('uids')}")
-        else:
-            uids = filter_available_uids(
+        uids = (
+            [int(uid) for uid in body.get("uids")]
+            if body.get("uids")
+            else filter_available_uids(
                 task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=N_MINERS
             )
+        )
 
         if not uids:
             raise HTTPException(status_code=500, detail="No available miners")
