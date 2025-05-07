@@ -20,8 +20,14 @@ repos:
       language: system
       types: [python]
 
-    - id: isort
-      name: isort (import sorting)
+    - id: isort-fix
+      name: isort (import sorting & fixing)
       entry: poetry run isort --profile black .
+      language: system
+      types: [python]
+
+    - id: isort-check
+      name: isort (import validation)
+      entry: poetry run isort --check-only --diff --profile black .
       language: system
       types: [python]
