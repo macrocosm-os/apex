@@ -8,9 +8,8 @@ from loguru import logger
 from pydantic import BaseModel, ConfigDict
 from wandb.wandb_run import Run
 
-# Force incorrect order to create a git change
-import prompting
 import wandb
+import prompting
 from prompting.rewards.reward import WeightedRewardEvent
 from prompting.tasks.task_registry import TaskRegistry
 from shared import settings
