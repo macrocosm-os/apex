@@ -12,8 +12,8 @@ import psutil
 import requests
 import torch
 import torch.multiprocessing as mp
-from bittensor.core.extrinsics.serving import serve_extrinsic
 import wandb
+from bittensor.core.extrinsics.serving import serve_extrinsic
 from loguru import logger
 
 from prompting.llms.model_manager import AsyncModelScheduler, ModelManager
