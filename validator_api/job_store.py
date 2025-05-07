@@ -79,9 +79,7 @@ class JobStore:
 job_store = JobStore()
 
 
-async def process_chain_of_thought_job(
-    job_id: str, orchestrator, messages: List[Dict[str, str]]
-) -> None:
+async def process_chain_of_thought_job(job_id: str, orchestrator, messages: List[Dict[str, str]]) -> None:
     """Process a chain of thought job in the background."""
     try:
         job_store.update_job_status(job_id, JobStatus.RUNNING)

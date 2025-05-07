@@ -168,7 +168,7 @@ async def test_time_inference(request: TestTimeInferenceRequest):
         status.HTTP_500_INTERNAL_SERVER_ERROR: {"description": "Internal server error or no available miners"},
     },
 )
-async def create_chain_of_thought_job(
+async def submit_chain_of_thought_job(
     request: CompletionsRequest, background_tasks: BackgroundTasks, api_key: str = Depends(validate_api_key)
 ):
     """
@@ -231,7 +231,7 @@ async def create_chain_of_thought_job(
         test_time_request = TestTimeInferenceRequest(
             messages=request.messages,
             model=request.model,
-            uids=uids if uids else None,
+            uids=uids,
             json_format=request.json_format,
         )
 
