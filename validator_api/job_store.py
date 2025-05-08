@@ -4,7 +4,6 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, List, Optional
 
-
 from pydantic import BaseModel
 
 
@@ -39,7 +38,8 @@ class JobStore:
     def _init_db(self) -> None:
         """Initialize the database and create the jobs table if it doesn't exist."""
         with sqlite3.connect(self.db_path) as conn:
-            conn.execute("""
+            conn.execute(
+                """
                 CREATE TABLE IF NOT EXISTS jobs (
                     job_id TEXT PRIMARY KEY,
                     status TEXT NOT NULL,
@@ -48,7 +48,8 @@ class JobStore:
                     result TEXT,
                     error TEXT
                 )
-            """)
+            """
+            )
             conn.commit()
 
     def delete_job(self, job_id: str) -> None:
@@ -76,24 +77,22 @@ class JobStore:
         """Get a job by its ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute(
-                "SELECT * FROM jobs WHERE job_id = ?", (job_id,)
-            )
+            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
             row = cursor.fetchone()
-            
+
         if row is None:
             return None
-            
+
         # Convert the result string to List[str] if it exists
-        result = eval(row['result']) if row['result'] is not None else None
-        
+        result = eval(row["result"]) if row["result"] is not None else None
+
         return JobResult(
-            job_id=row['job_id'],
-            status=JobStatus(row['status']),
-            created_at=datetime.fromisoformat(row['created_at']),
-            updated_at=datetime.fromisoformat(row['updated_at']),
+            job_id=row["job_id"],
+            status=JobStatus(row["status"]),
+            created_at=datetime.fromisoformat(row["created_at"]),
+            updated_at=datetime.fromisoformat(row["updated_at"]),
             result=result,
-            error=row['error']
+            error=row["error"],
         )
 
     def update_job_status(self, job_id: str, status: JobStatus) -> None:
@@ -101,7 +100,7 @@ class JobStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                UPDATE jobs 
+                UPDATE jobs
                 SET status = ?, updated_at = ?
                 WHERE job_id = ?
                 """,
@@ -114,7 +113,7 @@ class JobStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                UPDATE jobs 
+                UPDATE jobs
                 SET result = ?, status = ?, updated_at = ?
                 WHERE job_id = ?
                 """,
@@ -127,7 +126,7 @@ class JobStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                UPDATE jobs 
+                UPDATE jobs
                 SET error = ?, status = ?, updated_at = ?
                 WHERE job_id = ?
                 """,
