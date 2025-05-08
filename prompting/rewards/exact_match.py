@@ -1,4 +1,5 @@
 import random
+from typing import Any
 
 import numpy as np
 import torch
@@ -14,15 +15,17 @@ from shared.dendrite import DendriteResponseEvent
 
 shared_settings = settings.shared_settings
 
+TOP_LOGPROBS = 10
 MIN_VERIFY_TOKENS = 10
-MAX_VERIFY_TOKENS = 30
-NO_EOS_PENALTY = -0.1
-INCORRECT_PENALTY = -1.5
+MAX_VERIFY_TOKENS = 51
+PARTIAL_PENALTY = -1.0
+INCORRECT_PENALTY = -2.0
 NOT_ENOUGH_TOKENS_PENALTY_SCALE = 0.1
-MIN_SMOOTH_PENALTY_SCALE = 0.6
+MIN_SMOOTH_PENALTY_SCALE = 0.3
 MIN_TIME_PENALTY_SCALE = 0.3
 VERIFICATION_THRESH_CONTAINS = 0.92
 VERIFICATION_THRESH_SIM = 0.83
+VERIFICATION_SIM_EXP_SCALE = 2.0
 
 
 class LogitsRewardModel(BaseRewardModel):
@@ -39,7 +42,7 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError("Model manager must be set")
 
         all_chunks: list[list[str]] = response_event.stream_results_all_chunks
-        all_chunk_dicts_raw: list[list[ChatCompletionChunk]] = response_event.stream_results_all_chunk_dicts_raw
+        all_chunk_dicts_raw: list[list[ChatCompletionChunk | dict]] = response_event.stream_results_all_chunk_dicts_raw
         uids: np.ndarray | list[float] = response_event.uids
         all_timings: list[list[float]] = response_event.stream_results_all_chunks_timings
         completions: list[str] = response_event.completions
@@ -59,9 +62,11 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError("Timeout must be greater than 0.")
 
         # If max_tokens are not provided, always check for eos.
-        max_tokens = sampling_parameters.get("max_tokens", 8192)
         model = await model_manager.get_model(task.llm_model_id)
+        max_tokens = await model.get_max_tokens(sampling_parameters, default_value=2048)
         eos_token = model.tokenizer.eos_token
+        bos_token = model.tokenizer.bos_token
+        special_tokens = set([bos_token, eos_token])
         timing_verified: list[list[float]] = []
         rewards: list[float] = []
         logger.info(f"Verifying logits with model {task.llm_model_id}")
@@ -70,8 +75,8 @@ class LogitsRewardModel(BaseRewardModel):
             penalty = INCORRECT_PENALTY
             reward_scale = 1.0
             try:
-                # If no response is provided, apply full penalty.
-                if not chunks:
+                if not chunks or not chunk_dicts_raw:
+                    # If no response is provided, apply full penalty.
                     rewards.append(INCORRECT_PENALTY)
                     timing_verified.append([-1.0])
                     continue
@@ -80,6 +85,12 @@ class LogitsRewardModel(BaseRewardModel):
                 if completion_length <= 1 and max_tokens > 1:
                     # Response can't be a single token, skip all other checks.
                     rewards.append(INCORRECT_PENALTY)
+                    timing_verified.append([-1.0])
+                    continue
+
+                if completion_length > max_tokens:
+                    # Sampling params is ignored.
+                    rewards.append(PARTIAL_PENALTY)
                     timing_verified.append([-1.0])
                     continue
 
@@ -100,20 +111,30 @@ class LogitsRewardModel(BaseRewardModel):
                     verification_logits, _ = await model_manager.generate_logits(
                         model=task.llm_model_id,
                         messages=messages,
+                        top_logprobs=TOP_LOGPROBS,
                         sampling_params=sampling_parameters,
                         continue_last_message=len(to_complete) > 0,
                     )
                     if check_idx < eos_idx:
-                        if not chunk_dicts_raw[check_idx].choices[0].logprobs:
-                            raise ValueError("No logprobs provided")
+                        if chunks[check_idx] in special_tokens:
+                            raise ValueError("Special tokens mid-completion")
 
-                        if chunk_dicts_raw[check_idx].choices[0].logprobs.content is None:
+                        chunk_dict: dict[str, Any] | ChatCompletionChunk = chunk_dicts_raw[check_idx]
+                        if isinstance(chunk_dict, ChatCompletionChunk):
+                            # Convert chunks to unified dict format.
+                            chunk_dict = chunk_dict.model_dump(mode="python")
+
+                        if chunk_dict.get("choices", [{}])[0].get("logprobs", {}).get("content") is None:
                             raise ValueError("Logprobs content is empty")
 
                         original_logits = {
-                            info.token: info.logprob
-                            for info in chunk_dicts_raw[check_idx].choices[0].logprobs.content[0].top_logprobs
+                            info["token"]: info["logprob"]
+                            for info in chunk_dict["choices"][0]["logprobs"]["content"][0]["top_logprobs"]
                         }
+
+                        if len(verification_logits) == TOP_LOGPROBS + 1:
+                            # Sampled logprobs can be +1, remove the lowest value.
+                            del verification_logits[min(verification_logits, key=verification_logits.get)]
 
                         logit_sim = self.verify_logit_similarity(original_logits, verification_logits)
                         scores_sim.append(logit_sim)
@@ -121,11 +142,12 @@ class LogitsRewardModel(BaseRewardModel):
                         logit_contains = self.verify_logit_contains(
                             chunks[check_idx], original_logits, verification_logits
                         )
+
                         scores_contains.append(logit_contains)
 
                     elif check_idx == eos_idx and completion_length < max_tokens:
                         if eos_token and eos_token not in verification_logits:
-                            penalty = NO_EOS_PENALTY
+                            penalty = PARTIAL_PENALTY
                             raise ValueError("Partial completion")
 
                 score_sim_mean = float(np.mean(scores_sim))
@@ -138,9 +160,11 @@ class LogitsRewardModel(BaseRewardModel):
                     raise ValueError(f"Logits contains mean score is below threshold: {score_contains_mean:.2f}")
 
                 timing_verified.append(timings)
-                smooth_reward = self.smooth_timings_reward(timings)
+                timingsdt = np.abs(np.diff(timings))
+                smooth_reward = self.smooth_timings_reward(timingsdt)
                 # Min-max scale logits reward, e.g from [0.95; 1.0] to [0.0, 1.0].
                 score_sim_mean = self.rescale(score_sim_mean, min_value=VERIFICATION_THRESH_SIM)
+                score_sim_mean = score_sim_mean**VERIFICATION_SIM_EXP_SCALE
                 score_contains_mean = self.rescale(score_contains_mean, min_value=VERIFICATION_THRESH_CONTAINS)
                 rewards.append(score_sim_mean * score_contains_mean * smooth_reward * reward_scale)
             except BaseException as e:
@@ -205,26 +229,28 @@ class LogitsRewardModel(BaseRewardModel):
         """Return the smallest sum of inner list, compute its sum only if the list contains no negative numbers."""
         best = float("+inf")
         for subset in values:
-            if subset and min(subset) >= 0.0:
+            if len(subset) and min(subset) >= 0.0:
                 subset_sum = sum(subset) / len(subset)
                 if subset_sum < best:
                     best = subset_sum
         return best if best < float("+inf") else 1e-6
 
     @staticmethod
-    def smooth_timings_reward(timings_uid: list[float], min_reward: float = MIN_SMOOTH_PENALTY_SCALE) -> float:
-        """Return smooth stream ration based on the deviation between chunks timings.
-
-        Args:
-            timings_uid: List of timings for a specific miner.
-
-        Returns:
-            float: Smoothed penalty value.
-        """
-        if not timings_uid:
+    def smooth_timings_reward(
+        timings_uid: list[float] | np.ndarray,
+        tolerance_sec: float = 1,
+        min_reward: float = MIN_SMOOTH_PENALTY_SCALE,
+        penalty_strength: float = 5,
+    ) -> float:
+        """If delay between chunks is longer than tolerance, apply non-smooth stream penalty."""
+        if not len(timings_uid):
             return 0.0
 
-        smooth_penalty = np.std(timings_uid)
+        max_timing = max(timings_uid)
+        if max_timing < tolerance_sec:
+            return 1.0
+
+        smooth_penalty = np.std(timings_uid) * penalty_strength
         return max(min_reward, 1.0 - smooth_penalty)
 
     @staticmethod
@@ -252,7 +278,7 @@ class LogitsRewardModel(BaseRewardModel):
         if not gt_logits:
             return 0.0
 
-        if len(candidate_logits) != len(gt_logits):
+        if len(candidate_logits) != TOP_LOGPROBS:
             return 0.0
 
         # Tokens common to both distributions.

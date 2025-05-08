@@ -92,7 +92,7 @@ def get_random_uids(k: int | None = 10**6, exclude: list[int] = None, own_uid: i
         raise ValueError(f"No eligible uids were found. Cannot return {k} uids")
 
 
-def get_top_incentive_uids(k: int, vpermit_tao_limit: int) -> np.ndarray:
+def get_top_incentive_uids(k: int, vpermit_tao_limit: int, explore: float = 0) -> np.ndarray:
     miners_uids = list(map(int, filter(lambda uid: check_uid_availability(uid), shared_settings.METAGRAPH.uids)))
 
     # Builds a dictionary of uids and their corresponding incentives.
@@ -108,10 +108,18 @@ def get_top_incentive_uids(k: int, vpermit_tao_limit: int) -> np.ndarray:
     uid_incentive_pairs_sorted = sorted(uid_incentive_pairs, key=lambda x: x[1], reverse=True)
 
     # Extract the top uids.
-    top_k_uids = [uid for uid, incentive in uid_incentive_pairs_sorted[:k]]
+    num_explore_uids = int(k * explore)
+    num_top_uids = k - num_explore_uids
+    top_k_uids = [uid for uid, _ in uid_incentive_pairs_sorted[:num_top_uids]]
 
-    return list(np.array(top_k_uids).astype(int))
-    # return [int(k) for k in top_k_uids]
+    if num_explore_uids > 0:
+        # Sample exploration uids randomly from the remaining pool.
+        remaining_pairs = uid_incentive_pairs_sorted[num_top_uids:]
+        remaining_uids = [uid for uid, _ in remaining_pairs]
+        explore_uids = random.sample(remaining_uids, min(num_explore_uids, len(remaining_uids)))
+        top_k_uids.extend(explore_uids)
+
+    return top_k_uids
 
 
 def get_uids(
@@ -119,6 +127,7 @@ def get_uids(
     k: int | None = None,
     exclude: list[int] = [],
     own_uid: int | None = None,
+    explore: float = 0.0,
 ) -> np.ndarray:
     if shared_settings.TEST and shared_settings.TEST_MINER_IDS:
         return random.sample(
@@ -129,6 +138,6 @@ def get_uids(
         return get_random_uids(k=k, exclude=exclude or [])
     if sampling_mode == "top_incentive":
         vpermit_tao_limit = shared_settings.NEURON_VPERMIT_TAO_LIMIT
-        return get_top_incentive_uids(k=k, vpermit_tao_limit=vpermit_tao_limit)
+        return get_top_incentive_uids(k=k, vpermit_tao_limit=vpermit_tao_limit, explore=explore)
     if sampling_mode == "all":
         return [int(uid) for uid in shared_settings.METAGRAPH.uids if (uid != own_uid and check_uid_availability(uid))]

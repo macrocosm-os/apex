@@ -1,9 +1,10 @@
+from loguru import logger
+
 from prompting.rewards.exact_match import LogitsRewardModel
 from prompting.rewards.relevance import RelevanceRewardModel
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
 from shared.dendrite import DendriteResponseEvent
-from loguru import logger
 
 
 class InferenceRewardModel(BaseRewardModel):

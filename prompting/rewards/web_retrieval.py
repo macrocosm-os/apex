@@ -24,6 +24,10 @@ from shared.misc import async_lru_cache
 MIN_RELEVANT_CHARS = 300
 MIN_MATCH_THRESHOLD = 98
 
+MIN_SIM_THRESHOLD = 0.44
+PENALIZE_SIM_THRESHOLD = 0.36
+PENALTY = -0.1
+
 # Define file paths
 PAST_WEBSITES_FILE = "past_websites.csv"
 TOP_DOMAINS_FILE = "data/top100k_domains.csv"
@@ -144,7 +148,7 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
         self, dataset_entry: DDGDatasetEntry, response_url: str, response_content: str, response_relevant: str, uid: str
     ) -> float:
         if not response_url or not response_content or not response_relevant:
-            return 0
+            return PENALTY
 
         # Extract domain from URL.
         netloc = extract_main_domain(response_url)
@@ -165,6 +169,7 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
         if not response_url or len(response_url) > 500:
             logger.debug(f"URL {response_url} is too long, setting discount factor to 0")
             return 0
+
         if not netloc or any(c.isdigit() for c in netloc.split(".")) or ":" in netloc:
             discount_factor = 0
             logger.debug(f"URL {response_url} appears to be IP-based or on specific port, setting discount factor to 0")
@@ -204,10 +209,15 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
             if response_relevant not in response_content:
                 return 0
 
-            return (
-                await self._cosine_similarity(content1=dataset_entry.query, content2=response_relevant)
-                * discount_factor
-            )
+            similarity = await self._cosine_similarity(content1=dataset_entry.query, content2=response_relevant)
+            if similarity < PENALIZE_SIM_THRESHOLD:
+                # Penalise if similarity is too low.
+                logger.debug(f"Miner {uid} returned text that doesn't match the query")
+                return PENALTY
+            elif similarity < MIN_SIM_THRESHOLD:
+                logger.debug(f"Miner {uid} returned text has low similarity")
+                return 0
+            return similarity * discount_factor
 
     async def score_miner_response(
         self, dataset_entry: DDGDatasetEntry, completion: str, task: BaseTextTask | None = None, uid: str | None = None
@@ -217,7 +227,7 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
         unique_websites = np.unique([website.url for website in miner_websites])
         if unique_websites.size != len(miner_websites) or unique_websites.size != task.target_results:
             # logger.warning("Miner returned multiple websites with the same URL")
-            return 0
+            return PENALTY
 
         tasks = [
             self.score_website_result(dataset_entry, website.url, website.content, website.relevant, uid)

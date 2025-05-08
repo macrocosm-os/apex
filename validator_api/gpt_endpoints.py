@@ -84,7 +84,12 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
                 logger.error(f"Error in uids: {body.get('uids')}")
         else:
             uids = filter_available_uids(
-                task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=N_MINERS
+                task=body.get("task"),
+                model=body.get("model"),
+                test=shared_settings.API_TEST_MODE,
+                n_miners=N_MINERS,
+                n_top_incentive=shared_settings.API_TOP_MINERS_SAMPLE,
+                explore=shared_settings.API_UIDS_EXPLORE,
             )
         if not uids:
             raise HTTPException(status_code=500, detail="No available miners")
