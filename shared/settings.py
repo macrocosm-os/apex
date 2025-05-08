@@ -96,6 +96,9 @@ class SharedSettings(BaseSettings):
     DEPLOY_VALIDATOR: bool = Field(True, env="DEPLOY_VALDITAOR")
     DEPLOY_SCORING_API: bool = Field(True, env="DEPLOY_SCORING_API")
     SCORING_API_PORT: int = Field(8095, env="SCORING_API_PORT")
+    # Hard-code MC validator axon, since it might be overwritten in the metagraph.
+    MC_VALIDATOR_HOTKEY: str = Field("5Cg5QgjMfRqBC6bh8X4PDbQi7UzVRn9eyWXsB8gkyfppFPPy", env="MC_VALIDATOR_HOTKEY")
+    MC_VALIDATOR_AXON: str = Field("184.105.5.17:42174", env="MC_VALIDATOR_AXON")
 
     # ==== API =====
     # Hotkey used to run api, defaults to Macrocosmos
@@ -105,6 +108,8 @@ class SharedSettings(BaseSettings):
     # Scoring queue threshold when rate-limit start to kick in, used to query validator API with scoring requests.
     SCORING_QUEUE_API_THRESHOLD: int = Field(1, env="SCORING_QUEUE_API_THRESHOLD")
     API_TEST_MODE: bool = Field(False, env="API_TEST_MODE")
+    API_UIDS_EXPLORE: float = Field(0.2, env="API_UIDS_EXPLORE")
+    API_TOP_MINERS_SAMPLE: int = Field(400, env="API_TOP_MINERS_SAMPLE")
 
     # Validator scoring API (.env.validator).
     SCORE_ORGANICS: bool = Field(False, env="SCORE_ORGANICS")
