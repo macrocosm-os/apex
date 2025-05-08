@@ -6,23 +6,32 @@ repos:
     - id: end-of-file-fixer
     - id: trailing-whitespace
 
-- repo: https://github.com/charliermarsh/ruff-pre-commit
-  rev: v0.5.2
+- repo: local
   hooks:
     - id: ruff
-      args: [--fix]
+      name: ruff (linter)
+      entry: poetry run ruff check --fix
+      language: system
+      types: [python]
 
-- repo: https://github.com/psf/black
-  rev: 23.7.0
-  hooks:
     - id: black
       name: black (code formatter)
-      language_version: python3.10
-      additional_dependencies: ["black[jupyter]"]
+      entry: poetry run black
+      language: system
+      types: [python]
 
-- repo: https://github.com/pycqa/isort
-  rev: 5.13.2
-  hooks:
-    - id: isort
-      name: isort (import sorting)
-      args: ["--profile", "black"]
+    # First run check-only to catch issues
+    - id: isort-check
+      name: isort (import validation)
+      entry: poetry run isort --check-only --diff --profile black .
+      language: system
+      types: [python]
+      # Allow this hook to fail
+      verbose: true
+
+    # Only fix imports after check
+    - id: isort-fix
+      name: isort (import sorting & fixing)
+      entry: poetry run isort --profile black .
+      language: system
+      types: [python]
