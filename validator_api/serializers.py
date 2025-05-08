@@ -3,6 +3,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from validator_api.job_store import JobStatus
+
 
 class CompletionsRequest(BaseModel):
     """Request model for the /v1/chat/completions endpoint."""
@@ -146,3 +148,19 @@ class TestTimeInferenceRequest(BaseModel):
 
     def to_dict(self):
         return self.model_dump().update({"messages": [m.model_dump() for m in self.messages]})
+
+
+class JobResponse(BaseModel):
+    """Response model for the /v1/chat/completions/jobs endpoint."""
+
+    job_id: str = Field(..., description="Unique identifier for the job")
+    status: JobStatus = Field(..., description="Current status of the job")
+    created_at: str = Field(..., description="Timestamp when the job was created")
+    updated_at: str = Field(..., description="Timestamp when the job was last updated")
+
+
+class JobResultResponse(JobResponse):
+    """Response model for the /v1/chat/completions/jobs/{job_id} endpoint."""
+
+    result: Optional[List[str]] = Field(None, description="Result of the job if completed")
+    error: Optional[str] = Field(None, description="Error message if the job failed")

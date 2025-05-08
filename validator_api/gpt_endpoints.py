@@ -1,6 +1,6 @@
 import random
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from loguru import logger
 from starlette.responses import StreamingResponse
 
@@ -10,8 +10,9 @@ shared_settings = settings.shared_settings
 from validator_api.api_management import validate_api_key
 from validator_api.chat_completion import chat_completion
 from validator_api.deep_research.orchestrator_v2 import OrchestratorV2
+from validator_api.job_store import JobStatus, job_store, process_chain_of_thought_job
 from validator_api.mixture_of_miners import mixture_of_miners
-from validator_api.serializers import CompletionsRequest, TestTimeInferenceRequest
+from validator_api.serializers import CompletionsRequest, JobResponse, JobResultResponse, TestTimeInferenceRequest
 from validator_api.utils import filter_available_uids
 
 router = APIRouter()
@@ -155,4 +156,162 @@ async def test_time_inference(request: TestTimeInferenceRequest):
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
         },
+    )
+
+
+@router.post(
+    "/v1/chat/completions/jobs",
+    summary="Asynchronous chat completions endpoint for Chain-of-Thought",
+    description="Submit a Chain-of-Thought inference job to be processed in the background and get a job ID immediately.",
+    response_model=JobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={
+        status.HTTP_202_ACCEPTED: {
+            "description": "Job accepted for processing",
+            "model": JobResponse,
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {"description": "Internal server error or no available miners"},
+    },
+)
+async def submit_chain_of_thought_job(
+    request: CompletionsRequest, background_tasks: BackgroundTasks, api_key: str = Depends(validate_api_key)
+):
+    """
+    Submit a Chain-of-Thought inference job to be processed in the background.
+
+    This endpoint accepts the same parameters as the /v1/chat/completions endpoint,
+    but instead of streaming the response, it submits the job to the background and
+    returns a job ID immediately. The job results can be retrieved using the
+    /v1/chat/completions/jobs/{job_id} endpoint.
+
+    ## Request Parameters:
+    - **uids** (List[int], optional): Specific miner UIDs to query. If not provided, miners will be selected automatically.
+    - **messages** (List[dict]): List of message objects with 'role' and 'content' keys. Required.
+    - **model** (str, optional): Model identifier to filter available miners.
+
+    ## Response:
+    - **job_id** (str): Unique identifier for the job.
+    - **status** (str): Current status of the job (pending, running, completed, failed).
+    - **created_at** (str): Timestamp when the job was created.
+    - **updated_at** (str): Timestamp when the job was last updated.
+
+    Example request:
+    ```json
+    {
+      "messages": [
+        {"role": "user", "content": "Solve the equation: 3x + 5 = 14"}
+      ],
+      "model": "gpt-4"
+    }
+    ```
+    """
+    try:
+        body = request.model_dump()
+
+        # Check if inference mode is Chain-of-Thought, if not return error
+        if body.get("inference_mode") != "Chain-of-Thought":
+            raise HTTPException(status_code=400, detail="This endpoint only accepts Chain-of-Thought inference mode")
+
+        body["model"] = (
+            "mrfakename/mistral-small-3.1-24b-instruct-2503-hf" if body.get("model") == "Default" else body.get("model")
+        )
+
+        body["seed"] = int(body.get("seed") or random.randint(0, 1000000))
+
+        uids = (
+            [int(uid) for uid in body.get("uids")]
+            if body.get("uids")
+            else filter_available_uids(
+                task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=N_MINERS
+            )
+        )
+
+        if not uids:
+            raise HTTPException(status_code=500, detail="No available miners")
+
+        # Create a new job
+        job_id = job_store.create_job()
+
+        # Create the test time inference request
+        test_time_request = TestTimeInferenceRequest(
+            messages=request.messages,
+            model=request.model,
+            uids=uids,
+            json_format=request.json_format,
+        )
+
+        # Create the orchestrator
+        orchestrator = OrchestratorV2(completions=completions)
+
+        # Add the background task
+        background_tasks.add_task(
+            process_chain_of_thought_job,
+            job_id=job_id,
+            orchestrator=orchestrator,
+            messages=test_time_request.messages,
+        )
+
+        # Get the job
+        job = job_store.get_job(job_id)
+
+        # Return the job response
+        return JobResponse(
+            job_id=job.job_id,
+            status=job.status,
+            created_at=job.created_at.isoformat(),
+            updated_at=job.updated_at.isoformat(),
+        )
+
+    except Exception as e:
+        logger.exception(f"Error in creating chain of thought job: {e}")
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@router.get(
+    "/v1/chat/completions/jobs/{job_id}",
+    summary="Get the status and result of a Chain-of-Thought job",
+    description="Retrieve the status and result of a Chain-of-Thought job by its ID.",
+    response_model=JobResultResponse,
+    status_code=status.HTTP_200_OK,
+    responses={
+        status.HTTP_200_OK: {
+            "description": "Job status and result",
+            "model": JobResultResponse,
+        },
+        status.HTTP_404_NOT_FOUND: {"description": "Job not found"},
+    },
+)
+async def get_chain_of_thought_job(job_id: str, api_key: str = Depends(validate_api_key)):
+    """
+    Get the status and result of a Chain-of-Thought job.
+
+    This endpoint retrieves the status and result of a Chain-of-Thought job by its ID.
+    If the job is completed, the result will be included in the response.
+    If the job failed, the error message will be included in the response.
+
+    ## Path Parameters:
+    - **job_id** (str): The ID of the job to retrieve.
+
+    ## Response:
+    - **job_id** (str): Unique identifier for the job.
+    - **status** (str): Current status of the job (pending, running, completed, failed).
+    - **created_at** (str): Timestamp when the job was created.
+    - **updated_at** (str): Timestamp when the job was last updated.
+    - **result** (List[str], optional): Result of the job if completed.
+    - **error** (str, optional): Error message if the job failed.
+    """
+    job = job_store.get_job(job_id)
+
+    if job.status == JobStatus.COMPLETED:  # todo check if job is deleted
+        job_store.delete_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job with ID {job_id} not found")
+
+    return JobResultResponse(
+        job_id=job.job_id,
+        status=job.status,
+        created_at=job.created_at.isoformat(),
+        updated_at=job.updated_at.isoformat(),
+        result=job.result,
+        error=job.error,
     )
