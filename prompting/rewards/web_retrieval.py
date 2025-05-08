@@ -210,7 +210,6 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
                 return 0
 
             similarity = await self._cosine_similarity(content1=dataset_entry.query, content2=response_relevant)
-            logger.warning(f"SIM: {similarity}")
             if similarity < PENALIZE_SIM_THRESHOLD:
                 # Penalise if similarity is too low.
                 logger.debug(f"Miner {uid} returned text that doesn't match the query")
