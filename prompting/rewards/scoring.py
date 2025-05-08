@@ -123,11 +123,20 @@ class TaskScorer(AsyncLoopRunner):
             for idx in range(len(response.stream_results)):
                 response.stream_results[idx].accumulated_chunk_dicts_raw = []
 
-            reference_value = (
-                str(scoring_config.task.ground_truth)
-                if isinstance(scoring_config.task, MSRv2Task)
-                else scoring_config.task.reference
-            )
+            # reference_value = (
+            #     str(scoring_config.task.ground_truth)
+            #     if isinstance(scoring_config.task, MSRv2Task)
+            #     else scoring_config.task.reference
+            # )
+            # New, more explicit logic:
+            if isinstance(scoring_config.task, MSRv2Task):
+                if scoring_config.task.ground_truth is not None:
+                    reference_value = str(scoring_config.task.ground_truth)  # "0" or "1"
+                else:
+                    # If ground_truth is None for MSRv2, set reference_value to Python None
+                    reference_value = None
+            else:
+                reference_value = scoring_config.task.reference
 
             log_event(
                 RewardLoggingEvent(
