@@ -34,6 +34,38 @@ class ReproducibleVLLM:
         # Store tokenizer from VLLM for consistency
         self.tokenizer = self.model.get_tokenizer()
 
+    @classmethod
+    async def get_max_tokens(
+        cls,
+        sampling_params: dict[str, str | float | int | bool],
+        default_value: int = 512,
+    ) -> int:
+        # Process max tokens with backward compatibility.
+        max_tokens = sampling_params.get("max_tokens")
+        if max_tokens is None:
+            max_tokens = sampling_params.get("max_new_tokens")
+        if max_tokens is None:
+            max_tokens = sampling_params.get("max_completion_tokens", default_value)
+        return max_tokens
+
+    @classmethod
+    async def prepare_sampling_params(
+        cls, sampling_params: dict[str, str | float | int | bool] | None = None
+    ) -> SamplingParams:
+        sampling_params = sampling_params or {}
+        max_tokens = await cls.get_max_tokens(sampling_params)
+
+        params = SamplingParams(
+            temperature=float(sampling_params.get("temperature", 1.0)),
+            top_p=float(sampling_params.get("top_p", 1.0)),
+            max_tokens=int(max_tokens),
+            presence_penalty=float(sampling_params.get("presence_penalty", 0.0)),
+            frequency_penalty=float(sampling_params.get("frequency_penalty", 0.0)),
+            top_k=int(sampling_params.get("top_k", -1)),
+            logprobs=sampling_params.get("logprobs", None),
+        )
+        return params
+
     async def generate(
         self,
         messages: list[str] | list[dict[str, str]],
@@ -71,24 +103,9 @@ class ReproducibleVLLM:
         else:
             prompt = messages[0] if isinstance(messages, list) else messages
 
-        # Convert sampling parameters to VLLM format
+        # Convert sampling parameters to vLLM format.
         params = sampling_params if sampling_params else self.sampling_params
-
-        max_tokens = params.get("max_new_tokens")
-        if max_tokens is None:
-            max_tokens = params.get("max_tokens", 512)
-
-        vllm_params = SamplingParams(
-            temperature=params.get("temperature", 1.0),
-            top_p=params.get("top_p", 1.0),
-            max_tokens=int(max_tokens),
-            presence_penalty=params.get("presence_penalty", 0.0),
-            frequency_penalty=params.get("frequency_penalty", 0.0),
-            top_k=int(params.get("top_k", -1)),
-            logprobs=params.get("logprobs", None),
-        )
-
-        # Generate using VLLM
+        vllm_params = await self.prepare_sampling_params(params)
         outputs = self.model.generate(prompt, vllm_params)
 
         if not outputs:
@@ -101,7 +118,7 @@ class ReproducibleVLLM:
     async def generate_logits(
         self,
         messages: list[str] | list[dict[str, str]],
-        top_n: int = 10,
+        top_logprobs: int = 10,
         sampling_params: dict[str, str | float | int | bool] | None = None,
         seed: int | None = None,
         continue_last_message: bool = False,
@@ -110,7 +127,7 @@ class ReproducibleVLLM:
 
         Args:
             messages: Input messages or text.
-            top_n: Number of top logits to return (default: 10).
+            top_logprobs: Number of top logits to return (default: 10).
             sampling_params: Generation parameters.
             seed: Random seed for reproducibility.
             continue_last_message: Whether to continue the last message in chat format.
@@ -122,8 +139,8 @@ class ReproducibleVLLM:
         params = sampling_params if sampling_params else self.sampling_params
         params = params.copy()
         params["max_tokens"] = 1
-        params["logprobs"] = top_n
-        vllm_params = SamplingParams(**params)
+        params["logprobs"] = top_logprobs
+        vllm_params = await self.prepare_sampling_params(params)
 
         prompt = self.tokenizer.apply_chat_template(
             conversation=messages,
