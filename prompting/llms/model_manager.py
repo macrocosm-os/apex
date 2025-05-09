@@ -65,6 +65,10 @@ class ModelManager(BaseModel):
             model_config: Model config to load.
             force: If enabled, will unload all other models.
         """
+        if model_config in active_models or model_config.llm_model_id not in settings.shared_settings.LLM_MODEL:
+            logger.error(f"Model {model_config.llm_model_id} is not available in the model zoo.")
+            return self.active_models[next(iter(self.active_models))]
+
         async with self.lock:
             # Copy active models, since they will be modified in the loop.
             active_models = set(self.active_models.keys())
