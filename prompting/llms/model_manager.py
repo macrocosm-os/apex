@@ -235,7 +235,7 @@ class ModelManager(BaseModel):
 class AsyncModelScheduler(AsyncLoopRunner):
     llm_model_manager: ModelManager
     mp_lock: AcquirerProxy
-    interval: int = 3600
+    interval: int = 100000000
     scoring_queue: list | None = None
     memory_error: MemoryError | None = None
 
