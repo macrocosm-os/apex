@@ -88,11 +88,12 @@ async def create_loop_process(
         from shared.profiling import profiler
 
         logger.info("Starting loops...")
-        profile = asyncio.create_task(profiler.print_stats(), name="Profiler")
+        # profile = asyncio.create_task(profiler.print_stats(), name="Profiler")
         task_loop_task = asyncio.create_task(
             task_loop.start(task_queue, scoring_queue, miners_dict, simultaneous_loops=1), name="TaskLoop"
         )
-        model_scheduler_task = asyncio.create_task(model_scheduler.start(scoring_queue), name="ModelScheduler")
+        # model_scheduler_task = asyncio.create_task(model_scheduler.start(scoring_queue), name="ModelScheduler")
+        await model_scheduler.start(scoring_queue)
         task_scorer_task = asyncio.create_task(
             task_scorer.start(
                 model_scheduler,
@@ -104,7 +105,8 @@ async def create_loop_process(
             ),
             name="TaskScorer",
         )
-        all_tasks.extend([profile, task_loop_task, model_scheduler_task, task_scorer_task])
+        # all_tasks.extend([profile, task_loop_task, model_scheduler_task, task_scorer_task])
+        all_tasks.extend([task_loop_task, task_scorer_task])
 
         try:
             while True:

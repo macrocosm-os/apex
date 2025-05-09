@@ -65,6 +65,7 @@ class ModelManager(BaseModel):
             model_config: Model config to load.
             force: If enabled, will unload all other models.
         """
+        logger.info(f"Loading model {model_config.llm_model_id}")
         if model_config in active_models or model_config.llm_model_id not in settings.shared_settings.LLM_MODEL:
             logger.error(f"Model {model_config.llm_model_id} is not available in the model zoo.")
             return self.active_models[next(iter(self.active_models))]
@@ -239,7 +240,7 @@ class ModelManager(BaseModel):
 class AsyncModelScheduler(AsyncLoopRunner):
     llm_model_manager: ModelManager
     mp_lock: AcquirerProxy
-    interval: int = 100000000
+    interval: int = 1000000
     scoring_queue: list | None = None
     memory_error: MemoryError | None = None
 
@@ -249,13 +250,13 @@ class AsyncModelScheduler(AsyncLoopRunner):
         self.scoring_queue = scoring_queue
         await super().start(name=name, **kwargs)
         # Load the model immediately.
-        # await self.run_step()
+        await self.run_step()
 
     async def run_step(self):
         """This method is called periodically according to the interval."""
         # try to load the model belonging to the oldest task in the queue
-        with self.mp_lock:
-            selected_model = self.scoring_queue[0].task.llm_model if self.scoring_queue else None
+        # with self.mp_lock:
+        selected_model = self.scoring_queue[0].task.llm_model if self.scoring_queue else None
         if not selected_model:
             selected_model = ModelZoo.get_random(max_ram=self.llm_model_manager.total_ram)
         logger.info(f"Loading model {selected_model.llm_model_id} for {self.interval} seconds.")
