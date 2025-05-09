@@ -112,8 +112,8 @@ async def create_loop_process(
                 logger.debug(
                     f"Task Queue {len(task_queue)}. Scoring Queue {len(scoring_queue)}. Reward Events {len(reward_events)}"
                 )
-                # if model_scheduler.memory_error is not None:
-                #     raise model_scheduler.memory_error
+                if model_scheduler.memory_error is not None:
+                    raise model_scheduler.memory_error
         except asyncio.CancelledError:
             logger.info("spawn_loops received cancellation signal.")
             raise
@@ -130,7 +130,7 @@ async def create_loop_process(
         await cleanup(model_scheduler)
 
 
-async def start_api(
+def start_api(
     scoring_queue: list,
     reward_events: list,
     miners_dict: dict,
@@ -163,7 +163,7 @@ async def start_api(
         while not event_stop.is_set():
             await asyncio.sleep(10)
 
-    await start()
+    asyncio.run(start())
 
 
 def start_task_sending_loop(
@@ -237,6 +237,35 @@ def start_weight_setter_loop(reward_events, event_stop: Event):
         raise
 
 
+def health_check(parent_pid: int, event_stop: Event):
+    init_process_logging(name="HealthCheck")  # Initialize logging for health check process
+    """Monitor parent process and kill all child processes in case of emergency."""
+    step = 0
+    while True:
+        try:
+            if not psutil.pid_exists(parent_pid):
+                event_stop.set()
+                logger.warning("Parent process died, killing all child processes")
+                os.killpg(0, signal.SIGKILL)
+
+            block = settings.shared_settings.block
+            if block - settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID] > 320 and step > 60:
+                event_stop.set()
+                last_update_block = settings.shared_settings.METAGRAPH.last_update[settings.shared_settings.UID]
+                logger.warning(
+                    f"Metagraph hasn't been updated for {block - last_update_block} blocks. "
+                    f"Staled block: {block}, Last update: {last_update_block}"
+                )
+                os.killpg(0, signal.SIGKILL)
+            step += 1
+
+        except Exception as e:
+            logger.error(f"Failed to kill process group: {e}")
+        finally:
+            sys.exit(1)
+        time.sleep(60)
+
+
 async def main(
     cache_rewards: list | None = None,
     cache_scores: list | None = None,
@@ -259,17 +288,15 @@ async def main(
         try:
             # Start checking the availability of miners at regular intervals
             if settings.shared_settings.DEPLOY_SCORING_API and not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
-                api_task = asyncio.create_task(start_api(scoring_queue, reward_events, miners_dict, event_stop))
-                tasks.append(api_task)
-                # # Use multiprocessing to bypass API blocking issue
-                # api_process = mp.Process(
-                #     target=start_api,
-                #     args=(scoring_queue, reward_events, miners_dict, event_stop),
-                #     name="APIProcess",
-                #     daemon=True,
-                # )
-                # api_process.start()
-                # processes.append(api_process)
+                # Use multiprocessing to bypass API blocking issue
+                api_process = mp.Process(
+                    target=start_api,
+                    args=(scoring_queue, reward_events, miners_dict, event_stop),
+                    name="APIProcess",
+                    daemon=True,
+                )
+                api_process.start()
+                processes.append(api_process)
 
             availability_process = mp.Process(
                 target=start_availability_checking_loop,
@@ -309,6 +336,15 @@ async def main(
             )
             weight_setter_process.start()
             processes.append(weight_setter_process)
+
+            # health_check_process = mp.Process(
+            #     target=health_check,
+            #     args=(os.getpid(), event_stop),
+            #     name="HealthCheckProcess",
+            #     daemon=True,
+            # )
+            # health_check_process.start()
+            # processes.append(health_check_process)
 
             GPUInfo.log_gpu_info()
             while True:

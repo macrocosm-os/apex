@@ -249,7 +249,7 @@ class AsyncModelScheduler(AsyncLoopRunner):
         self.scoring_queue = scoring_queue
         await super().start(name=name, **kwargs)
         # Load the model immediately.
-        await self.run_step()
+        # await self.run_step()
 
     async def run_step(self):
         """This method is called periodically according to the interval."""
