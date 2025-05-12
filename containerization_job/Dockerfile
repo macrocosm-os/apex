@@ -17,6 +17,7 @@ ENV MODEL_PATH=./downloaded_model
 RUN python download_model.py --model-name "$LLM_MODEL" --model-path "$MODEL_PATH"
 
 COPY . .
+COPY --from=external_context /vllm_llm.py .
 
 EXPOSE 8000
 
