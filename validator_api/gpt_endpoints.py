@@ -296,7 +296,7 @@ async def get_chain_of_thought_job(job_id: str, api_key: str = Depends(validate_
     - **error** (str, optional): Error message if the job failed.
     """
     job = job_store.get_job(job_id)
-    logger.info(f"Processing job with id: {job.job_id} and status: {job.status}, created at: {job.created_at}")
+    logger.info(f"Processing job with id: {job.job_id}, status: {job.status}, created at: {job.created_at}")
     if job.status == JobStatus.COMPLETED:  # todo check if job is deleted
         job_store.delete_job(job_id)
     if not job:
