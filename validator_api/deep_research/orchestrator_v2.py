@@ -128,6 +128,7 @@ async def make_mistral_request_with_json(
 ):
     """Makes a request to Mistral API and records the query"""
     raw_response, query_record = await make_mistral_request(messages, step_name, completions)
+    logger.debug(f"[Mistral Raw Response]: {raw_response}")
     try:
         parse_llm_json(raw_response)  # Test if the response is jsonable
         return raw_response, query_record
