@@ -10,7 +10,8 @@ from prompting.rewards.exact_match import (
     MAX_VERIFY_TOKENS,
     MIN_SMOOTH_PENALTY_SCALE,
     MIN_VERIFY_TOKENS,
-    NO_EOS_PENALTY,
+    PARTIAL_PENALTY,
+    TOP_LOGPROBS,
     VERIFICATION_THRESH_SIM,
     LogitsRewardModel,
 )
@@ -160,7 +161,7 @@ async def test_mixed_completions(model_manager, task):
 
         assert isinstance(result, BatchRewardOutput)
         assert len(result.rewards) == 3
-        assert 0.3 < result.rewards[0] <= 0.9
+        assert 0.3 < result.rewards[0] <= 1.0
         assert result.rewards[1] == INCORRECT_PENALTY
         assert result.rewards[2] == INCORRECT_PENALTY
 
@@ -170,7 +171,7 @@ async def test_mixed_completions(model_manager, task):
     "eos_in_logits, expected_penalty",
     [
         (True, None),
-        (False, NO_EOS_PENALTY),
+        (False, PARTIAL_PENALTY),
     ],
     ids=["eos_present", "eos_missing"],
 )
@@ -200,7 +201,7 @@ async def test_eos_handling(eos_in_logits, expected_penalty, model_manager, task
     assert len(result.rewards) == 1
     if expected_penalty is None:
         # eos present.
-        assert result.rewards[0] != NO_EOS_PENALTY
+        assert result.rewards[0] != PARTIAL_PENALTY
     else:
         # eos missing.
         assert result.rewards[0] == pytest.approx(expected_penalty)
@@ -208,19 +209,21 @@ async def test_eos_handling(eos_in_logits, expected_penalty, model_manager, task
 
 def test_verify_logit_similarity():
     """Test the verify_logit_similarity similarity metric."""
-    original = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "token4": -1.5, "token5": -2.0}
+    original = {f"token{idx}": -0.01 for idx in range(TOP_LOGPROBS)}
     # Identical distributions -> 1.0.
     assert LogitsRewardModel.verify_logit_similarity(original, original) == pytest.approx(1.0)
 
-    # Disjoint tokens -> near zero.
-    disjoint = {"foo": -0.1, "bar": -0.5, "foo1": -1.0, "bar1": -1.5, "foo2": -2.0}
-    sim = LogitsRewardModel.verify_logit_similarity(original, disjoint)
-    assert sim == pytest.approx(0.0)
+    with patch("prompting.rewards.exact_match.TOP_LOGPROBS", 5):
+        # Disjoint tokens -> near zero.
+        disjoint = {"foo": -0.1, "bar": -0.5, "foo1": -1.0, "bar1": -1.5, "foo2": -2.0}
+        sim = LogitsRewardModel.verify_logit_similarity(original, disjoint)
+        assert sim == pytest.approx(0.0)
 
-    # Partial overlap -> between 0 and 1.
-    partial = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "foo1": -1.5, "bar1": -2.0}
-    sim2 = LogitsRewardModel.verify_logit_similarity(original, partial)
-    assert sim2 == pytest.approx(0.6)
+        # Partial overlap -> between 0 and 1.
+        original = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "foo1": -1.5, "bar1": -2.0}
+        partial = {"token1": -0.1, "token2": -0.5, "token3": -1.0, "token4": -1.5, "token5": -2.0}
+        sim2 = LogitsRewardModel.verify_logit_similarity(original, partial)
+        assert sim2 == pytest.approx(0.6)
 
 
 def test_smooth_reward_scale():
@@ -229,20 +232,16 @@ def test_smooth_reward_scale():
     assert LogitsRewardModel.smooth_timings_reward([]) == 0.0
 
     # Test uniform timings (should give maximum reward).
-    uniform_timings = [1.0, 1.0, 1.0, 1.0, 1.0]
-    assert LogitsRewardModel.smooth_timings_reward(uniform_timings) == 1.0
+    uniform_timings = [0.1, 0.1, 0.1, 0.1, 0.1]
+    assert LogitsRewardModel.smooth_timings_reward(uniform_timings) == pytest.approx(1.0)
 
     # Test high variance timings (should give minimum reward).
-    high_var_timings = [0.1, 5.0, 10.0, 0.5, 8.0]
-    std_dev = np.std(high_var_timings)
+    high_var_timings = [0.1, 0.1, 15.0, 0.1, 0.1]
     assert LogitsRewardModel.smooth_timings_reward(high_var_timings) == MIN_SMOOTH_PENALTY_SCALE
-    assert 1.0 - std_dev < MIN_SMOOTH_PENALTY_SCALE
 
     # Test moderate variance timings.
-    moderate_var_timings = [0.9, 1.0, 1.1, 0.95, 1.05]
-    expected = max(MIN_SMOOTH_PENALTY_SCALE, 1.0 - np.std(moderate_var_timings))
-    assert LogitsRewardModel.smooth_timings_reward(moderate_var_timings) == pytest.approx(expected)
-    assert MIN_SMOOTH_PENALTY_SCALE < LogitsRewardModel.smooth_timings_reward(moderate_var_timings) < 1.0
+    moderate_var_timings = [0.3, 0.2, 0.4, 0.1, 0.1]
+    assert LogitsRewardModel.smooth_timings_reward(moderate_var_timings) == pytest.approx(1.0)
 
     # Test with custom minimum reward.
     custom_min = 0.8

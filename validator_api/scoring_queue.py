@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 from collections import deque
 from typing import Any
 
@@ -47,7 +48,7 @@ class ScoringQueue(AsyncLoopRunner):
 
     async def run_step(self):
         """Perform organic scoring: pop queued payload, forward to the validator API."""
-        logger.debug("Running scoring step")
+        # logger.debug("Running scoring step")
         async with self._scoring_lock:
             if not self._scoring_queue:
                 return
@@ -70,6 +71,7 @@ class ScoringQueue(AsyncLoopRunner):
                 payload = payload.to_dict()
             elif isinstance(payload, BaseModel):
                 payload = payload.model_dump()
+            payload_bytes = json.dumps(payload).encode()
 
             timeout = httpx.Timeout(timeout=120.0, connect=60.0, read=30.0, write=30.0, pool=5.0)
             # Add required headers for signature verification
@@ -80,8 +82,8 @@ class ScoringQueue(AsyncLoopRunner):
             ) as client:
                 response = await client.post(
                     url=url,
-                    json=payload,
-                    # headers=headers,
+                    content=payload_bytes,
+                    headers={"Content-Type": "application/json"},
                 )
                 validator_registry.update_validators(uid=vali_uid, response_code=response.status_code)
                 if response.status_code != 200:
@@ -142,7 +144,7 @@ class ScoringQueue(AsyncLoopRunner):
             "chunk_dicts_raw": chunk_dict_raw,
         }
         scoring_item = ScoringPayload(payload=payload, date=datetime.datetime.now().replace(microsecond=0))
-        logger.info(f"Appending organic to scoring queue: {scoring_item}")
+        # logger.info(f"Appending organic to scoring queue: {scoring_item}")
         async with self._scoring_lock:
             if len(self._scoring_queue) >= self._queue_maxlen:
                 scoring_payload = self._scoring_queue.popleft()

@@ -59,29 +59,22 @@ async def score_response(
 ):
     model = None
     payload: dict[str, Any] = await request.json()
-    logger.debug(f"Awaited body: {payload}")
     body = payload.get("body")
     timeout = payload.get("timeout", shared_settings.NEURON_TIMEOUT)
     uids = payload.get("uids", [])
     chunks = payload.get("chunks", {})
     chunk_dicts_raw = payload.get("chunk_dicts_raw", {})
     timings = payload.get("timings", {})
-    logger.debug("About to check chunks and uids")
     if not uids or not chunks:
         logger.error(f"Either uids: {uids} or chunks: {chunks} is not valid, skipping scoring")
         return
     uids = [int(uid) for uid in uids]
     model = body.get("model")
-    logger.debug("About to check model")
     if model and model not in shared_settings.LLM_MODEL:
         logger.error(f"Model {model} not available for scoring on this validator.")
         return
-    logger.debug("Model has been checked")
     llm_model = ModelZoo.get_model_by_id(model)
-    logger.debug("Got LLM Model from ModelZoo")
     task_name = body.get("task")
-    logger.debug(f"Task name set: {task_name}")
-    logger.debug(f"Length pre-insertion: {len(task_scorer.scoring_queue)}")
     if task_name == "InferenceTask":
         organic_task = InferenceTask(
             messages=body.get("messages"),
@@ -120,6 +113,8 @@ async def score_response(
                 seed=int(body.get("seed", 0)),
                 sampling_params=body.get("sampling_params", {}),
                 query=search_term,
+                target_results=body.get("target_results", 1),
+                timeout=body.get("timeout", 10),
             ),
             response=DendriteResponseEvent(
                 uids=uids,
@@ -132,5 +127,4 @@ async def score_response(
             step=-1,
             task_id=str(uuid.uuid4()),
         )
-    logger.debug(f"Current Queue: {len(task_scorer.scoring_queue)}")
-    logger.info("Organic task appended to scoring queue")
+    logger.debug(f"Organic queue size: {len(task_scorer.scoring_queue)}")

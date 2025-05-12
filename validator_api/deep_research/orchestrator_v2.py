@@ -72,7 +72,7 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
         search_results = {"results": []}
 
     # Generate referenced answer
-    answer_prompt = f"""Based on the provided search results, generate a comprehensive answer to the question.
+    answer_prompt = f"""Based on the provided search results, generate a concise but well-structured answer to the question.
     Include inline references to sources using markdown format [n] where n is the source number.
 
     Question: {question}
@@ -119,12 +119,14 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
 
 
 @retry(
-    stop=stop_after_attempt(5),
+    stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(json.JSONDecodeError),
 )
 async def make_mistral_request_with_json(
-    messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
+    messages: list[dict],
+    step_name: str,
+    completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]],
 ):
     """Makes a request to Mistral API and records the query"""
     raw_response, query_record = await make_mistral_request(messages, step_name, completions)
@@ -140,7 +142,7 @@ async def make_mistral_request_with_json(
 
 
 @retry(
-    stop=stop_after_attempt(7),
+    stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(BaseException),
 )
@@ -237,7 +239,7 @@ class WebSearchTool(Tool):
         return """Searches the web to answer a question. Provides a referenced answer with citations.
         Input parameters:
         - question: The natural language question to answer
-        - n_results: (optional) Number of search results to use (default: 5)
+        - n_results: (optional) Number of search results to use (default: 2)
 
         Returns a dictionary containing:
         - question: Original question asked

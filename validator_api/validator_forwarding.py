@@ -88,6 +88,8 @@ class ValidatorRegistry(BaseModel):
             return None
         weights = [self.validators[uid].stake for uid in validator_list]
         chosen = self.validators[random.choices(validator_list, weights=weights, k=1)[0]]
+        if chosen.hotkey == shared_settings.MC_VALIDATOR_HOTKEY:
+            chosen.axon = shared_settings.MC_VALIDATOR_AXON
         return chosen.uid, chosen.axon, chosen.hotkey
 
     def update_validators(self, uid: int, response_code: int) -> None:

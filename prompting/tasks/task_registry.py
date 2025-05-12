@@ -5,14 +5,12 @@ import numpy as np
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
 
-from prompting.datasets.huggingface_github import HuggingFaceGithubDataset
 from prompting.datasets.random_website import DDGDataset
 from prompting.datasets.sn13 import SN13Dataset
 from prompting.rewards.reward import BaseRewardConfig
 from prompting.tasks.base_task import BaseTextTask
 from prompting.tasks.inference import InferenceRewardConfig, InferenceTask
 from prompting.tasks.MSRv2_task import MSRv2RewardConfig, MSRv2Task
-from prompting.tasks.programming_task import ProgrammingRewardConfig, ProgrammingTask
 from prompting.tasks.web_retrieval import WebRetrievalRewardConfig, WebRetrievalTask
 from shared.base import BaseDataset
 
@@ -31,22 +29,16 @@ class TaskConfig(BaseModel):
 
 class TaskRegistry(BaseModel):
     task_configs: ClassVar[list[TaskConfig]] = [
-        TaskConfig(task=MSRv2Task, probability=0.05, datasets=[DDGDataset], reward_model=MSRv2RewardConfig),
+        TaskConfig(task=MSRv2Task, probability=0.10, datasets=[DDGDataset], reward_model=MSRv2RewardConfig),
         TaskConfig(
             task=InferenceTask,
-            probability=0.45,
+            probability=0.55,
             datasets=[SN13Dataset],
             reward_model=InferenceRewardConfig,
         ),
         TaskConfig(
-            task=ProgrammingTask,
-            probability=0.10,
-            datasets=[HuggingFaceGithubDataset],
-            reward_model=ProgrammingRewardConfig,
-        ),
-        TaskConfig(
             task=WebRetrievalTask,
-            probability=0.40,
+            probability=0.35,
             datasets=[DDGDataset],
             reward_model=WebRetrievalRewardConfig,
         ),
