@@ -1,6 +1,7 @@
+import asyncio
 import random
 import time
-from typing import ClassVar, List, Optional, Tuple
+from typing import ClassVar
 
 import numpy as np
 from loguru import logger
@@ -54,23 +55,24 @@ class ValidatorRegistry(BaseModel):
 
     @model_validator(mode="after")
     def create_validator_list(cls, v: "ValidatorRegistry", metagraph=shared_settings.METAGRAPH) -> "ValidatorRegistry":
-        validator_uids = np.where(metagraph.stake >= 100000)[0].tolist()
+        # TODO: Calculate 1000 tao using subtensor alpha price.
+        validator_uids = np.where(metagraph.stake >= 16000)[0].tolist()
         validator_axons = [metagraph.axons[uid].ip_str().split("/")[2] for uid in validator_uids]
         validator_stakes = [metagraph.stake[uid] for uid in validator_uids]
         validator_hotkeys = [metagraph.hotkeys[uid] for uid in validator_uids]
-        v.validators = {
-            uid: Validator(uid=uid, stake=stake, axon=axon, hotkey=hotkey)
-            for uid, stake, axon, hotkey in zip(validator_uids, validator_stakes, validator_axons, validator_hotkeys)
-        }
+        v.validators = {}
+        for uid, stake, axon, hotkey in zip(validator_uids, validator_stakes, validator_axons, validator_hotkeys):
+            if hotkey == shared_settings.MC_VALIDATOR_HOTKEY:
+                logger.debug(f"Replacing {uid} axon from {axon} to {shared_settings.MC_VALIDATOR_AXON}")
+                axon = shared_settings.MC_VALIDATOR_AXON
+            v.validators[uid] = Validator(uid=uid, stake=stake, axon=axon, hotkey=hotkey)
         return v
 
-    def get_available_validators(self) -> List[Validator]:
-        """
-        Given a list of validators, return only those that are not in their cooldown period.
-        """
+    async def get_available_validators(self) -> list[Validator]:
+        """Given a list of validators, return only those that are not in their cooldown period."""
         return [uid for uid, validator in self.validators.items() if validator.is_available()]
 
-    def get_available_axon(self) -> Optional[Tuple[int, List[str], str]]:
+    async def get_available_axons(self, balance: bool = True) -> list[Validator] | None:
         """
         Returns a tuple (uid, axon, hotkey) for a randomly selected validator based on stake weighting,
         if spot checking conditions are met. Otherwise, returns None.
@@ -78,19 +80,20 @@ class ValidatorRegistry(BaseModel):
         if random.random() < self.spot_checking_rate or not self.validators:
             return None
         for _ in range(self.max_retries):
-            validator_list = self.get_available_validators()
+            validator_list = await self.get_available_validators()
             if validator_list:
                 break
             else:
-                time.sleep(5)
+                await asyncio.sleep(5)
         if not validator_list:
             logger.error(f"Could not find available validator after {self.max_retries}")
             return None
-        weights = [self.validators[uid].stake for uid in validator_list]
-        chosen = self.validators[random.choices(validator_list, weights=weights, k=1)[0]]
-        if chosen.hotkey == shared_settings.MC_VALIDATOR_HOTKEY:
-            chosen.axon = shared_settings.MC_VALIDATOR_AXON
-        return chosen.uid, chosen.axon, chosen.hotkey
+        if balance:
+            weights = [self.validators[uid].stake for uid in validator_list]
+            chosen = [self.validators[random.choices(validator_list, weights=weights, k=1)[0]]]
+        else:
+            chosen = self.validators
+        return chosen
 
     def update_validators(self, uid: int, response_code: int) -> None:
         """

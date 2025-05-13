@@ -16,7 +16,6 @@ from validator_api.serializers import CompletionsRequest, JobResponse, JobResult
 from validator_api.utils import filter_available_uids
 
 router = APIRouter()
-N_MINERS = 10
 
 
 @router.post(
@@ -88,7 +87,7 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
                 task=body.get("task"),
                 model=body.get("model"),
                 test=shared_settings.API_TEST_MODE,
-                n_miners=N_MINERS,
+                n_miners=shared_settings.API_TOP_MINERS_TO_STREAM,
                 n_top_incentive=shared_settings.API_TOP_MINERS_SAMPLE,
                 explore=shared_settings.API_UIDS_EXPLORE,
             )
@@ -176,8 +175,7 @@ async def test_time_inference(request: TestTimeInferenceRequest):
 async def submit_chain_of_thought_job(
     request: CompletionsRequest, background_tasks: BackgroundTasks, api_key: str = Depends(validate_api_key)
 ):
-    """
-    Submit a Chain-of-Thought inference job to be processed in the background.
+    """Submit a Chain-of-Thought inference job to be processed in the background.
 
     This endpoint accepts the same parameters as the /v1/chat/completions endpoint,
     but instead of streaming the response, it submits the job to the background and
@@ -222,7 +220,10 @@ async def submit_chain_of_thought_job(
             [int(uid) for uid in body.get("uids")]
             if body.get("uids")
             else filter_available_uids(
-                task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=N_MINERS
+                task=body.get("task"),
+                model=body.get("model"),
+                test=shared_settings.API_TEST_MODE,
+                n_miners=shared_settings.API_TOP_MINERS_TO_STREAM,
             )
         )
 
