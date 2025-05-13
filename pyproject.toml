@@ -142,7 +142,7 @@ tenacity = "^9.0.0"
 isort = "^5.13.2"
 tiktoken = "^0.8.0"
 pillow = "^11.0.0"
-torch = { version = "^2.5.1", optional = true }
+torch = { version = "^2.5.1", optional = false }
 transformers = { version = "^4.49.0", optional = true }
 torchvision = { version = ">=0.20.1", optional = true }
 accelerate = { version = ">=1.1.1", optional = true }
