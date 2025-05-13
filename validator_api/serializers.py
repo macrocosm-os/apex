@@ -162,5 +162,5 @@ class JobResponse(BaseModel):
 class JobResultResponse(JobResponse):
     """Response model for the /v1/chat/completions/jobs/{job_id} endpoint."""
 
-    result: Optional[List[str]] = Field(None, description="Result of the job if completed")
+    result: Optional[List[dict]] = Field(None, description="Result of the job if completed")
     error: Optional[str] = Field(None, description="Error message if the job failed")

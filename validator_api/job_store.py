@@ -23,7 +23,7 @@ class JobResult(BaseModel):
     status: JobStatus
     created_at: datetime
     updated_at: datetime
-    result: Optional[List[str]] = None
+    result: Optional[List[dict]] = None
     error: Optional[str] = None
 
 
@@ -79,14 +79,14 @@ class JobStore:
         """Get a job by its ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ? ORDER BY seq_id asc", (job_id,))
+            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ? ORDER BY seq_id ASC", (job_id,))
             rows = cursor.fetchall()
 
         if rows is None:
             return None
 
         # Convert the result string to List[str] if it exists
-        result = [row["chunk"] for row in rows if row["chunk"]]
+        result = [{"seq_id": row["seq_id"], "chunk": row["chunk"]} for row in rows if row["chunk"]]
         row = rows[-1]
         return JobResult(
             job_id=row["job_id"],
