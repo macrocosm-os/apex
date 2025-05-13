@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from shared import settings
 from shared.epistula import create_header_hook
 from shared.loop_runner import AsyncLoopRunner
-from validator_api.validator_forwarding import ValidatorRegistry
+from validator_api.validator_forwarding import Validator, ValidatorRegistry
 
 validator_registry = ValidatorRegistry()
 
@@ -33,7 +33,7 @@ class ScoringQueue(AsyncLoopRunner):
     max_scoring_retries: int = 2
     _scoring_lock = asyncio.Lock()
     _scoring_queue: deque[ScoringPayload] = deque()
-    _queue_maxlen: int = 20
+    _queue_maxlen: int = 50
     _min_wait_time: float = 1
 
     async def wait_for_next_execution(self, last_run_time) -> datetime.datetime:
@@ -48,7 +48,6 @@ class ScoringQueue(AsyncLoopRunner):
 
     async def run_step(self):
         """Perform organic scoring: pop queued payload, forward to the validator API."""
-        # logger.debug("Running scoring step")
         async with self._scoring_lock:
             if not self._scoring_queue:
                 return
@@ -60,52 +59,33 @@ class ScoringQueue(AsyncLoopRunner):
                 f"Trying to score organic from {scoring_payload.date}, uids: {uids}. "
                 f"Queue size: {len(self._scoring_queue)}"
             )
+        validators = []
         try:
-            vali_uid, vali_axon, vali_hotkey = validator_registry.get_available_axon()
-            # get_available_axon() will return None if it cannot find an available validator, which will fail to unpack
-            url = f"http://{vali_axon}/scoring"
+            if shared_settings.OVERRIDE_AVAILABLE_AXONS:
+                for idx, vali_axon in enumerate(shared_settings.OVERRIDE_AVAILABLE_AXONS):
+                    validators.append(Validator(uid=-idx, axon=vali_axon, hotkey=shared_settings.API_HOTKEY, stake=1e6))
+            else:
+                # vali_uid, vali_axon, vali_hotkey = validator_registry.get_available_axon()
+                validators = await validator_registry.get_available_axons(balance=shared_settings.API_ENABLE_BALANCE)
         except Exception as e:
             logger.exception(f"Could not find available validator scoring endpoint: {e}")
+
         try:
             if hasattr(payload, "to_dict"):
                 payload = payload.to_dict()
             elif isinstance(payload, BaseModel):
                 payload = payload.model_dump()
             payload_bytes = json.dumps(payload).encode()
+        except BaseException as e:
+            logger.exception(f"Error when encoding payload: {e}")
+            await asyncio.sleep(0.1)
+            return
 
-            timeout = httpx.Timeout(timeout=120.0, connect=60.0, read=30.0, write=30.0, pool=5.0)
-            # Add required headers for signature verification
-
-            async with httpx.AsyncClient(
-                timeout=timeout,
-                event_hooks={"request": [create_header_hook(shared_settings.WALLET.hotkey, vali_hotkey)]},
-            ) as client:
-                response = await client.post(
-                    url=url,
-                    content=payload_bytes,
-                    headers={"Content-Type": "application/json"},
-                )
-                validator_registry.update_validators(uid=vali_uid, response_code=response.status_code)
-                if response.status_code != 200:
-                    # Raise an exception so that the retry logic in the except block handles it.
-                    raise Exception(f"Non-200 response: {response.status_code} for uids {uids}")
-                logger.debug(f"Forwarding response completed with status {response.status_code} to uid {vali_uid}")
-        except httpx.ConnectError as e:
-            logger.warning(f"Couldn't connect to validator {url} for Scoring {uids}. Exception: {e}")
-        except Exception as e:
-            if scoring_payload.retries < self.max_scoring_retries:
-                scoring_payload.retries += 1
-                async with self._scoring_lock:
-                    self._scoring_queue.appendleft(scoring_payload)
-                logger.warning(
-                    f"Tried to forward response from {scoring_payload.date} to {url} for uids {uids}. "
-                    f"Queue size: {len(self._scoring_queue)}. Exception: {e}. Queued for retry"
-                )
-            else:
-                logger.error(
-                    f"Error while forwarding response from {scoring_payload.date} after {scoring_payload.retries} "
-                    f"retries: {e}"
-                )
+        tasks = []
+        for _, validator in validators.items():
+            task = asyncio.create_task(self._send_result(payload_bytes, scoring_payload, validator, uids))
+            tasks.append(task)
+        await asyncio.gather(*tasks)
         await asyncio.sleep(0.1)
 
     async def append_response(
@@ -150,6 +130,47 @@ class ScoringQueue(AsyncLoopRunner):
                 scoring_payload = self._scoring_queue.popleft()
                 logger.info(f"Dropping oldest organic from {scoring_payload.date} for uids {uids}")
             self._scoring_queue.append(scoring_item)
+
+    async def _send_result(self, payload_bytes, scoring_payload, validator: Validator, uids):
+        try:
+            vali_url = f"http://{validator.axon}/scoring"
+            timeout = httpx.Timeout(timeout=120.0)
+            async with httpx.AsyncClient(
+                timeout=timeout,
+                event_hooks={"request": [create_header_hook(shared_settings.WALLET.hotkey, validator.hotkey)]},
+            ) as client:
+                response = await client.post(
+                    url=vali_url,
+                    content=payload_bytes,
+                    headers={"Content-Type": "application/json"},
+                )
+                validator_registry.update_validators(uid=validator.uid, response_code=response.status_code)
+                if response.status_code != 200:
+                    raise Exception(
+                        f"Status code {response.status_code} response for validator {validator.uid} - {vali_url}: "
+                        f"{response.status_code} for uids {len(uids)}"
+                    )
+                logger.debug(f"Successfully forwarded response to uid {validator.uid} - {vali_url}")
+        except httpx.ConnectError as e:
+            logger.warning(
+                f"Couldn't connect to validator {validator.uid} {vali_url} for scoring {len(uids)}. Exception: {e}"
+            )
+        except Exception as e:
+            if shared_settings.API_ENABLE_BALANCE and scoring_payload.retries < self.max_scoring_retries:
+                scoring_payload.retries += 1
+                async with self._scoring_lock:
+                    self._scoring_queue.appendleft(scoring_payload)
+                logger.warning(
+                    f"Tried to forward response from {scoring_payload.date} "
+                    f"to validator {validator.uid} {vali_url} for  {len(uids)} uids. "
+                    f"Queue size: {len(self._scoring_queue)}. Exception: {e}"
+                )
+            else:
+                logger.warning(
+                    f"Error while forwarding response from {scoring_payload.date} "
+                    f"to validator {validator.uid} {vali_url} for {len(uids)} uids "
+                    f"retries. Queue size: {len(self._scoring_queue)}. Exception: {e}"
+                )
 
     @property
     def size(self) -> int:

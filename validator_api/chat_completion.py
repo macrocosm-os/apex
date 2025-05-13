@@ -147,14 +147,18 @@ async def stream_from_first_response(  # noqa: C901
 
 async def get_response_from_miner(body: dict[str, any], uid: int, timeout_seconds: int) -> tuple:
     """Get response from a single miner."""
-    return await make_openai_query(
-        metagraph=shared_settings.METAGRAPH,
-        wallet=shared_settings.WALLET,
-        body=body,
-        uid=uid,
-        stream=False,
-        timeout_seconds=timeout_seconds,
-    )
+    try:
+        return await make_openai_query(
+            metagraph=shared_settings.METAGRAPH,
+            wallet=shared_settings.WALLET,
+            body=body,
+            uid=uid,
+            stream=False,
+            timeout_seconds=timeout_seconds,
+        )
+    except BaseException as e:
+        logger.warning(f"Error getting response from miner {uid}: {e}")
+        return None
 
 
 async def chat_completion(
