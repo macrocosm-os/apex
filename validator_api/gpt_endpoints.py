@@ -231,7 +231,8 @@ async def submit_chain_of_thought_job(
 
         # Create a new job
         job_id = job_store.create_job()
-
+        job = job_store.get_job(job_id)
+        
         # Create the test time inference request
         test_time_request = TestTimeInferenceRequest(
             messages=request.messages,
@@ -249,6 +250,7 @@ async def submit_chain_of_thought_job(
             job_id=job_id,
             orchestrator=orchestrator,
             messages=test_time_request.messages,
+            created_at=job.created_at
         )
 
         # Get the job
