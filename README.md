@@ -9,6 +9,7 @@
 # **Bittensor SN1** <!-- omit in toc -->
 [![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/macrocosm-os/apex)
 
 ---
 
@@ -46,23 +47,17 @@ Subnet one utilizes the concept of "Tasks" to control the behavior of miners. Va
 
 ## Task Descriptions
 
-### 1. **QA (Question Answering)**
-The miner receives a question about a specific section from a Wikipedia page. The miner must then find the original context in the specified section and use it to return an accurate answer. References are generated using the validators privileged knowledge of the context, and miner complestions are scored based on similarity metrics.
-
-### 2. **Inference**
+### 1. **Inference**
 A question is given with some pre-seeded information and a random seed. The miner must perform an inference based on this information to provide the correct answer. Completions are scored based on similarity metrics.
 
-### 3. **MultiChoice**
-The miner is presented with a question from Wikipedia along with four possible answers (A, B, C, or D). The miner must search Wikipedia and return the correct answer by selecting one of the given options. Miner completions are scored by Regex matching.
+### 2. **Multistep Reasoning (MSRv2)**
+This task operates in two stages: generative and discriminative. 
+In the generative stage, a single miner receives a challenge and generates a response. 
+In the discriminative stage, this generated response (or sometimes a validator-provided "real" answer) is presented to a set of discriminator miners. These discriminators must output a score (0-1) assessing the answer. 
+Rewards are then calculated: discriminators are rewarded based on how accurately their score reflects the ground truth (i.e., whether the answer was miner-generated or real). The original generator miner is rewarded based on the collective assessment of the discriminators. If a "real" answer was used, this portion of the reward is distributed among other non-discriminating miners.
 
-### 5. **Programming**
-The miner receives a code snippet that is incomplete. The task is to complete the code snippet to perform its intended function. The validator generates a reference using it's internal LLM, and the miner is scored based on its similarity to this reference.
-
-### 6. **Web Retrieval**
+### 3. **Web Retrieval**
 The miner is given a question based on a random web page and must return a scraped website that contains the answer. This requires searching the web to locate the most accurate and reliable source to provide the answer. The miner is scored based on the embedding similarity between the answer it returns and the original website that the validator generated the reference from.
-
-### 7. **Multistep Reasoning**
-The miner is given a complex problem that requires multiple steps to solve. Each step builds upon the previous one, and the miner must provide intermediate results before arriving at the final answer. The validator generates a reference solution using its internal LLM, and the miner is scored based on the accuracy and coherence of the intermediate and final results.
 
 # API Documentation
 
