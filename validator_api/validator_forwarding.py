@@ -1,7 +1,7 @@
 import asyncio
 import random
 import time
-from typing import ClassVar, List
+from typing import ClassVar
 
 import numpy as np
 from loguru import logger
@@ -68,7 +68,7 @@ class ValidatorRegistry(BaseModel):
             v.validators[uid] = Validator(uid=uid, stake=stake, axon=axon, hotkey=hotkey)
         return v
 
-    async def get_available_validators(self) -> List[Validator]:
+    async def get_available_validators(self) -> list[Validator]:
         """Given a list of validators, return only those that are not in their cooldown period."""
         return [uid for uid, validator in self.validators.items() if validator.is_available()]
 

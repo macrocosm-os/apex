@@ -110,6 +110,8 @@ class SharedSettings(BaseSettings):
     API_TEST_MODE: bool = Field(False, env="API_TEST_MODE")
     API_UIDS_EXPLORE: float = Field(0.2, env="API_UIDS_EXPLORE")
     API_TOP_MINERS_SAMPLE: int = Field(400, env="API_TOP_MINERS_SAMPLE")
+    API_TOP_MINERS_TO_STREAM: int = Field(10, env="API_TOP_MINERS_TO_STREAM")
+    API_MIN_MINERS_TO_SAMPLE: int = Field(50, env="API_MIN_UIDS_TO_SAMPLE")
     OVERRIDE_AVAILABLE_AXONS: list[str] | None = Field(None, env="OVERRIDE_AVAILABLE_AXONS")
     API_ENABLE_BALANCE: bool = Field(True, env="API_ENABLE_BALANCE")
 

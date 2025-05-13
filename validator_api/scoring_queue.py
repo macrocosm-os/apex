@@ -69,6 +69,10 @@ class ScoringQueue(AsyncLoopRunner):
         except Exception as e:
             logger.exception(f"Could not find available validator scoring endpoint: {e}")
 
+        if validators is None:
+            logger.warning("No validators are available")
+            return
+
         try:
             if hasattr(payload, "to_dict"):
                 payload = payload.to_dict()
