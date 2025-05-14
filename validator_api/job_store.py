@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
+import json
 
 
 class JobStatus(str, Enum):
@@ -106,13 +107,15 @@ class JobStore:
 
     def insert_job_chunk(self, job_id: str, chunk: str, seq_id: int, created_at: str) -> None:
         """Insert a chunk row."""
+        choices_list = json.loads(chunk.split("data:")[-1])["choices"]
+        content_list = [choice["delta"] for choice in choices_list]
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
                 INSERT INTO jobs (chunk, status, updated_at, seq_id, job_id, created_at)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """,
-                (str(chunk), JobStatus.RUNNING, datetime.now(), seq_id, job_id, created_at),
+                (json.dumps(content_list), JobStatus.RUNNING, datetime.now(), seq_id, job_id, created_at),
             )
             conn.commit()
 
