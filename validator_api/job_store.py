@@ -1,3 +1,4 @@
+import json
 import sqlite3
 import uuid
 from datetime import datetime
@@ -5,7 +6,6 @@ from enum import Enum
 from typing import Dict, List, Optional
 
 from pydantic import BaseModel
-import json
 
 
 class JobStatus(str, Enum):
