@@ -11,10 +11,10 @@ from prompting.llms.model_zoo import ModelZoo
 from prompting.rewards.reward import WeightedRewardEvent
 from prompting.tasks.inference import InferenceTask
 from prompting.tasks.task_registry import TaskConfig, TaskRegistry
+from prompting.weight_setting.weight_synchronizer import WeightSynchronizer
 from shared import settings
 from shared.loop_runner import AsyncLoopRunner
 from shared.misc import ttl_get_block
-from prompting.weight_setting.weight_synchronizer import WeightSynchronizer
 
 shared_settings = settings.shared_settings
 
@@ -23,6 +23,7 @@ WEIGHTS_HISTORY_LENGTH = 24
 PAST_WEIGHTS: list[np.ndarray] = []
 
 weight_synchronizer = WeightSynchronizer()
+
 
 def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
     """Apply the reward function to the raw rewards. P adjusts the steepness of the function - p = 0.5 leaves
@@ -66,8 +67,10 @@ def set_weights(
             PAST_WEIGHTS.pop(0)
         averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
         save_weights(PAST_WEIGHTS)
-        try: 
-            augmented_weights = weight_synchronizer.get_augmented_weights(weights=averaged_weights, uid=shared_settings.UID)
+        try:
+            augmented_weights = weight_synchronizer.get_augmented_weights(
+                weights=averaged_weights, uid=shared_settings.UID
+            )
         except Exception as ex:
             logger.exception(f"Issue with setting weights: {ex}")
             augmented_weights = averaged_weights

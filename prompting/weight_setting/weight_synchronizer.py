@@ -1,22 +1,24 @@
-from pydantic import BaseModel
-import numpy as np
-from shared.constants import WHITELISTED_VALIDATORS_UIDS
 import asyncio
-from loguru import logger
-from fastapi import HTTPException, Request, APIRouter
-from shared.epistula import verify_signature
 import time
+
 import httpx
-from shared.epistula import create_header_hook
+import numpy as np
+from fastapi import APIRouter, HTTPException, Request
+from loguru import logger
+from pydantic import BaseModel
+
+from shared.constants import WHITELISTED_VALIDATORS_UIDS
+from shared.epistula import create_header_hook, verify_signature
 
 
 class WeightSynchronizer(BaseModel):
     """The weight syncronizer is responsible for syncing the weights of the miners with the weight setter."""
-    weight_matrix: np.ndarray # Shape: (num_validators, num_miners)
-    stake_matrix: np.ndarray # Shape: (num_validators, )
-    validator_uids: np.ndarray # Shape: (num_validators, )
-    validator_hotkeys: np.ndarray # Shape: (num_validators, )
-    validator_addresses: np.ndarray # Shape: (num_validators, )
+
+    weight_matrix: np.ndarray  # Shape: (num_validators, num_miners)
+    stake_matrix: np.ndarray  # Shape: (num_validators, )
+    validator_uids: np.ndarray  # Shape: (num_validators, )
+    validator_hotkeys: np.ndarray  # Shape: (num_validators, )
+    validator_addresses: np.ndarray  # Shape: (num_validators, )
     router: APIRouter = None
 
     def __init__(self, metagraph: "bt.metagraph.Metagraph", wallet: "bt.wallet.Wallet"):
@@ -28,30 +30,32 @@ class WeightSynchronizer(BaseModel):
 
         self.validator_uids = np.array(WHITELISTED_VALIDATORS_UIDS)
         self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in WHITELISTED_VALIDATORS_UIDS])
-        self.validator_addresses = np.array([f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}" for uid in WHITELISTED_VALIDATORS_UIDS])
-        
+        self.validator_addresses = np.array(
+            [f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}" for uid in WHITELISTED_VALIDATORS_UIDS]
+        )
+
         self.router = APIRouter()
         self.router.post("/receive_weights")(self.receive_weight_matrix)
-        
+
     async def receive_weight_matrix(self, request: Request):
         """Endpoint to receive weight matrix updates from validators."""
         await self.verify_weight_signature(request)
 
         body = await request.json()
-        
-        if not isinstance(body, dict) or 'weights' not in body:
+
+        if not isinstance(body, dict) or "weights" not in body:
             raise HTTPException(status_code=400, detail="Invalid request body format")
-            
+
         try:
-            uid = body['uid']
-            weights = np.array(body['weights'])
+            uid = body["uid"]
+            weights = np.array(body["weights"])
             if weights.shape != self.weight_matrix.shape:
                 raise HTTPException(status_code=400, detail="Invalid weight matrix shape")
-                
+
             # Update the weight matrix
             self.weight_matrix[uid] = weights
             return {"status": "success", "message": "Weight matrix updated successfully"}
-            
+
         except Exception as e:
             logger.error(f"Error processing weight matrix: {e}")
             raise HTTPException(status_code=500, detail="Error processing weight matrix")
@@ -112,7 +116,7 @@ class WeightSynchronizer(BaseModel):
     def get_augmented_weights(self, weights: np.ndarray, uid: int) -> np.ndarray:
         """Get the augmented weights for the given uid, sends the weights to the validators."""
         asyncio.run(self.send_weight_matrixes(weights))
-        
+
         self.weight_matrix[uid] = weights
 
         return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix)
