@@ -104,8 +104,8 @@ class JobStore:
             )
             conn.commit()
 
-    def update_job_result(self, job_id: str, chunk: str, seq_id: int, created_at: str) -> None:
-        """Update the result of a job."""
+    def insert_job_chunk(self, job_id: str, chunk: str, seq_id: int, created_at: str) -> None:
+        """Insert a chunk row."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
@@ -116,15 +116,15 @@ class JobStore:
             )
             conn.commit()
 
-    def update_job_error(self, job_id: str, error: str, seq_id: int, created_at: str) -> None:
-        """Update the error of a job."""
+    def insert_job_error(self, job_id: str, error: str, seq_id: int, created_at: str) -> None:
+        """Insert an error row."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO jobs (chunk, status, updated_at, seq_id, job_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO jobs (chunk, status, updated_at, seq_id, job_id, created_at, error)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (None, JobStatus.RUNNING, datetime.now(), seq_id, job_id, created_at),
+                (None, JobStatus.RUNNING, datetime.now(), seq_id, job_id, created_at, error),
             )
             conn.commit()
 
@@ -144,10 +144,10 @@ async def process_chain_of_thought_job(
     async for chunk in orchestrator.run(messages=messages):
         # Immediately store each chunk with its sequence number
         try:
-            job_store.update_job_result(job_id=job_id, chunk=chunk, seq_id=seq_id, created_at=created_at)
+            job_store.insert_job_chunk(job_id=job_id, chunk=chunk, seq_id=seq_id, created_at=created_at)
         except Exception as e:
             # Capture and store any errors encountered during processing
-            job_store.update_job_error(job_id, str(e), seq_id, created_at)
+            job_store.insert_job_error(job_id, str(e), seq_id, created_at)
         seq_id += 1
 
     # Mark the job as completed after all chunks are processed
