@@ -14,10 +14,6 @@ from validator_api.deep_research.utils import extract_content_from_stream, parse
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
 from validator_api.web_retrieval import web_retrieval
 
-from shared import settings
-
-settings.shared_settings = settings.SharedSettings.load(mode="api")
-shared_settings = settings.shared_settings
 
 def make_chunk(text):
     chunk = json.dumps({"choices": [{"delta": {"content": text}}]})
@@ -123,7 +119,7 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
 
 
 @retry(
-    stop=stop_after_attempt(10),
+    stop=stop_after_attempt(3),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(json.JSONDecodeError),
 )
@@ -137,37 +133,9 @@ async def make_mistral_request_with_json(
     try:
         parse_llm_json(raw_response)  # Test if the response is jsonable
         return raw_response, query_record
-    except Exception as e:
-        logger.error(f"Mistral JSON parse failed after retries → falling back to OpenAI: {e}")
-        import openai
-        client = openai.OpenAI(
-            api_key=shared_settings.OPENAI_API_KEY,
-        )
-        
-        openai_resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=messages,
-            max_tokens=4096,
-            temperature=0.7,
-            top_p=0.95,
-            stream=False,
-            response_format={"type": "json_object"}
-        )
-        raw = openai_resp.choices[0].message.content
-        logger.debug(f"OpenAI response from fallback: {raw}")
-        rec = LLMQuery(
-            provider="openai",
-            model="gpt-3.5-turbo",
-            messages=messages,
-            raw_response=raw,
-            step_name=step_name,
-            timestamp=time.time(),
-            prompt_tokens=openai_resp.usage.prompt_tokens,
-            completion_tokens=openai_resp.usage.completion_tokens,
-        )
-        parse_llm_json(raw)
-        logger.debug(f"Fallback raw response: {raw}")
-        return raw, rec
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Mistral API response as JSON: {e}")
+        raise
 
 
 @retry(

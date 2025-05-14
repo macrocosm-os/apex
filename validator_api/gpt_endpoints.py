@@ -1,16 +1,17 @@
 import random
+from datetime import timezone
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from loguru import logger
 from starlette.responses import StreamingResponse
-from datetime import timezone
+
 from shared import settings
 
 shared_settings = settings.shared_settings
 from validator_api.api_management import validate_api_key
 from validator_api.chat_completion import chat_completion
 from validator_api.deep_research.orchestrator_v2 import OrchestratorV2
-from validator_api.job_store import JobStatus, job_store, process_chain_of_thought_job
+from validator_api.job_store import job_store, process_chain_of_thought_job
 from validator_api.mixture_of_miners import mixture_of_miners
 from validator_api.serializers import CompletionsRequest, JobResponse, JobResultResponse, TestTimeInferenceRequest
 from validator_api.utils import filter_available_uids
@@ -233,7 +234,7 @@ async def submit_chain_of_thought_job(
         # Create a new job
         job_id = job_store.create_job()
         job = job_store.get_job(job_id)
-        
+
         # Create the test time inference request
         test_time_request = TestTimeInferenceRequest(
             messages=request.messages,
@@ -251,7 +252,7 @@ async def submit_chain_of_thought_job(
             job_id=job_id,
             orchestrator=orchestrator,
             messages=test_time_request.messages,
-            created_at=job.created_at
+            created_at=job.created_at,
         )
 
         # Get the job
@@ -261,8 +262,8 @@ async def submit_chain_of_thought_job(
         return JobResponse(
             job_id=job.job_id,
             status=job.status,
-            created_at=job.created_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
-            updated_at=job.updated_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
+            created_at=job.created_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
+            updated_at=job.updated_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
         )
 
     except Exception as e:
@@ -305,16 +306,15 @@ async def get_chain_of_thought_job(job_id: str, api_key: str = Depends(validate_
     """
     job = job_store.get_job(job_id)
     logger.info(f"Processing job with id: {job.job_id}, status: {job.status}, created at: {job.created_at}")
-    if job.status == JobStatus.COMPLETED:  # todo check if job is deleted
-        job_store.delete_job(job_id)
+
     if not job:
         raise HTTPException(status_code=404, detail=f"Job with ID {job_id} not found")
 
     return JobResultResponse(
         job_id=job.job_id,
         status=job.status,
-        created_at=job.created_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
-        updated_at=job.updated_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
+        created_at=job.created_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
+        updated_at=job.updated_at.replace(tzinfo=timezone.utc).isoformat().replace("+00:00", "Z"),
         result=job.result,
         error=job.error,
     )

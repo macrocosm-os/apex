@@ -139,9 +139,11 @@ class JobStore:
 job_store = JobStore()
 
 
-async def process_chain_of_thought_job(job_id: str, orchestrator, messages: List[Dict[str, str]], created_at: str) -> None:
+async def process_chain_of_thought_job(
+    job_id: str, orchestrator, messages: List[Dict[str, str]], created_at: str
+) -> None:
     """Process a chain of thought job in the background with incremental result updates."""
-    
+
     job_store.update_job_status(job_id, JobStatus.RUNNING)
 
     seq_id = 1
@@ -155,6 +157,4 @@ async def process_chain_of_thought_job(job_id: str, orchestrator, messages: List
         seq_id += 1
 
     # Mark the job as completed after all chunks are processed
-    job_store.update_job_status(job_id, JobStatus.COMPLETED.value, JobStatus.COMPLETED)
-
-
+    job_store.update_job_status(job_id, JobStatus.COMPLETED)
