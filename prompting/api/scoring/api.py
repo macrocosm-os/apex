@@ -83,6 +83,7 @@ async def score_response(
             seed=int(body.get("seed", 0)),
             sampling_params=body.get("sampling_parameters", shared_settings.SAMPLING_PARAMS),
             query=body.get("messages"),
+            timeout=body.get("timeout", shared_settings.INFERENCE_TIMEOUT),
             organic=True,
         )
         task_scorer.add_to_queue(
@@ -115,6 +116,7 @@ async def score_response(
                 query=search_term,
                 target_results=body.get("target_results", 1),
                 timeout=body.get("timeout", 10),
+                organic=True,
             ),
             response=DendriteResponseEvent(
                 uids=uids,
