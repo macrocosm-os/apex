@@ -5,7 +5,6 @@ import httpx
 import numpy as np
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
-from pydantic import BaseModel
 
 from shared.constants import WHITELISTED_VALIDATORS_UIDS
 from shared.epistula import create_header_hook, verify_signature
