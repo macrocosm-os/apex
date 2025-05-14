@@ -116,11 +116,12 @@ class GPUInfo:
     def gpu_utilization(cls):
         return cls.used_memory / cls.total_memory
 
+
 TEXT_MODELS = []
+
 
 def model_factory(model_name: str) -> type[ReproducibleHF]:
     if model_name in TEXT_MODELS:
         return ReproducibleVLLM
     else:
         return VLLMTextImageToText
-       
