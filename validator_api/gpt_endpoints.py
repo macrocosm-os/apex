@@ -3,7 +3,7 @@ import random
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from loguru import logger
 from starlette.responses import StreamingResponse
-
+from datetime import timezone
 from shared import settings
 
 shared_settings = settings.shared_settings
@@ -260,8 +260,8 @@ async def submit_chain_of_thought_job(
         return JobResponse(
             job_id=job.job_id,
             status=job.status,
-            created_at=job.created_at.isoformat(),
-            updated_at=job.updated_at.isoformat(),
+            created_at=job.created_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
+            updated_at=job.updated_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
         )
 
     except Exception as e:
@@ -312,8 +312,8 @@ async def get_chain_of_thought_job(job_id: str, api_key: str = Depends(validate_
     return JobResultResponse(
         job_id=job.job_id,
         status=job.status,
-        created_at=job.created_at.isoformat(),
-        updated_at=job.updated_at.isoformat(),
+        created_at=job.created_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
+        updated_at=job.updated_at.replace(tzinfo=timezone.utc).isoformat().replace('+00:00', 'Z'),
         result=job.result,
         error=job.error,
     )
