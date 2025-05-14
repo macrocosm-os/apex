@@ -14,6 +14,7 @@ from prompting.tasks.task_registry import TaskConfig, TaskRegistry
 from shared import settings
 from shared.loop_runner import AsyncLoopRunner
 from shared.misc import ttl_get_block
+from prompting.weight_setting.weight_synchronizer import WeightSynchronizer
 
 shared_settings = settings.shared_settings
 
@@ -21,6 +22,7 @@ FILENAME = "validator_weights.npz"
 WEIGHTS_HISTORY_LENGTH = 24
 PAST_WEIGHTS: list[np.ndarray] = []
 
+weight_synchronizer = WeightSynchronizer()
 
 def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
     """Apply the reward function to the raw rewards. P adjusts the steepness of the function - p = 0.5 leaves
@@ -64,13 +66,18 @@ def set_weights(
             PAST_WEIGHTS.pop(0)
         averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
         save_weights(PAST_WEIGHTS)
+        try: 
+            augmented_weights = weight_synchronizer.get_augmented_weights(weights=averaged_weights, uid=shared_settings.UID)
+        except Exception as ex:
+            logger.exception(f"Issue with setting weights: {ex}")
+            augmented_weights = averaged_weights
         # Process the raw weights to final_weights via subtensor limitations.
         (
             processed_weight_uids,
             processed_weights,
         ) = bt.utils.weight_utils.process_weights_for_netuid(
             uids=shared_settings.METAGRAPH.uids,
-            weights=averaged_weights,
+            weights=augmented_weights,
             netuid=shared_settings.NETUID,
             subtensor=subtensor,
             metagraph=metagraph,
@@ -129,6 +136,9 @@ def set_weights(
 
 class WeightSetter(AsyncLoopRunner):
     """The weight setter looks at RewardEvents in the reward_events queue and sets the weights of the miners accordingly."""
+    # Need to send epistula request to confirm that the weight setter will be secure
+    # Need to receive these requests and store them as an attribute
+    # Need to send these at every interval. 
 
     sync: bool = True
     interval: int = 60 * 25  # set rewards every 25 minutes
