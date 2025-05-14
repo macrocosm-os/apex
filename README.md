@@ -51,9 +51,9 @@ Subnet one utilizes the concept of "Tasks" to control the behavior of miners. Va
 A question is given with some pre-seeded information and a random seed. The miner must perform an inference based on this information to provide the correct answer. Completions are scored based on similarity metrics.
 
 ### 2. **Multistep Reasoning (MSRv2)**
-This task operates in two stages: generative and discriminative. 
-In the generative stage, a single miner receives a challenge and generates a response. 
-In the discriminative stage, this generated response (or sometimes a validator-provided "real" answer) is presented to a set of discriminator miners. These discriminators must output a score (0-1) assessing the answer. 
+This task operates in two stages: generative and discriminative.
+In the generative stage, a single miner receives a challenge and generates a response.
+In the discriminative stage, this generated response (or sometimes a validator-provided "real" answer) is presented to a set of discriminator miners. These discriminators must output a score (0-1) assessing the answer.
 Rewards are then calculated: discriminators are rewarded based on how accurately their score reflects the ground truth (i.e., whether the answer was miner-generated or real). The original generator miner is rewarded based on the collective assessment of the discriminators. If a "real" answer was used, this portion of the reward is distributed among other non-discriminating miners.
 
 ### 3. **Web Retrieval**
