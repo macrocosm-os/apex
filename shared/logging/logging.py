@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from typing import Literal
@@ -238,10 +239,64 @@ def log_event(event: BaseEvent):
         logger.info(f"{event}")
 
     if settings.shared_settings.WANDB_ON:
-        if should_reinit_wandb():
-            reinit_wandb()
-        unpacked_event = recursive_model_dump(event)
         try:
+            if should_reinit_wandb():
+                reinit_wandb()
+
+            unpacked_event = recursive_model_dump(event)
+
+            json_size = get_json_size_bytes(unpacked_event)
+            logger.debug(f"Initial size — Deep: {json_size / 1024:.2f} KB | JSON: {json_size / 1024:.2f} KB")
+
+            if json_size > 10 * 1024 * 1024:
+                unpacked_event = strip_largest_fields(unpacked_event)
+
+            final_size = get_json_size_bytes(unpacked_event)
             wandb.log(unpacked_event)
-        except BaseException as e:
-            logger.error(f"Error during wandb log {e}: {unpacked_event}")
+
+        except Exception as e:
+            logger.error(f"Error logging to Wandb: {e}")
+            try:
+                logger.error(f"Failed event (truncated): {json.dumps(unpacked_event)[:1000]}...")
+            except Exception as inner:
+                logger.error(f"Also failed to serialize the failed event: {inner}")
+
+
+def get_json_size_bytes(obj: dict) -> int:
+    """Measures the serialized size of the object as it would be sent to wandb."""
+    try:
+        return len(json.dumps(obj).encode("utf-8"))
+    except Exception as e:
+        logger.warning(f"Failed to serialize object for size check: {e}")
+        return sys.maxsize  # fallback to force stripping
+
+
+def strip_largest_fields(event: dict, max_total_size=10 * 1024 * 1024):
+    json_size = get_json_size_bytes(event)
+    removed_fields = []
+
+    while json_size > max_total_size:
+        field_sizes = {k: get_json_size_bytes(v) for k, v in event.items()}
+        largest_field = max(field_sizes, key=field_sizes.get)
+
+        logger.debug(
+            f"💣 Event too large ({json_size / 1024:.2f} KB). "
+            f"Removing field: '{largest_field}' ({field_sizes[largest_field] / 1024:.2f} KB)"
+        )
+
+        event[largest_field] = "[REMOVED TO FIT SIZE LIMIT]"
+        removed_fields.append(largest_field)
+
+        if "debug_info" not in event:
+            event["debug_info"] = {}
+        event["debug_info"][largest_field] = {
+            "reason": "Too large for wandb log",
+            "status": "Removed to meet size limit",
+        }
+
+        json_size = get_json_size_bytes(event)
+        logger.debug(f"Total size after removal: {json_size / 1024:.2f} KB")
+
+    if removed_fields:
+        logger.info(f"Removed fields to fit size limit: {', '.join(removed_fields)}")
+    return event
