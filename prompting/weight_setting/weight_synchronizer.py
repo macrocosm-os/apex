@@ -12,9 +12,6 @@ from shared.epistula import create_header_hook
 
 class WeightSynchronizer(BaseModel):
     """The weight syncronizer is responsible for syncing the weights of the miners with the weight setter."""
-    # Need to send epistula request to confirm that the weight syncronizer will be secure
-    # Need to receive these requests and store them as an attribute
-    # Need to send these at every interval. 
     weight_matrix: np.ndarray # Shape: (num_validators, num_miners)
     stake_matrix: np.ndarray # Shape: (num_validators, )
     validator_uids: np.ndarray # Shape: (num_validators, )

@@ -136,9 +136,6 @@ def set_weights(
 
 class WeightSetter(AsyncLoopRunner):
     """The weight setter looks at RewardEvents in the reward_events queue and sets the weights of the miners accordingly."""
-    # Need to send epistula request to confirm that the weight setter will be secure
-    # Need to receive these requests and store them as an attribute
-    # Need to send these at every interval. 
 
     sync: bool = True
     interval: int = 60 * 25  # set rewards every 25 minutes
