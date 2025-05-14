@@ -301,7 +301,7 @@ async def get_chain_of_thought_job(job_id: str, api_key: str = Depends(validate_
     - **status** (str): Current status of the job (pending, running, completed, failed).
     - **created_at** (str): Timestamp when the job was created.
     - **updated_at** (str): Timestamp when the job was last updated.
-    - **result** (List[str], optional): Result of the job if completed.
+    - **result** (List[dict], optional): Result of the job if completed.
     - **error** (str, optional): Error message if the job failed.
     """
     job = job_store.get_job(job_id)
