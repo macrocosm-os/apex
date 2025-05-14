@@ -11,15 +11,8 @@ from shared.constants import WHITELISTED_VALIDATORS_UIDS
 from shared.epistula import create_header_hook, verify_signature
 
 
-class WeightSynchronizer(BaseModel):
+class WeightSynchronizer:
     """The weight syncronizer is responsible for syncing the weights of the miners with the weight setter."""
-
-    weight_matrix: np.ndarray  # Shape: (num_validators, num_miners)
-    stake_matrix: np.ndarray  # Shape: (num_validators, )
-    validator_uids: np.ndarray  # Shape: (num_validators, )
-    validator_hotkeys: np.ndarray  # Shape: (num_validators, )
-    validator_addresses: np.ndarray  # Shape: (num_validators, )
-    router: APIRouter = None
 
     def __init__(self, metagraph: "bt.metagraph.Metagraph", wallet: "bt.wallet.Wallet"):
         self.wallet = wallet
