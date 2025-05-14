@@ -3,7 +3,7 @@ repos:
   hooks:
   - id: remove-wandb-dir
     name: Remove wandb directory
-    entry: rm -rf /home/paperspace/Macrocosmos/prompting/wandb
+    entry: rm -rf wandb
     language: system
     pass_filenames: false
     always_run: true
