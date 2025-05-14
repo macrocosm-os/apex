@@ -169,7 +169,7 @@ class WeightSetter(AsyncLoopRunner):
         await asyncio.sleep(0.01)
 
         all_uids = list(range(shared_settings.METAGRAPH.n.item()))
-        # final_weights_for_chain for fallback in case of exceptions
+        # empty weights for fallback in case of exceptions
         final_weights_for_chain = np.zeros(len(all_uids), dtype=float)
 
         try:
