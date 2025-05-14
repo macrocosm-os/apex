@@ -54,12 +54,6 @@ class JobStore:
             )
             conn.commit()
 
-    def delete_job(self, job_id: str) -> None:
-        """Delete a job by its ID."""
-        with sqlite3.connect(self.db_path) as conn:
-            conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
-            conn.commit()
-
     def create_job(self) -> str:
         """Create a new job and return its ID."""
         job_id = str(uuid.uuid4())
@@ -85,7 +79,7 @@ class JobStore:
         if rows is None:
             return None
 
-        # Convert the result string to List[str] if it exists
+        # Convert the result string to List[dict] if it exists
         result = [{"seq_id": row["seq_id"], "chunk": row["chunk"]} for row in rows if row["chunk"]]
         row = rows[-1]
         return JobResult(
