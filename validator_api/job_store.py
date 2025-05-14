@@ -1,4 +1,3 @@
-import json
 import sqlite3
 import uuid
 from datetime import datetime
@@ -24,7 +23,7 @@ class JobResult(BaseModel):
     status: JobStatus
     created_at: datetime
     updated_at: datetime
-    result: Optional[List[dict]] = None
+    result: Optional[List[str]] = None
     error: Optional[str] = None
 
 
@@ -42,17 +41,21 @@ class JobStore:
             conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS jobs (
-                    job_id TEXT NOT NULL,
+                    job_id TEXT PRIMARY KEY,
                     status TEXT NOT NULL,
                     created_at TIMESTAMP NOT NULL,
                     updated_at TIMESTAMP NOT NULL,
-                    seq_id INT NOT NULL,
-                    chunk TEXT,
-                    error TEXT,
-                    PRIMARY KEY (seq_id, job_id)
+                    result TEXT,
+                    error TEXT
                 )
             """
             )
+            conn.commit()
+
+    def delete_job(self, job_id: str) -> None:
+        """Delete a job by its ID."""
+        with sqlite3.connect(self.db_path) as conn:
+            conn.execute("DELETE FROM jobs WHERE job_id = ?", (job_id,))
             conn.commit()
 
     def create_job(self) -> str:
@@ -62,10 +65,10 @@ class JobStore:
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO jobs (job_id, status, created_at, updated_at, seq_id)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO jobs (job_id, status, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
                 """,
-                (job_id, JobStatus.PENDING, now, now, 0),
+                (job_id, JobStatus.PENDING, now, now),
             )
             conn.commit()
         return job_id
@@ -74,15 +77,15 @@ class JobStore:
         """Get a job by its ID."""
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ? ORDER BY seq_id ASC", (job_id,))
-            rows = cursor.fetchall()
+            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
 
-        if rows is None:
+        if row is None:
             return None
 
-        # Convert the result string to List[dict] if it exists
-        result = [{"seq_id": row["seq_id"], "chunk": row["chunk"]} for row in rows if row["chunk"]]
-        row = rows[-1]
+        # Convert the result string to List[str] if it exists
+        result = eval(row["result"]) if row["result"] is not None else None
+
         return JobResult(
             job_id=row["job_id"],
             status=JobStatus(row["status"]),
@@ -105,29 +108,29 @@ class JobStore:
             )
             conn.commit()
 
-    def insert_job_chunk(self, job_id: str, chunk: str, seq_id: int, created_at: str) -> None:
-        """Insert a chunk row."""
-        choices_list = json.loads(chunk.split("data:")[-1])["choices"]
-        content_list = [choice["delta"] for choice in choices_list]
+    def update_job_result(self, job_id: str, result: List[str]) -> None:
+        """Update the result of a job."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO jobs (chunk, status, updated_at, seq_id, job_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                UPDATE jobs
+                SET result = ?, status = ?, updated_at = ?
+                WHERE job_id = ?
                 """,
-                (json.dumps(content_list), JobStatus.RUNNING, datetime.now(), seq_id, job_id, created_at),
+                (str(result), JobStatus.COMPLETED, datetime.now(), job_id),
             )
             conn.commit()
 
-    def insert_job_error(self, job_id: str, error: str, seq_id: int, created_at: str) -> None:
-        """Insert an error row."""
+    def update_job_error(self, job_id: str, error: str) -> None:
+        """Update the error of a job."""
         with sqlite3.connect(self.db_path) as conn:
             conn.execute(
                 """
-                INSERT INTO jobs (chunk, status, updated_at, seq_id, job_id, created_at, error)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                UPDATE jobs
+                SET error = ?, status = ?, updated_at = ?
+                WHERE job_id = ?
                 """,
-                (None, JobStatus.RUNNING, datetime.now(), seq_id, job_id, created_at, error),
+                (error, JobStatus.FAILED, datetime.now(), job_id),
             )
             conn.commit()
 
@@ -136,22 +139,18 @@ class JobStore:
 job_store = JobStore()
 
 
-async def process_chain_of_thought_job(
-    job_id: str, orchestrator, messages: List[Dict[str, str]], created_at: str
-) -> None:
-    """Process a chain of thought job in the background with incremental result updates."""
+async def process_chain_of_thought_job(job_id: str, orchestrator, messages: List[Dict[str, str]]) -> None:
+    """Process a chain of thought job in the background."""
+    try:
+        job_store.update_job_status(job_id, JobStatus.RUNNING)
 
-    job_store.update_job_status(job_id, JobStatus.RUNNING)
+        # Collect all chunks from the orchestrator
+        chunks = []
+        async for chunk in orchestrator.run(messages=messages):
+            chunks.append(chunk)
 
-    seq_id = 1
-    async for chunk in orchestrator.run(messages=messages):
-        # Immediately store each chunk with its sequence number
-        try:
-            job_store.insert_job_chunk(job_id=job_id, chunk=chunk, seq_id=seq_id, created_at=created_at)
-        except Exception as e:
-            # Capture and store any errors encountered during processing
-            job_store.insert_job_error(job_id, str(e), seq_id, created_at)
-        seq_id += 1
-
-    # Mark the job as completed after all chunks are processed
-    job_store.update_job_status(job_id, JobStatus.COMPLETED)
+        # Update the job with the result
+        job_store.update_job_result(job_id, chunks)
+    except Exception as e:
+        # Update the job with the error
+        job_store.update_job_error(job_id, str(e))
