@@ -22,7 +22,7 @@ FILENAME = "validator_weights.npz"
 WEIGHTS_HISTORY_LENGTH = 24
 PAST_WEIGHTS: list[np.ndarray] = []
 
-weight_synchronizer = WeightSynchronizer()
+weight_synchronizer = WeightSynchronizer(metagraph=shared_settings.METAGRAPH, wallet=shared_settings.WALLET)
 
 
 def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
