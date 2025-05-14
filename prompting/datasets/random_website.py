@@ -15,8 +15,8 @@ MAX_CHARS = 5000
 
 class DDGDatasetEntry(DatasetEntry):
     search_term: str
-    website_url: str = None
-    website_content: str = None
+    website_url: str | None = None
+    website_content: str | None = None
     query: str | None = None
     source: str | None = None
 
@@ -40,7 +40,7 @@ class DDGDataset(BaseDataset):
 
     @staticmethod
     @lru_cache(maxsize=1000)
-    def extract_website_content(url: str, retries: int = 3) -> Optional[str]:
+    def extract_website_content(url: str, retries: int = 3) -> str | None:
         exception: Exception | None = None
         for _ in range(retries):
             try:

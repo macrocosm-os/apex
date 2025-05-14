@@ -190,6 +190,7 @@ class ModelManager(BaseModel):
         sampling_params: dict[str, float] = None,
         seed: int = None,
         continue_last_message: bool = False,
+        top_logprobs: int = 10,
     ):
         model_instance: ReproducibleVLLM = await self.get_model(model)
         return await model_instance.generate_logits(
@@ -197,6 +198,7 @@ class ModelManager(BaseModel):
             sampling_params=sampling_params,
             seed=seed,
             continue_last_message=continue_last_message,
+            top_logprobs=top_logprobs,
         )
 
     async def cleanup(self):
@@ -262,5 +264,5 @@ class AsyncModelScheduler(AsyncLoopRunner):
             await self.llm_model_manager.load_model(selected_model)
         except MemoryError as e:
             self.memory_error = e
-        logger.debug(f"Active models: {self.llm_model_manager.active_models.keys()}")
+        logger.debug(f"Active models: {list(self.llm_model_manager.active_models.keys())}")
         await asyncio.sleep(0.01)

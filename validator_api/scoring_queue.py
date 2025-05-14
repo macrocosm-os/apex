@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import json
 from collections import deque
 from typing import Any
 
@@ -70,6 +71,7 @@ class ScoringQueue(AsyncLoopRunner):
                 payload = payload.to_dict()
             elif isinstance(payload, BaseModel):
                 payload = payload.model_dump()
+            payload_bytes = json.dumps(payload).encode()
 
             timeout = httpx.Timeout(timeout=120.0, connect=60.0, read=30.0, write=30.0, pool=5.0)
             # Add required headers for signature verification
@@ -80,8 +82,8 @@ class ScoringQueue(AsyncLoopRunner):
             ) as client:
                 response = await client.post(
                     url=url,
-                    json=payload,
-                    # headers=headers,
+                    content=payload_bytes,
+                    headers={"Content-Type": "application/json"},
                 )
                 validator_registry.update_validators(uid=vali_uid, response_code=response.status_code)
                 if response.status_code != 200:
