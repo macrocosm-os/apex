@@ -105,9 +105,9 @@ class WeightSynchronizer:
                 f"Error while forwarding weight matrix to validator {validator_hotkey} {vali_url}. Exception: {e}"
             )
 
-    def get_augmented_weights(self, weights: np.ndarray, uid: int) -> np.ndarray:
+    async def get_augmented_weights(self, weights: np.ndarray, uid: int) -> np.ndarray:
         """Get the augmented weights for the given uid, sends the weights to the validators."""
-        asyncio.run(self.send_weight_matrixes(weights))
+        await self.send_weight_matrixes(weights)
 
         self.weight_matrix[uid] = weights
 

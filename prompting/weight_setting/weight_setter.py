@@ -46,7 +46,7 @@ def save_weights(weights: list[np.ndarray]):
     np.savez_compressed(FILENAME, *weights)
 
 
-def set_weights(
+async def set_weights(
     weights: np.ndarray, step: int = 0, subtensor: bt.Subtensor | None = None, metagraph: bt.Metagraph | None = None
 ):
     """
@@ -68,9 +68,12 @@ def set_weights(
         averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
         save_weights(PAST_WEIGHTS)
         try:
-            augmented_weights = weight_synchronizer.get_augmented_weights(
-                weights=averaged_weights, uid=shared_settings.UID
-            )
+            if shared_settings.NEURON_DISABLE_SET_WEIGHTS: # If weights will not be set on chain, we should not synchronize
+                augmented_weights = averaged_weights
+            else:
+                augmented_weights = await weight_synchronizer.get_augmented_weights(
+                    weights=averaged_weights, uid=shared_settings.UID
+                )
         except Exception as ex:
             logger.exception(f"Issue with setting weights: {ex}")
             augmented_weights = averaged_weights
@@ -231,7 +234,7 @@ class WeightSetter(AsyncLoopRunner):
             logger.exception(f"{ex}")
 
         # set weights on chain
-        set_weights(
+        await set_weights(
             final_rewards, step=self.step, subtensor=shared_settings.SUBTENSOR, metagraph=shared_settings.METAGRAPH
         )
         # TODO: empty rewards queue only on weight setting success
