@@ -146,7 +146,7 @@ class WeightSetter(AsyncLoopRunner):
     """The weight setter looks at RewardEvents in the reward_events queue and sets the weights of the miners accordingly."""
 
     sync: bool = True
-    interval: int = 60 * 25  # set rewards every 25 minutes
+    interval: int = 60 * 21  # set rewards every 25 minutes
     reward_events: list[list[WeightedRewardEvent]] | None = None
     subtensor: bt.Subtensor | None = None
     metagraph: bt.Metagraph | None = None
