@@ -68,7 +68,9 @@ async def set_weights(
         averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
         save_weights(PAST_WEIGHTS)
         try:
-            if shared_settings.NEURON_DISABLE_SET_WEIGHTS: # If weights will not be set on chain, we should not synchronize
+            if (
+                shared_settings.NEURON_DISABLE_SET_WEIGHTS
+            ):  # If weights will not be set on chain, we should not synchronize
                 augmented_weights = averaged_weights
             else:
                 augmented_weights = await weight_synchronizer.get_augmented_weights(

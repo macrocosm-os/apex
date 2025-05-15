@@ -1,6 +1,7 @@
 import asyncio
 import time
 
+import bittensor as bt
 import httpx
 import numpy as np
 from fastapi import APIRouter, HTTPException, Request
@@ -13,7 +14,7 @@ from shared.epistula import create_header_hook, verify_signature
 class WeightSynchronizer:
     """The weight syncronizer is responsible for syncing the weights of the miners with the weight setter."""
 
-    def __init__(self, metagraph: "bt.metagraph.Metagraph", wallet: "bt.wallet.Wallet"):
+    def __init__(self, metagraph: bt.Metagraph, wallet: bt.Wallet):
         self.wallet = wallet
         self.uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
 
