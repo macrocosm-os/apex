@@ -18,8 +18,8 @@ class WeightSynchronizer:
         self.wallet = wallet
         self.uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
 
-        self.weight_matrix = np.zeros((len(WHITELISTED_VALIDATORS_UIDS), 1))
-        self.stake_matrix = np.zeros((len(WHITELISTED_VALIDATORS_UIDS), 1))
+        self.weight_matrix = np.zeros((len(WHITELISTED_VALIDATORS_UIDS), 1024))
+        self.stake_matrix = np.zeros((len(WHITELISTED_VALIDATORS_UIDS)))
 
         self.validator_uids = np.array(WHITELISTED_VALIDATORS_UIDS)
         self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in WHITELISTED_VALIDATORS_UIDS])
@@ -29,6 +29,8 @@ class WeightSynchronizer:
 
         self.router = APIRouter()
         self.router.post("/receive_weights")(self.receive_weight_matrix)
+
+        self.request_tracker = np.zeros(len(WHITELISTED_VALIDATORS_UIDS))
 
     async def receive_weight_matrix(self, request: Request):
         """Endpoint to receive weight matrix updates from validators."""
@@ -42,11 +44,20 @@ class WeightSynchronizer:
         try:
             uid = body["uid"]
             weights = np.array(body["weights"])
-            if weights.shape != self.weight_matrix.shape:
-                raise HTTPException(status_code=400, detail="Invalid weight matrix shape")
-
-            # Update the weight matrix
-            self.weight_matrix[uid] = weights
+            
+            # Validate weights length
+            if len(weights) != 1024:
+                raise HTTPException(status_code=400, detail=f"Weights must be exactly 1024 elements long, got {len(weights)}")
+            
+            # Verify uid is in whitelist
+            validator_indices = np.where(self.validator_uids == uid)[0]
+            if len(validator_indices) == 0:
+                raise HTTPException(status_code=400, detail=f"Invalid validator UID {uid}, not in whitelist")
+            
+            # Update the weight matrix for this validator
+            validator_idx = validator_indices[0]
+            self.weight_matrix[validator_idx] = weights
+            self.request_tracker[validator_idx] = 1
             return {"status": "success", "message": "Weight matrix updated successfully"}
 
         except Exception as e:
@@ -81,14 +92,14 @@ class WeightSynchronizer:
         """Make an epistula request to the validator at the given address."""
         try:
             vali_url = f"http://{validator_address}/receive_weights"
-            timeout = httpx.Timeout(timeout=120.0)
+            timeout = httpx.Timeout(timeout=40.0)
             async with httpx.AsyncClient(
                 timeout=timeout,
                 event_hooks={"request": [create_header_hook(self.wallet.hotkey, validator_hotkey)]},
             ) as client:
                 response = await client.post(
                     url=vali_url,
-                    content={"weights": weight_matrix, "uid": self.uid},
+                    json={"weights": weight_matrix.tolist(), "uid": self.uid},
                     headers={"Content-Type": "application/json"},
                 )
                 if response.status_code != 200:
@@ -110,9 +121,15 @@ class WeightSynchronizer:
         """Get the augmented weights for the given uid, sends the weights to the validators."""
         await self.send_weight_matrixes(weights)
 
-        self.weight_matrix[uid] = weights
+        validator_indices = np.where(self.validator_uids == uid)[0]
+        if len(validator_indices) == 0:
+            logger.error(f"UID {uid} not found in validator_uids {self.validator_uids}")
+            raise ValueError(f"UID {uid} not found in whitelisted validators")
+            
+        validator_idx = validator_indices[0]
+        self.weight_matrix[validator_idx] = weights
 
-        return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix)
+        return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix*self.request_tracker)
 
     async def send_weight_matrixes(self, weight_matrix: np.ndarray):
         tasks = [
