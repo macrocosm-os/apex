@@ -16,11 +16,13 @@ import wandb
 from bittensor.core.extrinsics.serving import serve_extrinsic
 from loguru import logger
 
-from prompting.llms.model_manager import AsyncModelScheduler, ModelManager
-from prompting.rewards.scoring import task_scorer
-
 # ruff: noqa: E402
 from shared import settings
+
+settings.shared_settings = settings.SharedSettings.load(mode="validator")
+
+from prompting.llms.model_manager import AsyncModelScheduler, ModelManager
+from prompting.rewards.scoring import task_scorer
 from shared.logging import init_wandb
 
 
@@ -43,8 +45,6 @@ def init_process_logging(name: str):
     except Exception as e:
         print(f"Failed to initialize logging for process {os.getpid()}: {e}")
 
-
-settings.shared_settings = settings.SharedSettings.load(mode="validator")
 
 from prompting.llms.utils import GPUInfo
 

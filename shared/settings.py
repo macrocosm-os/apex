@@ -67,6 +67,7 @@ class SharedSettings(BaseSettings):
     # Neuron parameters.
     NEURON_TIMEOUT: int = Field(20, env="NEURON_TIMEOUT")
     INFERENCE_TIMEOUT: int = Field(30, env="INFERENCE_TIMEOUT")
+    MAX_TIMEOUT: int = Field(240, env="INFERENCE_TIMEOUT")
     NEURON_DISABLE_SET_WEIGHTS: bool = Field(False, env="NEURON_DISABLE_SET_WEIGHTS")
     NEURON_MOVING_AVERAGE_ALPHA: float = Field(0.1, env="NEURON_MOVING_AVERAGE_ALPHA")
     NEURON_DECAY_ALPHA: float = Field(0.001, env="NEURON_DECAY_ALPHA")
@@ -252,7 +253,7 @@ class SharedSettings(BaseSettings):
             raise ValueError("NETUID must be specified")
         values["TEST"] = netuid != 1
         if values.get("TEST_MINER_IDS"):
-            values["TEST_MINER_IDS"] = str(values["TEST_MINER_IDS"]).split(",")
+            values["TEST_MINER_IDS"] = values["TEST_MINER_IDS"]
         if mode == "mock":
             values["MOCK"] = True
             values["NEURON_DEVICE"] = "cpu"
@@ -331,5 +332,4 @@ try:
     pass
 except Exception as e:
     logger.exception(f"Error loading settings: {e}")
-    shared_settings = None
-logger.info("Shared settings loaded.")
+shared_settings = None
