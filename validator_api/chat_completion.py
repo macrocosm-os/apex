@@ -1,6 +1,5 @@
 import asyncio
 import json
-import math
 import random
 import time
 from typing import Any, AsyncGenerator, Optional
@@ -182,25 +181,14 @@ async def chat_completion(
         uids = random.sample(uids, min(len(uids), num_miners))
 
     STREAM = body.get("stream", False)
+    timeout_seconds = body.get("timeout", shared_settings.INFERENCE_TIMEOUT)
+    timeout_seconds = max(timeout_seconds, shared_settings.INFERENCE_TIMEOUT)
+    timeout_seconds = min(timeout_seconds, shared_settings.MAX_TIMEOUT)
 
     # Initialize chunks collection for each miner
     collected_chunks_list = [[] for _ in uids]
     collected_chunks_raw_list = [[] for _ in uids]
     timings_list = [[] for _ in uids]
-
-    timeout_seconds = max(
-        30,
-        max(
-            0,
-            math.floor(
-                math.log2(
-                    body.get("sampling_parameters", shared_settings.SAMPLING_PARAMS).get("max_new_tokens", 256) / 256
-                )
-            ),
-        )
-        * 10
-        + 30,
-    )
 
     if STREAM:
         # Create tasks for all miners

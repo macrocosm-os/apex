@@ -14,6 +14,8 @@ from validator_api.deep_research.utils import extract_content_from_stream, parse
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
 from validator_api.web_retrieval import web_retrieval
 
+STEP_MAX_RETRIES = 10
+
 
 def make_chunk(text):
     chunk = json.dumps({"choices": [{"delta": {"content": text}}]})
@@ -61,14 +63,15 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
     )
 
     # Perform web search
-    for i in range(3):
+    search_results = None
+    for i in range(STEP_MAX_RETRIES):
         try:
             search_results = await web_retrieval(WebRetrievalRequest(search_query=optimized_query, n_results=n_results))
             if search_results.results:
                 break
         except BaseException:
             logger.warning(f"Try {i+1} failed")
-    if not search_results.results:
+    if search_results is None or not search_results.results:
         search_results = {"results": []}
 
     # Generate referenced answer
@@ -119,7 +122,7 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
 
 
 @retry(
-    stop=stop_after_attempt(3),
+    stop=stop_after_attempt(STEP_MAX_RETRIES),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(json.JSONDecodeError),
 )
@@ -139,7 +142,7 @@ async def make_mistral_request_with_json(
 
 
 @retry(
-    stop=stop_after_attempt(3),
+    stop=stop_after_attempt(STEP_MAX_RETRIES),
     wait=wait_exponential(multiplier=1, min=2, max=5),
     retry=retry_if_exception_type(BaseException),
 )
@@ -151,24 +154,24 @@ async def make_mistral_request(
     model = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
     temperature = 0.15
     top_p = 1
-    max_tokens = 128000
+    max_tokens = 8192
     sample_params = {
         "top_p": top_p,
         "max_tokens": max_tokens,
         "temperature": temperature,
         "do_sample": False,
     }
-    logger.info(f"Making request to Mistral API with model: {model}")
     request = CompletionsRequest(
         messages=messages,
         model=model,
         stream=True,
         sampling_parameters=sample_params,
+        timeout=90,
     )
     # Iterate over the response then collect the content
     response = await completions(request)
     response_content = await extract_content_from_stream(response)
-    logger.info(f"Response content: {response_content}")
+    logger.debug(f"Response content: {response_content}")
     if not response_content:
         raise ValueError(f"No response content received from Mistral API, response: {response}")
     if "Error" in response_content:
@@ -288,12 +291,7 @@ class OrchestratorV2(BaseModel):
     async def assess_question_suitability(
         self, question: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]] = None
     ) -> dict:
-        logger.info(f"assess_question_suitability: {question}")
-        logger.info(f"completions: {completions}")
-        logger.info(f"self.completions: {self.completions}")
-
-        """
-        Assesses whether a question is suitable for deep research or if it can be answered directly.
+        """Assess whether a question is suitable for deep research or if it can be answered directly.
 
         Args:
             question: The user's question to assess
@@ -304,7 +302,7 @@ class OrchestratorV2(BaseModel):
             - reason: Explanation of the assessment
             - direct_answer: Simple answer if question doesn't need deep research
         """
-
+        logger.debug(f"Assess question suitability: {question}")
         assessment_prompt = f"""You are part of Apex, a Deep Research Assistant. Your purpose is to assess whether a question is suitable for deep research or if it can be answered directly. The current date and time is {get_current_datetime_str()}.
 
                             Task:
@@ -360,7 +358,7 @@ class OrchestratorV2(BaseModel):
                 "direct_answer": None,
             }
 
-    @with_retries(max_retries=3)
+    @with_retries(max_retries=STEP_MAX_RETRIES)
     async def plan_tool_executions(self) -> list[ToolRequest]:
         """Uses mistral LLM to plan which tools to execute for the current step"""
         logger.info(f"Planning tool executions for step {self.current_step}")
@@ -467,7 +465,6 @@ class OrchestratorV2(BaseModel):
 
         # Always take the last user message as the question
         question = messages[-1]["content"]
-        logger.info(f"self.completions: {self.completions}")
         # First assess if the question is suitable for deep research
         question_assessment = await self.assess_question_suitability(question, self.completions)
 
@@ -485,7 +482,7 @@ class OrchestratorV2(BaseModel):
 
         for step in range(self.max_steps):
             self.current_step = step + 1
-            logger.info(f"Step {step + 1}/{self.max_steps}")
+            logger.debug(f"Step {step + 1}/{self.max_steps}")
 
             # Plan and execute tools for this step
             yield make_chunk(f"\n## Step {step + 1}: Planning Tools\n")
@@ -517,7 +514,7 @@ class OrchestratorV2(BaseModel):
         yield make_chunk(f"\n# Final Answer\n{final_answer}\n")
         yield "data: [DONE]\n\n"
 
-    @with_retries(max_retries=3)
+    @with_retries(max_retries=STEP_MAX_RETRIES)
     async def generate_todo_list(self):
         """Uses mistral LLM to generate a todo list for the Chain of Thought process"""
         logger.info("Generating initial todo list")
@@ -555,7 +552,7 @@ class OrchestratorV2(BaseModel):
         self.todo_list = response
         return self.todo_list
 
-    @with_retries(max_retries=3)
+    @with_retries(max_retries=STEP_MAX_RETRIES)
     async def do_thinking(self) -> Step:
         """Uses mistral LLM to generate thinking/reasoning tokens in line with the todo list"""
         logger.info(f"Analyzing step {self.current_step}")
@@ -612,7 +609,7 @@ Find the first unchecked item in the todo list (items without a ✓) and analyze
             logger.error(f"Missing required key in thinking output: {e}")
             raise
 
-    @with_retries(max_retries=3)
+    @with_retries(max_retries=STEP_MAX_RETRIES)
     async def update_todo_list(self):
         """Uses mistral LLM to update the todo list based on the steps taken"""
         logger.info("Updating todo list")
@@ -677,7 +674,7 @@ Format your response in the following JSON structure:
             logger.error(f"Missing required key in updated todo list: {e}")
             raise
 
-    @with_retries(max_retries=3)
+    @with_retries(max_retries=STEP_MAX_RETRIES)
     async def generate_final_answer(self):
         """Uses mistral LLM to generate a final answer to the user's request"""
         logger.info("Generating final answer")
