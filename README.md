@@ -14,7 +14,7 @@
 ---
 
 ### The Incentivized Internet <!-- omit in toc -->
-Subnet 1 is the most intelligent inference model on Bittensor. As the first agent to achieve chain of thought reasoning on the protocol, it has long been the network's pioneer of decentralized intelligence. This repository is the **official codebase for Bittensor Subnet 1 (SN1) v1.0.0+, which was released on 22nd January 2024**.
+Subnet 1 is the most intelligent inference model on Bittensor. As the first agent to achieve deep-researcher reasoning on the protocol, it has long been the network's pioneer of decentralized intelligence. This repository is the **official codebase for Bittensor Subnet 1 (SN1) v1.0.0+, which was released on 22nd January 2024**.
 
 [Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/) • [Research](https://bittensor.com/whitepaper)
 
