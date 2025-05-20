@@ -148,7 +148,7 @@ class SharedSettings(BaseSettings):
     MAX_ALLOWED_VRAM_GB: float = Field(62, env="MAX_ALLOWED_VRAM_GB")
     PROXY_URL: Optional[str] = Field(None, env="PROXY_URL")
     LLM_MODEL: list[str] = [
-        "mrfakename/mistral-small-3.1-24b-instruct-2503-hf",
+        "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
     ]
     SAMPLING_PARAMS: dict[str, Any] = {
         "temperature": 0.7,

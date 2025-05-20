@@ -251,11 +251,11 @@ async def make_openai_query(
         ),
     )
     extra_body = {k: v for k, v in body.items() if k not in ["messages", "model"]}
-    body["messages"] = model_factory(body.get("model")).format_messages(body["messages"])
+    if extra_body.get("task") == "InferenceTask":
+        body["messages"] = model_factory(body.get("model")).format_messages(body["messages"])
 
     start_time = time.perf_counter()
     chat = await miner.chat.completions.create(
-        # model=None,
         model=body.get("model", None),
         messages=body["messages"],
         stream=True,
