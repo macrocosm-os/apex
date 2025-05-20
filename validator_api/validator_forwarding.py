@@ -68,29 +68,31 @@ class ValidatorRegistry(BaseModel):
             v.validators[uid] = Validator(uid=uid, stake=stake, axon=axon, hotkey=hotkey)
         return v
 
-    async def get_available_validators(self) -> list[Validator]:
+    async def get_available_validators(self) -> dict[int, Validator]:
         """Given a list of validators, return only those that are not in their cooldown period."""
-        return [uid for uid, validator in self.validators.items() if validator.is_available()]
+        return {uid: validator for uid, validator in self.validators.items() if validator.is_available()}
 
-    async def get_available_axons(self, balance: bool = True) -> list[Validator] | None:
+    async def get_available_axons(self, balance: bool = True) -> dict[int, Validator] | None:
         """
         Returns a tuple (uid, axon, hotkey) for a randomly selected validator based on stake weighting,
         if spot checking conditions are met. Otherwise, returns None.
         """
         if random.random() < self.spot_checking_rate or not self.validators:
             return None
+        validators = None
         for _ in range(self.max_retries):
-            validator_list = await self.get_available_validators()
-            if validator_list:
+            validators = await self.get_available_validators()
+            if validators:
                 break
             else:
                 await asyncio.sleep(5)
-        if not validator_list:
+        if not validators:
             logger.error(f"Could not find available validator after {self.max_retries}")
             return None
         if balance:
-            weights = [self.validators[uid].stake for uid in validator_list]
-            chosen = [self.validators[random.choices(validator_list, weights=weights, k=1)[0]]]
+            weights = [validator.stake for validator in validators.values()]
+            uid = random.choices(list(validators.keys()), weights=weights, k=1)[0]
+            chosen = {uid: validators[uid]}
         else:
             chosen = self.validators
         return chosen
