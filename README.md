@@ -84,6 +84,7 @@ Subnet 1, Apex, has a range of use-cases:
 
 Apex has the potential to become the flagship decentralized LLM experience across the tech world. By utilizing Bittensor's architecture, we offer speedy and low-cost inference that could soon rival SOTA models in the industry.
 
+
 ## The Team Behind Subnet 1
 Subnet 1 was built by Dr. Steffen Cruz, AKA @Macrocrux, when he was CTO of Bittensor. Steffen has led Apex through multiple iterations, overseeing its evolution into Bittensor's premiere provider of decentralized intelligence.
 
