@@ -178,7 +178,6 @@ async def test_mixed_completions(model_manager, task):
         patch("prompting.rewards.exact_match.MIN_VERIFY_TOKENS", 2),
         patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_similarity", side_effect=mock_verify_sim),
         patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_contains", return_value=1),
-        # patch("prompting.rewards.exact_match.TOP_LOGPROBS", 5),
     ):
         reward_model = LogitsRewardModel()
         result = await reward_model.reward(
