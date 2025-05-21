@@ -58,10 +58,7 @@ def create_chat_completion_chunk(
     logprobs: dict[str, float] | None = None,
     top_logprobs: int = 5,
 ) -> dict[str, Any]:
-    """
-    Return a dict that looks like an OpenAI `ChatCompletionChunk`.
-    Only the handful of fields your tests care about are populated.
-    """
+    """Return a dict that looks like an OpenAI `ChatCompletionChunk`."""
 
     # Default log-probabilities if none provided.
     if logprobs is None:
@@ -73,7 +70,6 @@ def create_chat_completion_chunk(
             "<|endoftext|>": -1.0,
         }
 
-    # Build the choice entry.
     choice_dict: dict[str, Any] = {
         "index": 0,
         "delta": {"role": "assistant", "content": content},
@@ -93,46 +89,13 @@ def create_chat_completion_chunk(
     chunk_dict: dict[str, Any] = {
         "id": "chunk_id",
         "object": "chat.completion.chunk",
-        "created": 1_234_567_890,
+        "created": 1234567890,
         "model": "VeryStronkModel",
         "choices": [choice_dict],
         "usage": None,
     }
 
     return chunk_dict
-
-
-# def create_chat_completion_chunk(content: str = "", logprobs: dict[str, float] | None = None, top_logprobs: int = 5):
-#     """Helper function to create a ChatCompletionChunk object."""
-#     if logprobs is None:
-#         logprobs = {content: -0.1, "token2": -0.5, "token3": -0.6, "token4": -0.7, "<|endoftext|>": -1.0}
-
-#     chunk = MagicMock(spec=ChatCompletionChunk)
-#     choice = MagicMock()
-#     choice.index = 0
-#     choice.delta = MagicMock()
-#     choice.delta.role = "assistant"
-#     choice.delta.content = content
-
-#     if logprobs:
-#         choice.logprobs = MagicMock()
-#         choice.logprobs.content = [MagicMock()]
-#         choice.logprobs.content[0].top_logprobs = []
-#         for token, logprob in logprobs.items():
-#             token_logprob = MagicMock()
-#             token_logprob.token = token
-#             token_logprob.logprob = logprob
-#             choice.logprobs.content[0].top_logprobs.append(token_logprob)
-#     else:
-#         choice.logprobs = None
-
-#     chunk.choices = [choice]
-#     chunk.id = "chunk_id"
-#     chunk.created = 1234567890
-#     chunk.model = "VeryStronkModel"
-#     chunk.object = "chat.completion.chunk"
-#     chunk.usage = None
-#     return chunk
 
 
 async def create_response_event_mock(chunks_all, timings_all, timeout: float = 10) -> MagicMock:
