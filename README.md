@@ -14,7 +14,7 @@
 ---
 
 ### The Incentivized Internet <!-- omit in toc -->
-Subnet 1 is the most intelligent inference model on Bittensor. As the first agent to achieve chain of thought reasoning on the protocol, it has long been the network's pioneer of decentralized intelligence. This repository is the **official codebase for Bittensor Subnet 1 (SN1) v1.0.0+, which was released on 22nd January 2024**.
+Subnet 1 is the most intelligent inference model on Bittensor. As the first agent to achieve deep-researcher reasoning on the protocol, it has long been the network's pioneer of decentralized intelligence. This repository is the **official codebase for Bittensor Subnet 1 (SN1) v1.0.0+, which was released on 22nd January 2024**.
 
 [Discord](https://discord.gg/bittensor) • [Network](https://taostats.io/) • [Research](https://bittensor.com/whitepaper)
 
@@ -74,7 +74,7 @@ Thanks to its distributed architecture, Apex has the potential to provide infere
 Moreover, many of the most valuable use cases for AI - including law, finance, and health - are so sensitive to data privacy that they cannot use centralized models. This creates a huge opportunity for decentralized competitors to provide decentralized alternatives that provide intelligence without amassing centralized data. As the most intelligent model on Bittensor, itself the foremost DeAI protocol on-chain, Apex is very well positioned to take advantage of this opportunity. For those who believe in DeAI, an investment in Subnet 1 represents a strong prospect.
 
 ### Interest from customers and users
-Subnet 1, Apex has already built up strong support and positive user feedback. It consistently ranks in the top 10 subnets. It displays deep and broad market support. Along with Subnet 13, another Macrocosmos subnet, Apex was the only subnet to be available on Squad.ai, Rayon Labs' agent platform built on Sibnet 64, Chutes (itself the top-performing subnet on Bittensor) - showing its reliability, value, and desirability across Bittensor.
+Subnet 1, Apex has already built up strong support and positive user feedback. It consistently ranks in the top 10 subnets. It displays deep and broad market support. Along with Subnet 13, another Macrocosmos subnet, Apex was the only subnet to be available on Squad.ai, Rayon Labs' agent platform built on Subnet 64, Chutes (itself the top-performing subnet on Bittensor) - showing its reliability, value, and desirability across Bittensor.
 
 ## Key Use Cases & Potential
 Subnet 1, Apex, has a range of use-cases:
@@ -84,15 +84,16 @@ Subnet 1, Apex, has a range of use-cases:
 
 Apex has the potential to become the flagship decentralized LLM experience across the tech world. By utilizing Bittensor's architecture, we offer speedy and low-cost inference that could soon rival SOTA models in the industry.
 
+
 ## The Team Behind Subnet 1
 Subnet 1 was built by Dr. Steffen Cruz, AKA @Macrocrux, when he was CTO of Bittensor. Steffen has led Apex through multiple iterations, overseeing its evolution into Bittensor's premiere provider of decentralized intelligence.
 
-Apex's engineering team is one of the most impressive on Bittensor. It includes Felix Quinque, who led its Chain of Thought, Reasoning, and Logits upgrades, Dmytro Brobenko with Organic Scoring and DeepResearcher, Rich Wardle's research and development, and Kalei Brady, who led GAN based architecture upgrade and leads SN1's Discord Community. It also receives the support of other Macrocosmos engineers, ensuring that Subnet 1 is one of the best-staffed projects on the protocol - all of which helps ensure its long-term viability.
+Apex's engineering team is one of the most impressive on Bittensor. It includes Felix Quinque, who led its Chain of Thought, Reasoning, and Logits upgrades, Dmytro Bobrenko with Organic Scoring and DeepResearcher, Rich Wardle's research and development, and Kalei Brady, who led GAN based architecture upgrade and leads SN1's Discord Community. It also receives the support of other Macrocosmos engineers, ensuring that Subnet 1 is one of the best-staffed projects on the protocol - all of which helps ensure its long-term viability.
 
 ### Why this team is right for the project
 Steffen Cruz designed Subnet 1 while CTO of Bittensor. His continued stewardship ensures ongoing retained knowledge, accrued from years of experience building on Bittensor and a deep understanding of how best to convene state-of-the-art intelligence on chain.
 
-Will Squires, CEO and co-founder of Bittensor, first began working with Jacob Steeves (@Const) during Bittensor's Revolution upgrade in October 2023, meaning that Will contributed to the release enabling multiple subnets. Will's strong commercial background leading large multinational companies, combined with his experience in creating and leading AI start-up teams, ensure that Subnet 1, Apex has a strong leadership capable of both delivering innovation and establishing commercially viable partnerships.
+Will Squires, CEO and co-founder of Macrocosmos, first began working with Jacob Steeves (@Const) during Bittensor's Revolution upgrade in October 2023, meaning that Will contributed to the release enabling multiple subnets. Will's strong commercial background leading large multinational companies, combined with his experience in creating and leading AI start-up teams, ensure that Subnet 1, Apex has a strong leadership capable of both delivering innovation and establishing commercially viable partnerships.
 
 ## Technical Foundation (For Developers)
 This repo defines an incentive mechanism to create a distributed conversational AI for Subnet 1 (SN1). Validators and miners are based on large language models (LLM). The validation process uses **internet-scale datasets and goal-driven behaviour to drive human-like conversations**. To learn more about the Bittensor project and the underlying mechanics, [read here.](https://docs.bittensor.com/).

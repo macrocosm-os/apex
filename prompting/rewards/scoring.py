@@ -9,6 +9,7 @@ from pydantic import ConfigDict
 from prompting.llms.model_manager import AsyncModelScheduler
 from prompting.rewards.scoring_config import ScoringConfig
 from prompting.tasks.base_task import BaseTextTask
+from prompting.tasks.MSRv2_task import MSRv2Task
 from prompting.tasks.task_registry import TaskRegistry
 from shared.base import DatasetEntry
 from shared.dendrite import DendriteResponseEvent
@@ -122,11 +123,19 @@ class TaskScorer(AsyncLoopRunner):
             for idx in range(len(response.stream_results)):
                 response.stream_results[idx].accumulated_chunk_dicts_raw = []
 
+            if isinstance(scoring_config.task, MSRv2Task):
+                if scoring_config.task.ground_truth is not None:
+                    reference_value = str(scoring_config.task.ground_truth)  # "0" or "1"
+                else:
+                    reference_value = None
+            else:
+                reference_value = scoring_config.task.reference
+
             log_event(
                 RewardLoggingEvent(
                     response_event=response,
                     reward_events=reward_events,
-                    reference=scoring_config.task.reference,
+                    reference=reference_value,
                     challenge=scoring_config.task.query,
                     task=scoring_config.task.name,
                     block=scoring_config.block,
