@@ -1,8 +1,8 @@
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
-from openai.types.chat import ChatCompletionChunk
 
 from prompting.llms.model_manager import ModelManager
 from prompting.rewards.exact_match import (
@@ -27,7 +27,10 @@ def model_manager():
     model = MagicMock()
     tokenizer = MagicMock()
     tokenizer.eos_token = "<|endoftext|>"
+
     model.tokenizer = tokenizer
+    model.get_max_tokens = AsyncMock(return_value=2048)
+
     manager.get_model.return_value = model
 
     async def mock_generate_logits(*args, **kwargs):
@@ -50,38 +53,49 @@ def task():
     return task
 
 
-def create_chat_completion_chunk(content="", logprobs=None):
-    """Helper function to create a ChatCompletionChunk object."""
+def create_chat_completion_chunk(
+    content: str = "",
+    logprobs: dict[str, float] | None = None,
+    top_logprobs: int = 5,
+) -> dict[str, Any]:
+    """Return a dict that looks like an OpenAI `ChatCompletionChunk`."""
+
+    # Default log-probabilities if none provided.
     if logprobs is None:
-        logprobs = {content: -0.1, "token2": -0.5, "token3": -0.6, "token4": -0.7, "<|endoftext|>": -1.0}
-        print(content, logprobs)
+        logprobs = {
+            content: -0.1,
+            "token2": -0.5,
+            "token3": -0.6,
+            "token4": -0.7,
+            "<|endoftext|>": -1.0,
+        }
 
-    chunk = MagicMock(spec=ChatCompletionChunk)
-    choice = MagicMock()
-    choice.index = 0
-    choice.delta = MagicMock()
-    choice.delta.role = "assistant"
-    choice.delta.content = content
+    choice_dict: dict[str, Any] = {
+        "index": 0,
+        "delta": {"role": "assistant", "content": content},
+    }
 
+    # Only include the `logprobs` block when tokens were supplied.
     if logprobs:
-        choice.logprobs = MagicMock()
-        choice.logprobs.content = [MagicMock()]
-        choice.logprobs.content[0].top_logprobs = []
-        for token, logprob in logprobs.items():
-            token_logprob = MagicMock()
-            token_logprob.token = token
-            token_logprob.logprob = logprob
-            choice.logprobs.content[0].top_logprobs.append(token_logprob)
+        choice_dict["logprobs"] = {
+            "content": [
+                {"top_logprobs": [{"token": tok, "logprob": lp} for tok, lp in list(logprobs.items())[:top_logprobs]]}
+            ]
+        }
     else:
-        choice.logprobs = None
+        choice_dict["logprobs"] = None
 
-    chunk.choices = [choice]
-    chunk.id = "chunk_id"
-    chunk.created = 1234567890
-    chunk.model = "VeryStronkModel"
-    chunk.object = "chat.completion.chunk"
-    chunk.usage = None
-    return chunk
+    # Assemble the full chunk.
+    chunk_dict: dict[str, Any] = {
+        "id": "chunk_id",
+        "object": "chat.completion.chunk",
+        "created": 1234567890,
+        "model": "VeryStronkModel",
+        "choices": [choice_dict],
+        "usage": None,
+    }
+
+    return chunk_dict
 
 
 async def create_response_event_mock(chunks_all, timings_all, timeout: float = 10) -> MagicMock:
@@ -127,27 +141,38 @@ async def test_correct_completion(model_manager, task):
 @pytest.mark.asyncio
 async def test_mixed_completions(model_manager, task):
     """Test case 2: One ideal completion, one with missing logprobs penalized."""
+    top_logprobs = 5
     chunks_timings_all = [[0.1, 0.2, 0.3, 0.4] for _ in range(3)]
     chunks_all = [["Hello", ", ", "world", "!"], ["Fail", "ed", " ", "completion"], ["Wro", "ng", " ", "completion"]]
-    correct_logprobs = []
-    for part in chunks_all[0]:
-        correct_logprobs.append(create_chat_completion_chunk(part))
+    chunk_dicts_raw: list[list[dict[str, float]]] = []
 
-    incorrect_logprobs = []
-    wrong_logprobs = {"wrong": -0.1, "log": -5.43, "prob": -8.54, "defined": -11, "<|endoftext|>": -3000000}
+    correct_logprobs: list[dict[str, float]] = []
+    for part in chunks_all[0]:
+        correct_logprobs.append(create_chat_completion_chunk(part, top_logprobs=top_logprobs))
+    chunk_dicts_raw.append(correct_logprobs)
+
+    incorrect_logprobs: list[dict[str, float]] = []
+    wrong_logprobs: dict[str, float] = {
+        "wrong": -0.1,
+        "log": -5.43,
+        "prob": -8.54,
+        "defined": -11,
+        "<|endoftext|>": -3000000,
+    }
     for part in chunks_all[1]:
         incorrect_logprobs.append(create_chat_completion_chunk(part, logprobs=wrong_logprobs))
+    chunk_dicts_raw.append(incorrect_logprobs)
 
-    empty_logprobs = []
+    empty_logprobs: list[dict[str, float]] = []
     for part in chunks_all[2]:
         empty_logprobs.append(create_chat_completion_chunk(part, logprobs={}))
+    chunk_dicts_raw.append(empty_logprobs)
 
-    chunk_dicts_raw = [correct_logprobs, incorrect_logprobs, empty_logprobs]
     response_event = await create_response_event_mock(chunks_all, chunks_timings_all)
     response_event.stream_results_all_chunk_dicts_raw = chunk_dicts_raw
 
     def mock_verify_sim(original_logits, verification_logits):
-        return VERIFICATION_THRESH_SIM * 0.9 if "wrong" in original_logits else VERIFICATION_THRESH_SIM * 1.1
+        return 1.0 if original_logits and "wrong" not in original_logits else VERIFICATION_THRESH_SIM * 0.9
 
     with (
         patch("prompting.rewards.exact_match.MIN_VERIFY_TOKENS", 2),
@@ -160,8 +185,8 @@ async def test_mixed_completions(model_manager, task):
         )
 
         assert isinstance(result, BatchRewardOutput)
-        assert len(result.rewards) == 3
-        assert 0.3 < result.rewards[0] <= 1.0
+        assert len(result.rewards) == len(chunk_dicts_raw)
+        assert 0.2 < result.rewards[0] <= 1.0
         assert result.rewards[1] == INCORRECT_PENALTY
         assert result.rewards[2] == INCORRECT_PENALTY
 

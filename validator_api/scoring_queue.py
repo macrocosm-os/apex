@@ -59,11 +59,11 @@ class ScoringQueue(AsyncLoopRunner):
                 f"Trying to score organic from {scoring_payload.date}, uids: {uids}. "
                 f"Queue size: {len(self._scoring_queue)}"
             )
-        validators: list[Validator] = []
+        validators: dict[int, Validator] = {}
         try:
             if shared_settings.OVERRIDE_AVAILABLE_AXONS:
                 for idx, vali_axon in enumerate(shared_settings.OVERRIDE_AVAILABLE_AXONS):
-                    validators.append(Validator(uid=-idx, axon=vali_axon, hotkey=shared_settings.API_HOTKEY, stake=1e6))
+                    validators[-idx] = Validator(uid=-idx, axon=vali_axon, hotkey=shared_settings.API_HOTKEY, stake=1e6)
             else:
                 validators = await validator_registry.get_available_axons(balance=shared_settings.API_ENABLE_BALANCE)
         except Exception as e:

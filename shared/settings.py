@@ -67,6 +67,7 @@ class SharedSettings(BaseSettings):
     # Neuron parameters.
     NEURON_TIMEOUT: int = Field(20, env="NEURON_TIMEOUT")
     INFERENCE_TIMEOUT: int = Field(30, env="INFERENCE_TIMEOUT")
+    MAX_TIMEOUT: int = Field(240, env="INFERENCE_TIMEOUT")
     NEURON_DISABLE_SET_WEIGHTS: bool = Field(False, env="NEURON_DISABLE_SET_WEIGHTS")
     NEURON_MOVING_AVERAGE_ALPHA: float = Field(0.1, env="NEURON_MOVING_AVERAGE_ALPHA")
     NEURON_DECAY_ALPHA: float = Field(0.001, env="NEURON_DECAY_ALPHA")
@@ -148,7 +149,7 @@ class SharedSettings(BaseSettings):
     MAX_ALLOWED_VRAM_GB: float = Field(62, env="MAX_ALLOWED_VRAM_GB")
     PROXY_URL: Optional[str] = Field(None, env="PROXY_URL")
     LLM_MODEL: list[str] = [
-        "mrfakename/mistral-small-3.1-24b-instruct-2503-hf",
+        "mistralai/Mistral-Small-3.1-24B-Instruct-2503",
     ]
     SAMPLING_PARAMS: dict[str, Any] = {
         "temperature": 0.7,
@@ -252,7 +253,7 @@ class SharedSettings(BaseSettings):
             raise ValueError("NETUID must be specified")
         values["TEST"] = netuid != 1
         if values.get("TEST_MINER_IDS"):
-            values["TEST_MINER_IDS"] = str(values["TEST_MINER_IDS"]).split(",")
+            values["TEST_MINER_IDS"] = values["TEST_MINER_IDS"]
         if mode == "mock":
             values["MOCK"] = True
             values["NEURON_DEVICE"] = "cpu"
@@ -324,12 +325,7 @@ class SharedSettings(BaseSettings):
 
 
 try:
-    if is_cuda_available():
-        shared_settings = SharedSettings.load(mode="validator")
-    else:
-        shared_settings = SharedSettings.load(mode="mock")
-    pass
+    shared_settings = SharedSettings.load(mode="validator" if is_cuda_available() else "mock")
 except Exception as e:
     logger.exception(f"Error loading settings: {e}")
     shared_settings = None
-logger.info("Shared settings loaded.")
