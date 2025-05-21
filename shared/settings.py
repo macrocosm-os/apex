@@ -325,11 +325,7 @@ class SharedSettings(BaseSettings):
 
 
 try:
-    if is_cuda_available():
-        shared_settings = SharedSettings.load(mode="validator")
-    else:
-        shared_settings = SharedSettings.load(mode="mock")
-    pass
+    shared_settings = SharedSettings.load(mode="validator" if is_cuda_available() else "mock")
 except Exception as e:
     logger.exception(f"Error loading settings: {e}")
-shared_settings = None
+    shared_settings = None
