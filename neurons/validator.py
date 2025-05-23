@@ -135,6 +135,7 @@ def start_api(
     reward_events: list,
     miners_dict: dict,
     event_stop: Event,
+    weight_dict: dict,
 ):
     init_process_logging(name="APIProcess")
     from prompting.api.api import start_scoring_api
@@ -160,7 +161,8 @@ def start_api(
             logger.debug(f"Serve success: {serve_success}")
         except Exception as e:
             logger.warning(f"Failed to serve scoring api to chain: {e}")
-        await start_scoring_api(task_scorer, scoring_queue, reward_events, miners_dict)
+        logger.info("Starting scoring api")
+        await start_scoring_api(task_scorer, scoring_queue, reward_events, miners_dict, weight_dict)
 
         while not event_stop.is_set():
             await asyncio.sleep(10)
@@ -291,11 +293,11 @@ async def main(
 
         try:
             # Start checking the availability of miners at regular intervals
-            if settings.shared_settings.DEPLOY_SCORING_API and not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
+            if not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
                 # Use multiprocessing to bypass API blocking issue
                 api_process = mp.Process(
                     target=start_api,
-                    args=(scoring_queue, reward_events, miners_dict, event_stop),
+                    args=(scoring_queue, reward_events, miners_dict, event_stop, weight_dict),
                     name="APIProcess",
                     daemon=True,
                 )

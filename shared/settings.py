@@ -94,7 +94,6 @@ class SharedSettings(BaseSettings):
     SCORING_QUEUE_LENGTH_THRESHOLD: int = Field(50, env="SCORING_QUEUE_LENGTH_THRESHOLD")
     HF_TOKEN: Optional[str] = Field(None, env="HF_TOKEN")
     DEPLOY_VALIDATOR: bool = Field(True, env="DEPLOY_VALDITAOR")
-    DEPLOY_SCORING_API: bool = Field(True, env="DEPLOY_SCORING_API")
     SCORING_API_PORT: int = Field(8095, env="SCORING_API_PORT")
     # Hard-code MC validator axon, since it might be overwritten in the metagraph.
     MC_VALIDATOR_HOTKEY: str = Field("5Cg5QgjMfRqBC6bh8X4PDbQi7UzVRn9eyWXsB8gkyfppFPPy", env="MC_VALIDATOR_HOTKEY")

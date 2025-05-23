@@ -37,7 +37,7 @@ class WeightSynchronizer:
     async def make_epistula_request(self, weight_matrix: np.ndarray, validator_address: str, validator_hotkey: str):
         """Make an epistula request to the validator at the given address."""
         try:
-            vali_url = f"http://{validator_address}/receive_weights"
+            vali_url = f"http://{validator_address}/receive_weight_matrix"
             timeout = httpx.Timeout(timeout=40.0)
             async with httpx.AsyncClient(
                 timeout=timeout,
