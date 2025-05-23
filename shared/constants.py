@@ -1,1 +1,1 @@
-WHITELISTED_VALIDATORS_UIDS = [5, 518, 674, 996]  # OTF  # WildSageLabs  # Rizzo  # Macrocosmos
+WHITELISTED_VALIDATORS_UIDS = [5, 518, 674, 966, 502, 520, 993, 24]  # OTF  # WildSageLabs  # Rizzo  # Macrocosmos

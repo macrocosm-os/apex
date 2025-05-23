@@ -14,7 +14,7 @@ from shared.epistula import create_header_hook, verify_signature
 class WeightSynchronizer:
     """The weight syncronizer is responsible for syncing the weights of the miners with the weight setter."""
 
-    def __init__(self, metagraph: bt.Metagraph, wallet: bt.Wallet):
+    def __init__(self, metagraph: bt.Metagraph, wallet: bt.Wallet, weight_dict: dict[int, list[float]]):
         self.wallet = wallet
         self.uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
 
@@ -27,66 +27,12 @@ class WeightSynchronizer:
             [f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}" for uid in WHITELISTED_VALIDATORS_UIDS]
         )
 
+        self.weight_dict = weight_dict
+
         self.router = APIRouter()
         self.router.post("/receive_weights")(self.receive_weight_matrix)
 
         self.request_tracker = np.zeros(len(WHITELISTED_VALIDATORS_UIDS))
-
-    async def receive_weight_matrix(self, request: Request):
-        """Endpoint to receive weight matrix updates from validators."""
-        await self.verify_weight_signature(request)
-
-        body = await request.json()
-
-        if not isinstance(body, dict) or "weights" not in body:
-            raise HTTPException(status_code=400, detail="Invalid request body format")
-
-        try:
-            uid = body["uid"]
-            weights = np.array(body["weights"])
-            
-            # Validate weights length
-            if len(weights) != 1024:
-                raise HTTPException(status_code=400, detail=f"Weights must be exactly 1024 elements long, got {len(weights)}")
-            
-            # Verify uid is in whitelist
-            validator_indices = np.where(self.validator_uids == uid)[0]
-            if len(validator_indices) == 0:
-                raise HTTPException(status_code=400, detail=f"Invalid validator UID {uid}, not in whitelist")
-            
-            # Update the weight matrix for this validator
-            validator_idx = validator_indices[0]
-            self.weight_matrix[validator_idx] = weights
-            self.request_tracker[validator_idx] = 1
-            return {"status": "success", "message": "Weight matrix updated successfully"}
-
-        except Exception as e:
-            logger.error(f"Error processing weight matrix: {e}")
-            raise HTTPException(status_code=500, detail="Error processing weight matrix")
-
-    async def verify_weight_signature(self, request: Request):
-        signed_by = request.headers.get("Epistula-Signed-By")
-        signed_for = request.headers.get("Epistula-Signed-For")
-        if signed_for != self.wallet.hotkey.ss58_address:
-            logger.error("Bad Request, message is not intended for self")
-            raise HTTPException(status_code=400, detail="Bad Request, message is not intended for self")
-        if signed_by not in self.validator_hotkeys:
-            logger.error("Signer not the expected ss58 address")
-            raise HTTPException(status_code=401, detail="Signer not the expected ss58 address")
-        now = time.time()
-        body = await request.body()
-        err = verify_signature(
-            request.headers.get("Epistula-Request-Signature"),
-            body,
-            request.headers.get("Epistula-Timestamp"),
-            request.headers.get("Epistula-Uuid"),
-            signed_for,
-            signed_by,
-            now,
-        )
-        if err:
-            logger.error(err)
-            raise HTTPException(status_code=400, detail=err)
 
     async def make_epistula_request(self, weight_matrix: np.ndarray, validator_address: str, validator_hotkey: str):
         """Make an epistula request to the validator at the given address."""
@@ -121,6 +67,8 @@ class WeightSynchronizer:
         """Get the augmented weights for the given uid, sends the weights to the validators."""
         await self.send_weight_matrixes(weights)
 
+        await self.process_weight_dict()
+
         validator_indices = np.where(self.validator_uids == uid)[0]
         if len(validator_indices) == 0:
             logger.error(f"UID {uid} not found in validator_uids {self.validator_uids}")
@@ -132,8 +80,28 @@ class WeightSynchronizer:
         return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix*self.request_tracker)
 
     async def send_weight_matrixes(self, weight_matrix: np.ndarray):
+        # Commented out for testing - normally would send to all validators
+        # tasks = [
+        #     self.make_epistula_request(weight_matrix, validator_address, validator_hotkey)
+        #     for validator_address, validator_hotkey in zip(self.validator_addresses, self.validator_hotkeys)
+        # ]
+        
+        # For testing, only send to self
         tasks = [
-            self.make_epistula_request(weight_matrix, validator_address, validator_hotkey)
-            for validator_address, validator_hotkey in zip(self.validator_addresses, self.validator_hotkeys)
+            self.make_epistula_request(weight_matrix, "0.0.0.0:8094", self.validator_hotkeys[3])
         ]
         await asyncio.gather(*tasks)
+
+    async def process_weight_dict(self):
+        for uid, weights in self.weight_dict.items():
+            
+            # Verify uid is in whitelist
+            validator_indices = np.where(self.validator_uids == uid)[0]
+            if len(validator_indices) == 0:
+                logger.error(f"Invalid validator UID {uid}, not in whitelist")
+                continue
+            
+            # Update the weight matrix for this validator
+            validator_idx = validator_indices[0]
+            self.weight_matrix[validator_idx] = weights
+            self.request_tracker[validator_idx] = 1

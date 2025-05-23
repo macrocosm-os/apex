@@ -125,6 +125,8 @@ async def set_weights(
         logger.debug(f"Set weights disabled: {shared_settings.NEURON_DISABLE_SET_WEIGHTS}")
         return
 
+    logger.info("ABORTING SET WEIGHTS")
+    return
     # Set the weights on chain via our subtensor connection.
     result = subtensor.set_weights(
         wallet=shared_settings.WALLET,
@@ -150,15 +152,18 @@ class WeightSetter(AsyncLoopRunner):
     reward_events: list[list[WeightedRewardEvent]] | None = None
     subtensor: bt.Subtensor | None = None
     metagraph: bt.Metagraph | None = None
+    weight_dict: dict[int, list[float]] | None = None
+    weight_syncer: WeightSynchronizer | None = None
     # interval: int = 60
 
     class Config:
         arbitrary_types_allowed = True
 
-    async def start(self, reward_events, name: str | None = None, **kwargs):
+    async def start(self, reward_events, weight_dict, name: str | None = None, **kwargs):
         self.reward_events = reward_events
+        self.weight_dict = weight_dict
         global PAST_WEIGHTS
-
+        self.weight_syncer = WeightSynchronizer(metagraph=shared_settings.METAGRAPH, wallet=shared_settings.WALLET, weight_dict=weight_dict)
         try:
             with np.load(FILENAME) as data:
                 PAST_WEIGHTS = [data[key] for key in data.files]
