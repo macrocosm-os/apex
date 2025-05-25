@@ -123,8 +123,6 @@ async def set_weights(
         logger.debug(f"Set weights disabled: {shared_settings.NEURON_DISABLE_SET_WEIGHTS}")
         return
 
-    logger.info("ABORTING SET WEIGHTS")
-    return
     # Set the weights on chain via our subtensor connection.
     result = subtensor.set_weights(
         wallet=shared_settings.WALLET,
