@@ -19,7 +19,7 @@ class WeightSynchronizer:
         self.uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
 
         self.weight_matrix = np.zeros((len(WHITELISTED_VALIDATORS_UIDS), 1024))
-        self.stake_matrix = np.zeros((len(WHITELISTED_VALIDATORS_UIDS)))
+        self.stake_matrix = np.array([metagraph.S[uid] for uid in WHITELISTED_VALIDATORS_UIDS])
 
         self.validator_uids = np.array(WHITELISTED_VALIDATORS_UIDS)
         self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in WHITELISTED_VALIDATORS_UIDS])
@@ -28,9 +28,6 @@ class WeightSynchronizer:
         )
 
         self.weight_dict = weight_dict
-
-        self.router = APIRouter()
-        self.router.post("/receive_weights")(self.receive_weight_matrix)
 
         self.request_tracker = np.zeros(len(WHITELISTED_VALIDATORS_UIDS))
 
@@ -68,14 +65,6 @@ class WeightSynchronizer:
         await self.send_weight_matrixes(weights)
 
         await self.process_weight_dict()
-
-        validator_indices = np.where(self.validator_uids == uid)[0]
-        if len(validator_indices) == 0:
-            logger.error(f"UID {uid} not found in validator_uids {self.validator_uids}")
-            raise ValueError(f"UID {uid} not found in whitelisted validators")
-            
-        validator_idx = validator_indices[0]
-        self.weight_matrix[validator_idx] = weights
 
         return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix*self.request_tracker)
 

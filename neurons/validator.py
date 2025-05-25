@@ -227,7 +227,7 @@ def start_weight_setter_loop(reward_events, weight_dict, event_stop: Event):
         from prompting.weight_setting.weight_setter import weight_setter
 
         logger.info("Starting weight setter loop in validator...")
-        asyncio.create_task(weight_setter.start(reward_events, weight_dict))
+        asyncio.create_task(weight_setter.start(reward_events, weight_dict, name="WeightSetter"))
         while not event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Weight setter loop is running")

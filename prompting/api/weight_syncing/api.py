@@ -1,21 +1,23 @@
 from fastapi import APIRouter, HTTPException, Request, Depends
 from loguru import logger
-import numpy as np
 import time
 from shared.epistula import verify_signature
+from shared.settings import shared_settings
+from shared.constants import WHITELISTED_VALIDATORS_UIDS
 
 router = APIRouter()
 
 def get_weight_dict(request: Request):
     return request.app.state.weight_dict
 
-async def verify_weight_signature(self, request: Request):
+async def verify_weight_signature(request: Request):
     signed_by = request.headers.get("Epistula-Signed-By")
     signed_for = request.headers.get("Epistula-Signed-For")
-    if signed_for != self.wallet.hotkey.ss58_address:
+    if signed_for != shared_settings.WALLET.hotkey.ss58_address:
         logger.error("Bad Request, message is not intended for self")
         raise HTTPException(status_code=400, detail="Bad Request, message is not intended for self")
-    if signed_by not in self.validator_hotkeys:
+    validator_hotkeys = [shared_settings.METAGRAPH.hotkeys[uid] for uid in WHITELISTED_VALIDATORS_UIDS]
+    if signed_by not in validator_hotkeys:
         logger.error("Signer not the expected ss58 address")
         raise HTTPException(status_code=401, detail="Signer not the expected ss58 address")
     now = time.time()
@@ -34,12 +36,11 @@ async def verify_weight_signature(self, request: Request):
         raise HTTPException(status_code=400, detail=err)
 
 @router.post("/receive_weight_matrix")
-async def receive_weight_matrix(self, request: Request, verification_data: dict = Depends(verify_weight_signature), weight_dict=Depends(get_weight_dict)):
+async def receive_weight_matrix(request: Request, verification_data: dict = Depends(verify_weight_signature), weight_dict=Depends(get_weight_dict)):
     """Endpoint to receive weight matrix updates from validators."""
-    await self.verify_weight_signature(request)
+    await verify_weight_signature(request)
 
     body = await request.json()
-
     if not isinstance(body, dict) or "weights" not in body:
         raise HTTPException(status_code=400, detail="Invalid request body format")
 

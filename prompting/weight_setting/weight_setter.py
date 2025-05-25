@@ -45,7 +45,7 @@ def save_weights(weights: list[np.ndarray]):
 
 
 async def set_weights(
-    weights: np.ndarray, step: int = 0, subtensor: bt.Subtensor | None = None, metagraph: bt.Metagraph | None = None
+    weights: np.ndarray, step: int = 0, subtensor: bt.Subtensor | None = None, metagraph: bt.Metagraph | None = None, weight_syncer: WeightSynchronizer | None = None
 ):
     """
     Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
@@ -71,7 +71,7 @@ async def set_weights(
             ):  # If weights will not be set on chain, we should not synchronize
                 augmented_weights = averaged_weights
             else:
-                augmented_weights = await weight_synchronizer.get_augmented_weights(
+                augmented_weights = await weight_syncer.get_augmented_weights(
                     weights=averaged_weights, uid=shared_settings.UID
                 )
         except Exception as ex:
@@ -240,7 +240,7 @@ class WeightSetter(AsyncLoopRunner):
 
         # set weights on chain
         await set_weights(
-            final_rewards, step=self.step, subtensor=shared_settings.SUBTENSOR, metagraph=shared_settings.METAGRAPH
+            final_rewards, step=self.step, subtensor=shared_settings.SUBTENSOR, metagraph=shared_settings.METAGRAPH, weight_syncer=self.weight_syncer
         )
         # TODO: empty rewards queue only on weight setting success
         self.reward_events[:] = []  # empty reward events queue
