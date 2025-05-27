@@ -135,6 +135,7 @@ def start_api(
     reward_events: list,
     miners_dict: dict,
     event_stop: Event,
+    weight_dict: dict,
 ):
     init_process_logging(name="APIProcess")
     from prompting.api.api import start_scoring_api
@@ -145,6 +146,8 @@ def start_api(
         try:
             external_ip = requests.get("https://checkip.amazonaws.com").text.strip()
             netaddr.IPAddress(external_ip)
+
+            logger.info(f"Serving on {external_ip}:{settings.shared_settings.SCORING_API_PORT}")
 
             serve_success = serve_extrinsic(
                 subtensor=settings.shared_settings.SUBTENSOR,
@@ -158,7 +161,8 @@ def start_api(
             logger.debug(f"Serve success: {serve_success}")
         except Exception as e:
             logger.warning(f"Failed to serve scoring api to chain: {e}")
-        await start_scoring_api(task_scorer, scoring_queue, reward_events, miners_dict)
+        logger.info("Starting scoring api")
+        await start_scoring_api(task_scorer, scoring_queue, reward_events, miners_dict, weight_dict)
 
         while not event_stop.is_set():
             await asyncio.sleep(10)
@@ -216,21 +220,21 @@ def start_availability_checking_loop(miners_dict: dict, event_stop: Event):
         raise
 
 
-def start_weight_setter_loop(reward_events, event_stop: Event):
+def start_weight_setter_loop(reward_events, weight_dict, event_stop: Event):
     init_process_logging(name="WeightSetter")  # Initialize logging for weight setter process
 
-    async def spawn_loops(reward_events):
+    async def spawn_loops(reward_events, weight_dict):
         from prompting.weight_setting.weight_setter import weight_setter
 
         logger.info("Starting weight setter loop in validator...")
-        asyncio.create_task(weight_setter.start(reward_events))
+        asyncio.create_task(weight_setter.start(reward_events, weight_dict, name="WeightSetter"))
         while not event_stop.is_set():
             await asyncio.sleep(5)
             logger.debug("Weight setter loop is running")
 
     try:
         logger.info("Starting weight setter loop in validator...")
-        asyncio.run(spawn_loops(reward_events))
+        asyncio.run(spawn_loops(reward_events, weight_dict))
 
     except Exception as e:
         logger.exception(f"Weight setter loop error: {e}")
@@ -271,12 +275,14 @@ async def main(
     cache_scores: list | None = None,
     cache_tasks: list | None = None,
     cache_miners: dict | None = None,
+    cache_weight_dict: dict | None = None,
 ):
     # will start checking the availability of miners at regular intervals, needed for API and Validator
     with mp.Manager() as manager:
         reward_events = manager.list(list(cache_rewards) if cache_rewards else [])
         scoring_queue = manager.list(list(cache_scores) if cache_scores else [])
         task_queue = manager.list(list(cache_tasks) if cache_tasks else [])
+        weight_dict = manager.dict(dict(cache_weight_dict) if cache_weight_dict else {})
         miners_dict = manager.dict(dict(cache_miners) if cache_miners else {})
         mp_lock = manager.Lock()
         processes: list[mp.Process] = []
@@ -287,11 +293,11 @@ async def main(
 
         try:
             # Start checking the availability of miners at regular intervals
-            if settings.shared_settings.DEPLOY_SCORING_API and not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
+            if not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
                 # Use multiprocessing to bypass API blocking issue
                 api_process = mp.Process(
                     target=start_api,
-                    args=(scoring_queue, reward_events, miners_dict, event_stop),
+                    args=(scoring_queue, reward_events, miners_dict, event_stop, weight_dict),
                     name="APIProcess",
                     daemon=True,
                 )
@@ -330,7 +336,7 @@ async def main(
 
             weight_setter_process = mp.Process(
                 target=start_weight_setter_loop,
-                args=(reward_events, event_stop),
+                args=(reward_events, weight_dict, event_stop),
                 name="WeightSetterProcess",
                 daemon=True,
             )
