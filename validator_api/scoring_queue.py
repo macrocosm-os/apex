@@ -33,7 +33,7 @@ class ScoringQueue(AsyncLoopRunner):
     max_scoring_retries: int = 2
     _scoring_lock = asyncio.Lock()
     _scoring_queue: deque[ScoringPayload] = deque()
-    _queue_maxlen: int = 50
+    _queue_maxlen: int = 200
     _min_wait_time: float = 1
 
     async def wait_for_next_execution(self, last_run_time) -> datetime.datetime:
