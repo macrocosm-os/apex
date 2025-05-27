@@ -59,20 +59,21 @@ class MSRv2Task(MultiStepReasoningTask):
     async def make_reference(self, dataset_entry: Context, model_manager: ModelManager):
         if self.stage == "generative":
             # Always generate and store the validator's version of the reference.
-            # Ensure super().make_reference is an async method if awaited
             validator_ref_attempt = await super().make_reference(dataset_entry, model_manager=model_manager)
-            self.validator_generated_reference = validator_ref_attempt if isinstance(validator_ref_attempt, str) else None
+            self.validator_generated_reference = (
+                validator_ref_attempt if isinstance(validator_ref_attempt, str) else None
+            )
 
             # Decide if the validator's generated reference will be the "official" reference for discrimination.
             if random.random() < self.REAL_REFERENCE_PROBABILITY:
-                self.reference = self.validator_generated_reference # Validator's answer is CHOSEN
+                self.reference = self.validator_generated_reference  # Validator's answer is CHOSEN
                 # self.generative_miner_answer remains None in this case, it's not the active reference from task's perspective yet
                 return self.reference
             else:
                 # Validator's answer is NOT chosen. self.reference remains None.
                 # We will use the miner's answer (once received) as the reference.
                 # This will be populated into self.generative_miner_answer in the reward model.
-                return None # Indicates we are waiting for the miner's answer to be the reference
+                return None  # Indicates we are waiting for the miner's answer to be the reference
         else:
             # return 1 if validator's reference was chosen, 0 if miner's reference was chosen
             return 1 if self.reference else 0
