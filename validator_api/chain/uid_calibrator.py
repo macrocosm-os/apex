@@ -6,12 +6,12 @@ from datetime import datetime
 from typing import Any, AsyncGenerator
 
 import numpy as np
-from loguru import logger
 import openai
+from loguru import logger
 
 from shared import settings
 from shared.epistula import make_openai_query
-from validator_api.chain.uid_tracker import TaskType, UidTracker, CompletionFormat
+from validator_api.chain.uid_tracker import CompletionFormat, TaskType, UidTracker
 from validator_api.deep_research.orchestrator_v2 import MODEL_ID
 
 shared_settings = settings.shared_settings
@@ -109,8 +109,7 @@ async def periodic_network_calibration(
             uid_tracker.resync()
             # Filter out validators.
             all_uids: list[int] = [
-                int(uid) for uid in shared_settings.METAGRAPH.uids
-                if shared_settings.METAGRAPH.stake[uid] * 0.05 < 1000
+                int(uid) for uid in shared_settings.METAGRAPH.uids if shared_settings.METAGRAPH.stake[uid] * 0.05 < 1000
             ]
             logger.debug(f"Starting network calibration for {len(all_uids)} UIDs.")
 
@@ -138,7 +137,9 @@ async def periodic_network_calibration(
                 collector_tasks: list[asyncio.Task[tuple[list[str], list[float]]]] = [
                     asyncio.create_task(_collector(i, rt)) for i, rt in enumerate(response_tasks)
                 ]
-                results: list[tuple[list[str], list[float]]] = await asyncio.gather(*collector_tasks, return_exceptions=False)
+                results: list[tuple[list[str], list[float]]] = await asyncio.gather(
+                    *collector_tasks, return_exceptions=False
+                )
 
                 # Split into parallel lists so indices align with `uids`.
                 chunks_list: list[list[str]] = [res[0] for res in results]
@@ -157,9 +158,7 @@ async def periodic_network_calibration(
                     mean_tps = np.mean(tps_values)
                     min_tps = min(tps_values)
                     max_tps = max(tps_values)
-                    logger.debug(
-                        f"Calibration TPS - mean: {mean_tps:.2f}, min: {min_tps:.2f}, max: {max_tps:.2f}"
-                    )
+                    logger.debug(f"Calibration TPS - mean: {mean_tps:.2f}, min: {min_tps:.2f}, max: {max_tps:.2f}")
 
                 # Feed into the tracker.
                 await uid_tracker.score_uid_chunks(

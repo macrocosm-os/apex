@@ -1,12 +1,14 @@
 import json
-from typing import Any, Iterable
+import random
 from enum import Enum
+from typing import Any, Iterable
+
 from loguru import logger
 from pydantic import BaseModel
-import random
 
 from shared import settings
 from validator_api.deep_research.utils import parse_llm_json
+
 shared_settings = settings.shared_settings
 
 SUCCESS_RATE_MIN = 0.9
@@ -19,6 +21,7 @@ class CompletionFormat(str, Enum):
     # YAML = "yaml"
     # XML = "xml"
     # HTML = "html"
+
 
 class TaskType(str, Enum):
     Inference = "Chain-of-Thought"
@@ -67,7 +70,7 @@ class UidTracker(BaseModel):
                 uid=uid,
                 hkey=hotkeys[uid],
                 requests_per_task={task: 0 for task in TaskType},
-                success_per_task={task: 0 for task in TaskType}
+                success_per_task={task: 0 for task in TaskType},
             )
 
     @staticmethod
@@ -101,11 +104,7 @@ class UidTracker(BaseModel):
             logger.debug(f"Setting query success for UID {uid} and task {task_name}")
 
     async def sample_reliable(
-        self,
-        task: TaskType | str,
-        amount: int,
-        success_rate: float = SUCCESS_RATE_MIN,
-        add_random_extra: bool = True
+        self, task: TaskType | str, amount: int, success_rate: float = SUCCESS_RATE_MIN, add_random_extra: bool = True
     ) -> dict[int, Uid]:
         if not isinstance(task, TaskType):
             try:
@@ -129,7 +128,7 @@ class UidTracker(BaseModel):
             remaining_uids = [(uid, rate) for uid, rate in uid_success_rates if uid not in sampled_reliable]
             # Sort by success rate.
             remaining_uids.sort(key=lambda x: x[1], reverse=True)
-            sampled_reliable.extend(uid for uid, _ in remaining_uids[:amount - len(sampled_reliable)])
+            sampled_reliable.extend(uid for uid, _ in remaining_uids[: amount - len(sampled_reliable)])
 
         return {uid_info.uid: uid_info for uid_info in sampled_reliable}
 
@@ -162,8 +161,9 @@ class UidTracker(BaseModel):
             try:
                 parse_llm_json(completion)
                 await self.set_query_success(uid, task_name)
-            except json.JSONDecodeError as e:
+            except json.JSONDecodeError:
                 pass
+
 
 # TODO: Move to FastAPI lifespan.
 uid_tracker = UidTracker()

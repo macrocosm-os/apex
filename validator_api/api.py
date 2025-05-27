@@ -6,13 +6,13 @@ from fastapi import FastAPI
 from loguru import logger
 
 from shared import settings
-from validator_api.chain.uid_calibrator import periodic_network_calibration
 
 settings.shared_settings = settings.SharedSettings.load(mode="api")
 shared_settings = settings.shared_settings
 
 from validator_api import scoring_queue
 from validator_api.api_management import router as api_management_router
+from validator_api.chain.uid_calibrator import periodic_network_calibration
 from validator_api.chain.uid_tracker import uid_tracker
 from validator_api.gpt_endpoints import router as gpt_router
 from validator_api.utils import update_miner_availabilities_for_api

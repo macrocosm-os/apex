@@ -1,5 +1,6 @@
 import pytest
-from validator_api.chain.uid_tracker import UidTracker, TaskType, Uid
+
+from validator_api.chain.uid_tracker import TaskType, Uid, UidTracker
 
 
 @pytest.fixture
@@ -72,8 +73,8 @@ async def test_sample_reliable_not_enough_uids(uid_tracker: UidTracker):
     assert len(reliable) == amount
     # Verify that the top UIDs are returned, sorted by success rate.
     assert reliable[0].uid == 0
-    assert (await reliable[0].success_rate(TaskType.CompletionInference) == 1.0)
+    assert await reliable[0].success_rate(TaskType.CompletionInference) == 1.0
     assert reliable[1].uid == 1
-    assert (await reliable[1].success_rate(TaskType.CompletionInference) == 0.5)
+    assert await reliable[1].success_rate(TaskType.CompletionInference) == 0.5
     assert reliable[2].uid == 2
-    assert (await reliable[2].success_rate(TaskType.CompletionInference) == 0.0)
+    assert await reliable[2].success_rate(TaskType.CompletionInference) == 0.0
