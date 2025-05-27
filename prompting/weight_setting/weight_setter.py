@@ -45,7 +45,11 @@ def save_weights(weights: list[np.ndarray]):
 
 
 async def set_weights(
-    weights: np.ndarray, step: int = 0, subtensor: bt.Subtensor | None = None, metagraph: bt.Metagraph | None = None, weight_syncer: WeightSynchronizer | None = None
+    weights: np.ndarray,
+    step: int = 0,
+    subtensor: bt.Subtensor | None = None,
+    metagraph: bt.Metagraph | None = None,
+    weight_syncer: WeightSynchronizer | None = None,
 ):
     """
     Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
@@ -159,7 +163,9 @@ class WeightSetter(AsyncLoopRunner):
         self.reward_events = reward_events
         self.weight_dict = weight_dict
         global PAST_WEIGHTS
-        self.weight_syncer = WeightSynchronizer(metagraph=shared_settings.METAGRAPH, wallet=shared_settings.WALLET, weight_dict=weight_dict)
+        self.weight_syncer = WeightSynchronizer(
+            metagraph=shared_settings.METAGRAPH, wallet=shared_settings.WALLET, weight_dict=weight_dict
+        )
         try:
             with np.load(FILENAME) as data:
                 PAST_WEIGHTS = [data[key] for key in data.files]
@@ -238,7 +244,11 @@ class WeightSetter(AsyncLoopRunner):
 
         # set weights on chain
         await set_weights(
-            final_rewards, step=self.step, subtensor=shared_settings.SUBTENSOR, metagraph=shared_settings.METAGRAPH, weight_syncer=self.weight_syncer
+            final_rewards,
+            step=self.step,
+            subtensor=shared_settings.SUBTENSOR,
+            metagraph=shared_settings.METAGRAPH,
+            weight_syncer=self.weight_syncer,
         )
         # TODO: empty rewards queue only on weight setting success
         self.reward_events[:] = []  # empty reward events queue

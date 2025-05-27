@@ -1,14 +1,18 @@
-from fastapi import APIRouter, HTTPException, Request, Depends
-from loguru import logger
 import time
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from loguru import logger
+
+from shared.constants import WHITELISTED_VALIDATORS_UIDS
 from shared.epistula import verify_signature
 from shared.settings import shared_settings
-from shared.constants import WHITELISTED_VALIDATORS_UIDS
 
 router = APIRouter()
 
+
 def get_weight_dict(request: Request):
     return request.app.state.weight_dict
+
 
 async def verify_weight_signature(request: Request):
     signed_by = request.headers.get("Epistula-Signed-By")
@@ -35,8 +39,11 @@ async def verify_weight_signature(request: Request):
         logger.error(err)
         raise HTTPException(status_code=400, detail=err)
 
+
 @router.post("/receive_weight_matrix")
-async def receive_weight_matrix(request: Request, verification_data: dict = Depends(verify_weight_signature), weight_dict=Depends(get_weight_dict)):
+async def receive_weight_matrix(
+    request: Request, verification_data: dict = Depends(verify_weight_signature), weight_dict=Depends(get_weight_dict)
+):
     """Endpoint to receive weight matrix updates from validators."""
     await verify_weight_signature(request)
 
@@ -52,5 +59,3 @@ async def receive_weight_matrix(request: Request, verification_data: dict = Depe
     except Exception as e:
         logger.error(f"Error processing weight matrix: {e}")
         raise HTTPException(status_code=500, detail="Error processing weight matrix")
-        
-

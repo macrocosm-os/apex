@@ -1,14 +1,12 @@
 import asyncio
-import time
 
 import bittensor as bt
 import httpx
 import numpy as np
-from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
 from shared.constants import WHITELISTED_VALIDATORS_UIDS
-from shared.epistula import create_header_hook, verify_signature
+from shared.epistula import create_header_hook
 
 
 class WeightSynchronizer:
@@ -66,7 +64,7 @@ class WeightSynchronizer:
 
         await self.process_weight_dict()
 
-        return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix*self.request_tracker)
+        return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix * self.request_tracker)
 
     async def send_weight_matrixes(self, weight_matrix: np.ndarray):
         # Commented out for testing - normally would send to all validators
@@ -74,22 +72,19 @@ class WeightSynchronizer:
         #     self.make_epistula_request(weight_matrix, validator_address, validator_hotkey)
         #     for validator_address, validator_hotkey in zip(self.validator_addresses, self.validator_hotkeys)
         # ]
-        
+
         # For testing, only send to self
-        tasks = [
-            self.make_epistula_request(weight_matrix, "0.0.0.0:8094", self.validator_hotkeys[3])
-        ]
+        tasks = [self.make_epistula_request(weight_matrix, "0.0.0.0:8094", self.validator_hotkeys[3])]
         await asyncio.gather(*tasks)
 
     async def process_weight_dict(self):
         for uid, weights in self.weight_dict.items():
-            
             # Verify uid is in whitelist
             validator_indices = np.where(self.validator_uids == uid)[0]
             if len(validator_indices) == 0:
                 logger.error(f"Invalid validator UID {uid}, not in whitelist")
                 continue
-            
+
             # Update the weight matrix for this validator
             validator_idx = validator_indices[0]
             self.weight_matrix[validator_idx] = weights
