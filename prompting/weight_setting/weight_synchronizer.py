@@ -67,14 +67,11 @@ class WeightSynchronizer:
         return np.average(self.weight_matrix, axis=0, weights=self.stake_matrix * self.request_tracker)
 
     async def send_weight_matrixes(self, weight_matrix: np.ndarray):
-        # Commented out for testing - normally would send to all validators
-        # tasks = [
-        #     self.make_epistula_request(weight_matrix, validator_address, validator_hotkey)
-        #     for validator_address, validator_hotkey in zip(self.validator_addresses, self.validator_hotkeys)
-        # ]
+        tasks = [
+            self.make_epistula_request(weight_matrix, validator_address, validator_hotkey)
+            for validator_address, validator_hotkey in zip(self.validator_addresses, self.validator_hotkeys)
+        ]
 
-        # For testing, only send to self
-        tasks = [self.make_epistula_request(weight_matrix, "0.0.0.0:8094", self.validator_hotkeys[3])]
         await asyncio.gather(*tasks)
 
     async def process_weight_dict(self):
