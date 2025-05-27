@@ -24,7 +24,7 @@ Type=simple
 # Set the working directory so that poetry finds the correct pyproject.toml
 WorkingDirectory=${WORKDIR}
 # Use Poetry to run the API script
-ExecStart=python3.10 -m poetry run uvicorn validator_api.api:app --host 0.0.0.0 --port 8005 --workers 8
+ExecStart=python3.10 -m poetry run uvicorn validator_api.api:app --host 0.0.0.0 --port 8005 --workers 2
 Restart=always
 User=root
 Environment=PYTHONUNBUFFERED=1
