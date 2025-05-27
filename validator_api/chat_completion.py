@@ -158,7 +158,7 @@ async def stream_best_response(  # noqa: C901
                 timings=timings_list,
             )
         )
-        uid_tracker.score_uid_chunks(uids, collected_chunks_list, TaskType.Inference, format)
+        # await uid_tracker.score_uid_chunks(uids, collected_chunks_list, TaskType.Inference, format)
     except (openai.APIConnectionError, asyncio.CancelledError):
         logger.info("Client disconnected, streaming cancelled")
         # for c in collectors:
