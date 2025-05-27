@@ -42,14 +42,14 @@ For a more detailed read, check our docs here: [docs.macrocosmos.ai/subnets/subn
 You can also access Subnet 1, Apex via the API. Find out more here: [docs.macrocosmos.ai/developers/api-documentation/sn1-apex](https://docs.macrocosmos.ai/developers/api-documentation/sn1-apex)
 
 ### Mission Commander
-This is an agentic LLM chatbot built into Gravity, designed to help you pick the right terms and phrases for your data-scraping needs. Simply tell it what information you want and it'll offer suggestions and help with brainstorming. Mission Commander is built with Subnet 1, Apex, also owned by Macrocosmos. It lowers the barrier-of-entry even.
+This is an agentic LLM chatbot built into Gravity, designed to help you pick the right terms and phrases for your data-scraping needs. Simply tell it what information you want and it'll offer suggestions and help with brainstorming. Mission Commander is built with Subnet 1, Apex, also owned by Macrocosmos. It lowers the barrier to entry even further.
 
 Try Mission Commander via Gravity here: [app.macrocosmos.ai/gravity](http://app.macrocosmos.ai/gravity)
 
 For a more detailed read, check our docs here: [docs.macrocosmos.ai/constellation-user-guides/gravity](https://docs.macrocosmos.ai/constellation-user-guides/gravity)
 
 ### MCP (Macrocosmos Connect Protocol)
-You can integrate Subnet 1, Apex, directly into Claude and Cursor via our MCP. This allows you to access our web-search options and inference via other routes, rather than only from our website. Will provide URL to Apex, api key, and a guide how to use the model.
+You can integrate Subnet 1, Apex, directly into Claude and Cursor via our MCP. This allows you to access our web-search options and inference via other routes, rather than only from our website. It will provide a URL to Apex, an API key, and a guide on how to use the model.
 
 Try the MCP by following our guide here: [docs.macrocosmos.ai/developers/tools/macrocosmos-mcp](https://docs.macrocosmos.ai/developers/tools/macrocosmos-mcp)
 
@@ -86,7 +86,7 @@ Apex has the potential to become the flagship decentralized LLM experience acros
 
 
 ## The Team Behind Subnet 1
-Subnet 1 was built by Dr. Steffen Cruz, AKA @Macrocrux, when he was CTO of Bittensor. Steffen has led Apex through multiple iterations, overseeing its evolution into Bittensor's premiere provider of decentralized intelligence.
+Subnet 1 was built by Dr. Steffen Cruz, AKA @Macrocrux, when he was CTO of Bittensor. Steffen has led Apex through multiple iterations, overseeing its evolution into Bittensor's premier provider of decentralized intelligence.
 
 Apex's engineering team is one of the most impressive on Bittensor. It includes Felix Quinque, who led its Chain of Thought, Reasoning, and Logits upgrades, Dmytro Bobrenko with Organic Scoring and DeepResearcher, Rich Wardle's research and development, and Kalei Brady, who led GAN based architecture upgrade and leads SN1's Discord Community. It also receives the support of other Macrocosmos engineers, ensuring that Subnet 1 is one of the best-staffed projects on the protocol - all of which helps ensure its long-term viability.
 
