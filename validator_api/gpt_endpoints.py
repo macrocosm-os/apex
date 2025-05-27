@@ -6,6 +6,7 @@ from loguru import logger
 from starlette.responses import StreamingResponse
 
 from shared import settings
+from validator_api.chain.uid_tracker import uid_tracker
 
 shared_settings = settings.shared_settings
 from validator_api.api_management import validate_api_key
@@ -106,7 +107,7 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
         elif body.get("mixture", False) or body.get("inference_mode", None) == "Mixture-of-Agents":
             return await mixture_of_miners(body, uids=uids)
         else:
-            return await chat_completion(body, uids=uids)
+            return await chat_completion(body, uids=uids, uid_tracker=uid_tracker)
 
     except Exception as e:
         logger.exception(f"Error in chat completion: {e}")

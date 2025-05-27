@@ -8,16 +8,17 @@ from typing import Any, Awaitable, Callable, Optional
 from fastapi.responses import StreamingResponse
 from loguru import logger
 from pydantic import BaseModel
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 from validator_api.deep_research.utils import extract_content_from_stream, parse_llm_json, with_retries
 from validator_api.serializers import CompletionsRequest, WebRetrievalRequest
 from validator_api.web_retrieval import web_retrieval
 
 STEP_MAX_RETRIES = 10
+MODEL_ID = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
 
 
-def make_chunk(text):
+def make_chunk(text: str):
     chunk = json.dumps({"choices": [{"delta": {"content": text}}]})
     return f"data: {chunk}\n\n"
 
@@ -30,7 +31,7 @@ def get_current_datetime_str() -> str:
 class LLMQuery(BaseModel):
     """Records a single LLM API call with its inputs and outputs"""
 
-    messages: list[dict]  # The input messages
+    messages: list[dict[str, Any]]  # The input messages
     raw_response: str  # The raw response from the LLM
     parsed_response: Any | None = None  # The parsed response (if applicable)
     step_name: str  # Name of the step that made this query
@@ -123,16 +124,22 @@ async def search_web(question: str, n_results: int = 2, completions=None) -> dic
 
 @retry(
     stop=stop_after_attempt(STEP_MAX_RETRIES),
-    wait=wait_exponential(multiplier=1, min=2, max=5),
+    wait=wait_fixed(2),
     retry=retry_if_exception_type(json.JSONDecodeError),
 )
 async def make_mistral_request_with_json(
-    messages: list[dict],
+    messages: list[dict[str, Any]],
     step_name: str,
     completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]],
 ):
     """Makes a request to Mistral API and records the query"""
-    raw_response, query_record = await make_mistral_request(messages, step_name, completions)
+
+    raw_response, query_record = await make_mistral_request(
+        messages,
+        step_name,
+        completions,
+        # format="json",
+    )
     try:
         parse_llm_json(raw_response)  # Test if the response is jsonable
         return raw_response, query_record
@@ -143,19 +150,21 @@ async def make_mistral_request_with_json(
 
 @retry(
     stop=stop_after_attempt(STEP_MAX_RETRIES),
-    wait=wait_exponential(multiplier=1, min=2, max=5),
+    wait=wait_fixed(2),
     retry=retry_if_exception_type(BaseException),
 )
 async def make_mistral_request(
-    messages: list[dict], step_name: str, completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]]
+    messages: list[dict[str, Any]],
+    step_name: str,
+    completions: Callable[[CompletionsRequest], Awaitable[StreamingResponse]],
 ) -> tuple[str, LLMQuery]:
     """Makes a request to Mistral API and records the query"""
 
     model = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
     temperature = 0.15
     top_p = 1
-    max_tokens = 8192
-    sample_params = {
+    max_tokens = 6144
+    sample_params: dict[str, Any] = {
         "top_p": top_p,
         "max_tokens": max_tokens,
         "temperature": temperature,
@@ -166,10 +175,11 @@ async def make_mistral_request(
         model=model,
         stream=True,
         sampling_parameters=sample_params,
-        timeout=90,
+        timeout=120,
     )
-    # Iterate over the response then collect the content
+    # Iterate over the response then collect the content.
     response = await completions(request)
+    # response = await chat_completion(body=request.model_dump(), uids=uids, format=format)
     response_content = await extract_content_from_stream(response)
     logger.debug(f"Response content: {response_content}")
     if not response_content:

@@ -104,7 +104,7 @@ class WebRetrievalRequest(BaseModel):
     search_query: str = Field(
         ..., description="The query to search for on the web.", example="latest advancements in quantum computing"
     )
-    n_miners: int = Field(default=3, description="Number of miners to query for results.", example=15, ge=1)
+    n_miners: int = Field(default=5, description="Number of miners to query for results.", example=15, ge=1)
     n_results: int = Field(
         default=1, description="Maximum number of results to return in the response.", example=5, ge=1
     )

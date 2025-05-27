@@ -62,6 +62,7 @@ class ScoringQueue(AsyncLoopRunner):
         validators: dict[int, Validator] = {}
         try:
             if shared_settings.OVERRIDE_AVAILABLE_AXONS:
+                logger.warning(f"Overriding available axons with: {shared_settings.OVERRIDE_AVAILABLE_AXONS}")
                 for idx, vali_axon in enumerate(shared_settings.OVERRIDE_AVAILABLE_AXONS):
                     validators[-idx] = Validator(uid=-idx, axon=vali_axon, hotkey=shared_settings.API_HOTKEY, stake=1e6)
             else:
