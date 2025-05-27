@@ -1,4 +1,5 @@
 import argparse
+
 from huggingface_hub import snapshot_download
 
 if __name__ == "__main__":
@@ -18,9 +19,6 @@ if __name__ == "__main__":
 
     print(f"Downloading Model {args.model_name}, files downloaded to {args.model_path}")
 
-    snapshot_download(
-        repo_id=args.model_name,
-        local_dir=args.model_path
-    )
+    snapshot_download(repo_id=args.model_name, local_dir=args.model_path)
 
     print(f"Model files downloaded to {args.model_path}")

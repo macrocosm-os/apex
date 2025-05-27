@@ -1,12 +1,14 @@
-from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
-import uvicorn
-from vllm_llm import ReproducibleVLLM
-from schema import ChatRequest, LogitsRequest
-from loguru import logger
 import os
 
-MODEL_PATH = os.getenv('MODEL_PATH')
+import uvicorn
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+from loguru import logger
+from schema import ChatRequest, LogitsRequest
+from vllm_llm import ReproducibleVLLM
+
+MODEL_PATH = os.getenv("MODEL_PATH")
+
 
 class ReproducibleVllmApp:
     def __init__(self):
@@ -21,11 +23,9 @@ class ReproducibleVllmApp:
                 messages=[m.dict() for m in request.messages],
                 sampling_params=request.sampling_parameters.dict(),
                 seed=request.seed,
-                continue_last_message=request.continue_last_message
+                continue_last_message=request.continue_last_message,
             )
-            return {
-                "result": result
-            }
+            return {"result": result}
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": str(e)})
 
@@ -36,17 +36,15 @@ class ReproducibleVllmApp:
                 top_logprobs=request.top_logprobs,
                 sampling_params=request.sampling_parameters.dict(),
                 seed=request.seed,
-                continue_last_message=request.continue_last_message
+                continue_last_message=request.continue_last_message,
             )
-            return {
-                "logits": logits,
-                "prompt": prompt
-            }
+            return {"logits": logits, "prompt": prompt}
         except Exception as e:
             return JSONResponse(status_code=500, content={"error": str(e)})
 
     def run(self):
         uvicorn.run(self.app, host="0.0.0.0", port=8000)
+
 
 if __name__ == "__main__":
     server = ReproducibleVllmApp()
