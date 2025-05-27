@@ -1,6 +1,5 @@
 import asyncio
 import functools
-import subprocess
 import time
 import traceback
 from functools import lru_cache, update_wrapper
@@ -175,12 +174,10 @@ def cached_property_with_expiration(expiration_seconds=1200):
     return decorator
 
 
-def is_cuda_available():
+def is_cuda_available() -> bool:
     try:
-        # Run nvidia-smi to list available GPUs
-        result = subprocess.run(
-            ["nvidia-smi", "-L"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True, check=True
-        )
-        return "GPU" in result.stdout
-    except (subprocess.CalledProcessError, FileNotFoundError):
+        import torch
+
+        return torch.cuda.is_available()
+    except ImportError:
         return False

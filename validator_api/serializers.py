@@ -3,7 +3,10 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from shared import settings
 from validator_api.job_store import JobStatus
+
+shared_settings = settings.shared_settings
 
 
 class CompletionsRequest(BaseModel):
@@ -82,6 +85,11 @@ class CompletionsRequest(BaseModel):
                 },
             }
         ],
+    )
+    timeout: Optional[int] = Field(
+        default=shared_settings.INFERENCE_TIMEOUT,
+        description="Timeout in seconds for the request. If not provided, a default timeout will be used.",
+        example=30,
     )
 
 

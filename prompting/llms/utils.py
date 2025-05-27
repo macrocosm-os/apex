@@ -117,11 +117,11 @@ class GPUInfo:
         return cls.used_memory / cls.total_memory
 
 
-IMAGE_TO_TEXT_MODELS = ["google/gemma-3-27b-it", "mistralai/Mistral-Small-3.1-24B-Instruct-2503"]
+TEXT_MODELS = ["mrfakename/mistral-small-3.1-24b-instruct-2503-hf"]
 
 
 def model_factory(model_name: str) -> type[ReproducibleHF]:
-    if model_name in IMAGE_TO_TEXT_MODELS:
-        return VLLMTextImageToText
-    else:
+    if model_name in TEXT_MODELS:
         return ReproducibleVLLM
+    else:
+        return VLLMTextImageToText

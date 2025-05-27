@@ -11,6 +11,7 @@ from prompting.llms.model_zoo import ModelZoo
 from prompting.rewards.reward import WeightedRewardEvent
 from prompting.tasks.inference import InferenceTask
 from prompting.tasks.task_registry import TaskConfig, TaskRegistry
+from prompting.weight_setting.weight_synchronizer import WeightSynchronizer
 from shared import settings
 from shared.loop_runner import AsyncLoopRunner
 from shared.misc import ttl_get_block
@@ -43,8 +44,12 @@ def save_weights(weights: list[np.ndarray]):
     np.savez_compressed(FILENAME, *weights)
 
 
-def set_weights(
-    weights: np.ndarray, step: int = 0, subtensor: bt.Subtensor | None = None, metagraph: bt.Metagraph | None = None
+async def set_weights(
+    weights: np.ndarray,
+    step: int = 0,
+    subtensor: bt.Subtensor | None = None,
+    metagraph: bt.Metagraph | None = None,
+    weight_syncer: WeightSynchronizer | None = None,
 ):
     """
     Sets the validator weights to the metagraph hotkeys based on the scores it has received from the miners. The weights determine the trust and incentive level the validator assigns to miner nodes on the network.
@@ -64,13 +69,25 @@ def set_weights(
             PAST_WEIGHTS.pop(0)
         averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
         save_weights(PAST_WEIGHTS)
+        try:
+            if (
+                shared_settings.NEURON_DISABLE_SET_WEIGHTS
+            ):  # If weights will not be set on chain, we should not synchronize
+                augmented_weights = averaged_weights
+            else:
+                augmented_weights = await weight_syncer.get_augmented_weights(
+                    weights=averaged_weights, uid=shared_settings.UID
+                )
+        except Exception as ex:
+            logger.exception(f"Issue with setting weights: {ex}")
+            augmented_weights = averaged_weights
         # Process the raw weights to final_weights via subtensor limitations.
         (
             processed_weight_uids,
             processed_weights,
         ) = bt.utils.weight_utils.process_weights_for_netuid(
             uids=shared_settings.METAGRAPH.uids,
-            weights=averaged_weights,
+            weights=augmented_weights,
             netuid=shared_settings.NETUID,
             subtensor=subtensor,
             metagraph=metagraph,
@@ -131,19 +148,24 @@ class WeightSetter(AsyncLoopRunner):
     """The weight setter looks at RewardEvents in the reward_events queue and sets the weights of the miners accordingly."""
 
     sync: bool = True
-    interval: int = 60 * 25  # set rewards every 25 minutes
+    interval: int = 60 * 21  # set rewards every 25 minutes
     reward_events: list[list[WeightedRewardEvent]] | None = None
     subtensor: bt.Subtensor | None = None
     metagraph: bt.Metagraph | None = None
+    weight_dict: dict[int, list[float]] | None = None
+    weight_syncer: WeightSynchronizer | None = None
     # interval: int = 60
 
     class Config:
         arbitrary_types_allowed = True
 
-    async def start(self, reward_events, name: str | None = None, **kwargs):
+    async def start(self, reward_events, weight_dict, name: str | None = None, **kwargs):
         self.reward_events = reward_events
+        self.weight_dict = weight_dict
         global PAST_WEIGHTS
-
+        self.weight_syncer = WeightSynchronizer(
+            metagraph=shared_settings.METAGRAPH, wallet=shared_settings.WALLET, weight_dict=weight_dict
+        )
         try:
             with np.load(FILENAME) as data:
                 PAST_WEIGHTS = [data[key] for key in data.files]
@@ -221,8 +243,12 @@ class WeightSetter(AsyncLoopRunner):
             logger.exception(f"{ex}")
 
         # set weights on chain
-        set_weights(
-            final_rewards, step=self.step, subtensor=shared_settings.SUBTENSOR, metagraph=shared_settings.METAGRAPH
+        await set_weights(
+            final_rewards,
+            step=self.step,
+            subtensor=shared_settings.SUBTENSOR,
+            metagraph=shared_settings.METAGRAPH,
+            weight_syncer=self.weight_syncer,
         )
         # TODO: empty rewards queue only on weight setting success
         self.reward_events[:] = []  # empty reward events queue
