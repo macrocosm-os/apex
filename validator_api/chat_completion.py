@@ -189,7 +189,6 @@ async def chat_completion(
     body: dict[str, Any],
     uids: Optional[list[int]] = None,
     num_miners: int = 10,
-    format: CompletionFormat | None = None,
     uid_tracker: UidTracker | None = None,
     add_reliable_miners: int = 2,
 ) -> tuple | StreamingResponse:
@@ -218,7 +217,10 @@ async def chat_completion(
         )
         uids.extend(list(reliable_uids.keys()))
         uids = list(set(uids))
-        logger.debug(f"Added reliable miners: {list(reliable_uids.keys())} to the request, total uids: {len(uids)}")
+        logger.debug(
+            f"Added reliable miners: {list(reliable_uids.keys())} to the request, total uids: {len(uids)}. "
+            f"Requested: {num_miners}"
+        )
 
     STREAM = body.get("stream", False)
     timeout_seconds = float(body.get("timeout", shared_settings.INFERENCE_TIMEOUT))
