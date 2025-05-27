@@ -104,6 +104,7 @@ async def periodic_network_calibration(
     """Periodically queries the subnet to assess UID reliability."""
     # TODO: Add docstring.
     STEP = 100
+    await asyncio.sleep(random.randint(0, 60))
     while True:
         try:
             uid_tracker.resync()
