@@ -63,8 +63,8 @@ class MSRv2RewardModel(BaseRewardModel):
             # If the answer was 'real' (hence no generator uid), we need to average the reward over all miners
             if task.generator_uid is None:
                 assert task.ground_truth == 1, "If the answer was 'real', there should NOT be a generator uid"
-                generator_uids = get_uids(sampling_mode="all", exclude=response_event.uids)
-                generator_reward /= len(generator_uids)
+                # validator generated the reference, no miners deserve anything  gets the "generator_reward" portion.
+                generator_uids = []
             else:
                 generator_uids = [task.generator_uid]
 
@@ -75,7 +75,7 @@ class MSRv2RewardModel(BaseRewardModel):
                 rewards=np.array([generator_reward] * len(generator_uids) + discriminator_rewards),
                 timings=np.array([0] * (len(generator_uids) + len(discriminator_rewards))),
                 threshold=None,
-                uids=np.array(generator_uids + response_event.uids),
+                uids=np.array(list(generator_uids) + list(response_event.uids)),
             )
         else:
             raise ValueError(f"Invalid task stage: {task.stage}")

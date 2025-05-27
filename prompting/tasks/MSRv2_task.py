@@ -25,6 +25,8 @@ class MSRv2Task(MultiStepReasoningTask):
     augmentation_system_prompt: ClassVar[str] = ""
     generative_miner_answer: str | None = None
     reference: str | None = None
+    validator_generated_reference: str | None = None
+    miner_generated_reference_capture: str | None = None
     REAL_REFERENCE_PROBABILITY: float = 0.1
     generator_uid: int | None = None
 
@@ -56,13 +58,24 @@ class MSRv2Task(MultiStepReasoningTask):
 
     async def make_reference(self, dataset_entry: Context, model_manager: ModelManager):
         if self.stage == "generative":
-            # Generates a real reference with probability REAL_REFERENCE_PROBABILITY, otherwise waits for miner to generate an answer
+            # Always generate and store the validator's version of the reference.
+            validator_ref_attempt = await super().make_reference(dataset_entry, model_manager=model_manager)
+            self.validator_generated_reference = (
+                validator_ref_attempt if isinstance(validator_ref_attempt, str) else None
+            )
+
+            # Decide if the validator's generated reference will be the "official" reference for discrimination.
             if random.random() < self.REAL_REFERENCE_PROBABILITY:
-                return super().make_reference(dataset_entry, model_manager=model_manager)
-            else:
+                self.reference = self.validator_generated_reference  # Validator's answer is CHOSEN
+                # self.generative_miner_answer remains None in this case, it's not the active reference from task's perspective yet
                 return self.reference
+            else:
+                # Validator's answer is NOT chosen. self.reference remains None.
+                # We will use the miner's answer (once received) as the reference.
+                # This will be populated into self.generative_miner_answer in the reward model.
+                return None  # Indicates we are waiting for the miner's answer to be the reference
         else:
-            # return 1 if it's validator generated, 0 if it's miner generated
+            # return 1 if validator's reference was chosen, 0 if miner's reference was chosen
             return 1 if self.reference else 0
 
     @property
