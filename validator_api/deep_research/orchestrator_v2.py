@@ -357,7 +357,7 @@ Format your response as a JSON object with the following structure:
         )
 
         try:
-            assessment_data = parse_llm_json(assessment_result)
+            assessment_data = parse_llm_json(assessment_result, allow_empty=False)
             query_record.parsed_response = assessment_data
             return assessment_data
         except json.JSONDecodeError as e:
@@ -417,7 +417,7 @@ Example response:
 
         try:
             try:
-                tool_requests = parse_llm_json(plan_output)
+                tool_requests = parse_llm_json(plan_output, allow_empty=False)
             except json.JSONDecodeError as e:
                 logger.error(f"Failed to parse tool planning output as JSON: {e}. Plan output: {plan_output}")
                 raise
@@ -441,6 +441,9 @@ Example response:
             raise
         except KeyError as e:
             logger.error(f"Missing required key in tool planning output: {e}")
+            raise
+        except BaseException as e:
+            logger.error(f"Unknown error in tool planning output: {e}")
             raise
 
     async def execute_tools(self, tool_requests: list[ToolRequest]) -> list[ToolResult]:
@@ -598,7 +601,7 @@ Find the first unchecked item in the todo list (items without a ✓) and analyze
         )
 
         try:
-            thinking_dict = parse_llm_json(thinking_output)
+            thinking_dict = parse_llm_json(thinking_output, allow_empty=False)
             query_record.parsed_response = thinking_dict
             self.query_history.append(query_record)
 
@@ -669,7 +672,7 @@ Format your response in the following JSON structure:
         )
 
         try:
-            updated_todo_dict = parse_llm_json(updated_todo)
+            updated_todo_dict = parse_llm_json(updated_todo, allow_empty=False)
             query_record.parsed_response = updated_todo_dict
             self.query_history.append(query_record)
 
@@ -744,7 +747,7 @@ Focus on providing a helpful, accurate answer to what the user actually asked.""
         logger.debug(f"Generated final answer:\n{final_answer}")
 
         try:
-            final_answer_dict = parse_llm_json(final_answer)
+            final_answer_dict = parse_llm_json(final_answer, allow_empty=False)
             query_record.parsed_response = final_answer_dict
             self.query_history.append(query_record)
 

@@ -2,7 +2,7 @@ import json
 import random
 from enum import Enum
 from typing import Any, Iterable
-import sqlite3, json, time, os, contextlib
+import sqlite3, json, os, contextlib
 from datetime import datetime
 
 from loguru import logger
@@ -14,6 +14,7 @@ from validator_api.deep_research.utils import parse_llm_json
 shared_settings = settings.shared_settings
 
 SUCCESS_RATE_MIN = 0.9
+MIN_CHUNKS = 514
 
 SQLITE_PATH = os.getenv("UID_TRACKER_DB", "uid_tracker.sqlite")
 
@@ -74,6 +75,7 @@ class UidTracker(BaseModel):
         self.resync()
 
     def resync(self):
+        self.load_from_sqlite()
         hotkeys = shared_settings.METAGRAPH.hotkeys
         for uid in range(int(shared_settings.METAGRAPH.n)):
             if uid in self.uids and hotkeys[uid] == self.uids[uid].hkey:
@@ -171,20 +173,20 @@ class UidTracker(BaseModel):
 
         await self.set_query_attempt(uids, task_name)
         for idx, uid in enumerate(uids):
+            if len(chunks[idx]) <= MIN_CHUNKS:
+                continue
             completion = "".join(chunks[idx])
             try:
-                parse_llm_json(completion)
+                parse_llm_json(completion, allow_empty=False)
                 await self.set_query_success(uid, task_name)
-                logger.debug(f"Successfully scored UID {uid} and task {task_name}")
             except json.JSONDecodeError:
                 pass
 
     def save_to_sqlite(self, db_path: str = SQLITE_PATH) -> None:
-        """
-        Persist the current UID stats to SQLite.
+        """Persist the current UID stats to SQLite.
 
         Uses an UPSERT (`ON CONFLICT ... DO UPDATE`) so concurrent writers
-        cannot collide on the PRIMARY KEY (uid).  A short IMMEDIATE
+        cannot collide on the PRIMARY KEY (uid).  A short IMMEDIATE
         transaction guarantees readers never see a partially-written table
         but lets other processes keep reading while we write.
         """
@@ -197,10 +199,10 @@ class UidTracker(BaseModel):
                 con.execute(
                     """
                     CREATE TABLE IF NOT EXISTS uids (
-                        uid                INTEGER PRIMARY KEY,
-                        hkey               TEXT NOT NULL,
-                        requests_per_task  TEXT NOT NULL,
-                        success_per_task   TEXT NOT NULL
+                        uid INTEGER PRIMARY KEY,
+                        hkey TEXT NOT NULL,
+                        requests_per_task TEXT NOT NULL,
+                        success_per_task TEXT NOT NULL
                     )
                     """
                 )
@@ -220,9 +222,9 @@ class UidTracker(BaseModel):
                         INSERT INTO uids (uid, hkey, requests_per_task, success_per_task)
                         VALUES (?,?,?,?)
                         ON CONFLICT(uid) DO UPDATE SET
-                            hkey               = excluded.hkey,
-                            requests_per_task  = excluded.requests_per_task,
-                            success_per_task   = excluded.success_per_task
+                            hkey = excluded.hkey,
+                            requests_per_task = excluded.requests_per_task,
+                            success_per_task = excluded.success_per_task
                         """,
                         (
                             uid_obj.uid,
@@ -242,7 +244,7 @@ class UidTracker(BaseModel):
                     (ts,),
                 )
 
-                con.commit()                         # end IMMEDIATE txn
+                con.commit()
             except Exception:
                 con.rollback()
                 raise

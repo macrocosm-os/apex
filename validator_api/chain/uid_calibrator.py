@@ -57,12 +57,12 @@ def maybe_acquire_lock(worker_id: str, ttl_sec: int = 600):
 
 
 async def generate_json_query() -> dict[str, Any]:
-    year, era = random.randint(1, 2025), random.choice(["BCE", "CE"])
+    year, era = random.randint(100, 2025), random.choice(["BCE", "CE"])
     year2 = random.randint(600, 2025)
     content = f"""\
 Provide a detailed JSON response containing a list the most powerful countries/kingdoms (up to 10) and their rulers in the year {year} {era}.
 Each ruler should include the ruler's name and a brief description.
-In addition to that, provide a long and detailed report of the most significant discovery in the year {year2} CE, with a description of the discovery, founders and its impact on the world.
+In addition to that, provide a long and detailed report of the most significant discovery in the year {year2} CE, with a description of the discovery, founders biography and its impact on the world.
 Answer only with JSON, do not include any other text.
 
 <example input>
