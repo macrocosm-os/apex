@@ -180,37 +180,72 @@ class UidTracker(BaseModel):
                 pass
 
     def save_to_sqlite(self, db_path: str = SQLITE_PATH) -> None:
-        with contextlib.closing(connect_db(db_path)) as con, con:  # transaction
-            con.execute("""
-                CREATE TABLE IF NOT EXISTS uids(
-                    uid INTEGER PRIMARY KEY,
-                    hkey NOT NULL,
-                    requests_per_task TEXT NOT NULL,
-                    success_per_task TEXT NOT NULL
+        """
+        Persist the current UID stats to SQLite.
+
+        Uses an UPSERT (`ON CONFLICT ... DO UPDATE`) so concurrent writers
+        cannot collide on the PRIMARY KEY (uid).  A short IMMEDIATE
+        transaction guarantees readers never see a partially-written table
+        but lets other processes keep reading while we write.
+        """
+        ts = datetime.utcnow().isoformat(timespec="seconds")
+
+        with contextlib.closing(connect_db(db_path)) as con:
+            con.execute("BEGIN IMMEDIATE")            # lock for writing, readers still allowed (WAL mode)
+            try:
+                # Ensure tables exist.
+                con.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS uids (
+                        uid                INTEGER PRIMARY KEY,
+                        hkey               TEXT NOT NULL,
+                        requests_per_task  TEXT NOT NULL,
+                        success_per_task   TEXT NOT NULL
+                    )
+                    """
                 )
-            """)
-            con.execute("""
-                    CREATE TABLE IF NOT EXISTS metadata(
+                con.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS metadata (
                         key TEXT PRIMARY KEY,
                         val TEXT NOT NULL
                     )
-                """
-            )
-            con.execute("DELETE FROM uids")
-            for uid_obj in self.uids.values():
-                con.execute(
-                    "INSERT INTO uids VALUES (?,?,?,?)",
-                    (
-                        uid_obj.uid,
-                        uid_obj.hkey,
-                        json.dumps(uid_obj.requests_per_task),
-                        json.dumps(uid_obj.success_per_task),
-                    ),
+                    """
                 )
-            con.execute(
-                "INSERT OR REPLACE INTO metadata(key,val) VALUES ('last_saved',?)",
-                (datetime.utcnow().isoformat(timespec='seconds'),),
-            )
+
+                # Upsert every UID row.
+                for uid_obj in self.uids.values():
+                    con.execute(
+                        """
+                        INSERT INTO uids (uid, hkey, requests_per_task, success_per_task)
+                        VALUES (?,?,?,?)
+                        ON CONFLICT(uid) DO UPDATE SET
+                            hkey               = excluded.hkey,
+                            requests_per_task  = excluded.requests_per_task,
+                            success_per_task   = excluded.success_per_task
+                        """,
+                        (
+                            uid_obj.uid,
+                            uid_obj.hkey,
+                            json.dumps(uid_obj.requests_per_task),
+                            json.dumps(uid_obj.success_per_task),
+                        ),
+                    )
+
+                # Record last-save timestamp.
+                con.execute(
+                    """
+                    INSERT INTO metadata (key, val)
+                    VALUES ('last_saved', ?)
+                    ON CONFLICT(key) DO UPDATE SET val = excluded.val
+                    """,
+                    (ts,),
+                )
+
+                con.commit()                         # end IMMEDIATE txn
+            except Exception:
+                con.rollback()
+                raise
 
     def load_from_sqlite(self, db_path: str = SQLITE_PATH) -> None:
         with contextlib.closing(connect_db(db_path)) as con:

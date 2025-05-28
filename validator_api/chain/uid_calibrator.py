@@ -186,7 +186,7 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
         if tps_values:
             mean_tps = np.mean(tps_values)
             logger.debug(
-                f"Calibration TPS - mean: {mean_tps:.2f}, "
+                f"[Calibration] TPS mean: {mean_tps:.2f}, "
                 f"min: {min(tps_values):.2f}, "
                 f"max: {max(tps_values):.2f}"
             )
@@ -238,6 +238,10 @@ async def periodic_network_calibration(
                         with contextlib.closing(sqlite3.connect(SQLITE_PATH)) as con, con:
                             con.execute("DELETE FROM calibration_lock WHERE id = 1")
                         logger.info(f"{worker_id} released writer lock")
+                        success_rates = [await sr.success_rate(TaskType.Inference) for sr in uid_tracker.uids.values()]
+                        logger.debug(
+                            f"Success rate average (writer): {np.mean(success_rates):.2f}"
+                        )
                 else:
                     logger.info(f"{worker_id} acting as reader; waiting for snapshot")
                     while True:
@@ -248,8 +252,13 @@ async def periodic_network_calibration(
                             ).fetchone()
                             if row is None:
                                 break
+                    
                     uid_tracker.load_from_sqlite()
                     logger.info(f"{worker_id} loaded fresh uid_tracker snapshot")
+                    success_rates = [await sr.success_rate(TaskType.Inference) for sr in uid_tracker.uids.values()]
+                    logger.debug(
+                        f"Success rate average (reader): {np.mean(success_rates):.2f}"
+                    )
         except BaseException as exc:  # pylint: disable=broad-except
             logger.error(f"Calibration error on {worker_id}: {exc}")
 
