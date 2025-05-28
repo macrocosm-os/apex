@@ -2,6 +2,8 @@ import json
 import random
 from enum import Enum
 from typing import Any, Iterable
+import sqlite3, json, time, os, contextlib
+from datetime import datetime
 
 from loguru import logger
 from pydantic import BaseModel
@@ -12,6 +14,17 @@ from validator_api.deep_research.utils import parse_llm_json
 shared_settings = settings.shared_settings
 
 SUCCESS_RATE_MIN = 0.9
+
+SQLITE_PATH = os.getenv("UID_TRACKER_DB", "uid_tracker.sqlite")
+
+
+def connect_db(db_path: str = SQLITE_PATH):
+    # Autocommit.
+    con = sqlite3.connect(db_path, isolation_level=None)
+    # Cheap concurrent reads.
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA busy_timeout=5000")
+    return con
 
 
 class CompletionFormat(str, Enum):
@@ -72,6 +85,7 @@ class UidTracker(BaseModel):
                 requests_per_task={task: 0 for task in TaskType},
                 success_per_task={task: 0 for task in TaskType},
             )
+        self.save_to_sqlite()
 
     @staticmethod
     async def body_to_task(body: dict[str, Any]) -> TaskType:
@@ -161,8 +175,58 @@ class UidTracker(BaseModel):
             try:
                 parse_llm_json(completion)
                 await self.set_query_success(uid, task_name)
+                logger.debug(f"Successfully scored UID {uid} and task {task_name}")
             except json.JSONDecodeError:
                 pass
+
+    def save_to_sqlite(self, db_path: str = SQLITE_PATH) -> None:
+        with contextlib.closing(connect_db(db_path)) as con, con:  # transaction
+            con.execute("""
+                CREATE TABLE IF NOT EXISTS uids(
+                    uid INTEGER PRIMARY KEY,
+                    hkey NOT NULL,
+                    requests_per_task TEXT NOT NULL,
+                    success_per_task TEXT NOT NULL
+                )
+            """)
+            con.execute("""
+                    CREATE TABLE IF NOT EXISTS metadata(
+                        key TEXT PRIMARY KEY,
+                        val TEXT NOT NULL
+                    )
+                """
+            )
+            con.execute("DELETE FROM uids")
+            for uid_obj in self.uids.values():
+                con.execute(
+                    "INSERT INTO uids VALUES (?,?,?,?)",
+                    (
+                        uid_obj.uid,
+                        uid_obj.hkey,
+                        json.dumps(uid_obj.requests_per_task),
+                        json.dumps(uid_obj.success_per_task),
+                    ),
+                )
+            con.execute(
+                "INSERT OR REPLACE INTO metadata(key,val) VALUES ('last_saved',?)",
+                (datetime.utcnow().isoformat(timespec='seconds'),),
+            )
+
+    def load_from_sqlite(self, db_path: str = SQLITE_PATH) -> None:
+        with contextlib.closing(connect_db(db_path)) as con:
+            rows = con.execute("""
+                SELECT uid,hkey,requests_per_task,success_per_task FROM uids
+            """).fetchall()
+            if not rows:
+                return
+            self.uids.clear()
+            for uid, hkey, req_json, succ_json in rows:
+                self.uids[uid] = Uid(
+                    uid=uid,
+                    hkey=hkey,
+                    requests_per_task=json.loads(req_json),
+                    success_per_task=json.loads(succ_json),
+                )
 
 
 # TODO: Move to FastAPI lifespan.

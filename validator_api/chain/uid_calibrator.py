@@ -1,29 +1,66 @@
-import asyncio
-import json
-import random
 import time
-from datetime import datetime
+import asyncio
+import contextlib
+import os
+import random
+import socket
+import sqlite3
 from typing import Any, AsyncGenerator
 
 import numpy as np
-import openai
 from loguru import logger
+import openai
 
 from shared import settings
-from shared.epistula import make_openai_query
-from validator_api.chain.uid_tracker import CompletionFormat, TaskType, UidTracker
+from validator_api.chain.uid_tracker import (
+    UidTracker,
+    CompletionFormat,
+    TaskType,
+    SQLITE_PATH,
+    connect_db,
+)
 from validator_api.deep_research.orchestrator_v2 import MODEL_ID
+from shared.epistula import make_openai_query
+
 
 shared_settings = settings.shared_settings
-
+STEP = 100
 TIMEOUT_CALIBRATION = 150
+
+
+@contextlib.contextmanager
+def maybe_acquire_lock(worker_id: str, ttl_sec: int = 600):
+    """
+    Try to grab writer lock. If we return True, caller is the writer.
+    Otherwise return False and the caller should act as a reader.
+    """
+    with contextlib.closing(connect_db()) as con, con:
+        con.execute("""
+            CREATE TABLE IF NOT EXISTS calibration_lock(
+                id          INTEGER PRIMARY KEY CHECK(id = 1),
+                holder      TEXT,
+                acquired_at INTEGER
+            )""")
+        # Clean up stale lock (no update for ttl)
+        con.execute("""
+            DELETE FROM calibration_lock
+            WHERE id = 1 AND strftime('%s','now') - acquired_at > ?
+        """, (ttl_sec,))
+        try:
+            con.execute(
+                "INSERT INTO calibration_lock(id, holder, acquired_at) VALUES (1, ?, strftime('%s','now'))",
+                (worker_id,),
+            )
+            yield True
+        except sqlite3.IntegrityError:
+            yield False
 
 
 async def generate_json_query() -> dict[str, Any]:
     year, era = random.randint(1, 2025), random.choice(["BCE", "CE"])
     year2 = random.randint(600, 2025)
     content = f"""\
-Provide a detailed JSON response containing a list the most powerful countries/kingdoms (up to 5) and their rulers in the year {year} {era}.
+Provide a detailed JSON response containing a list the most powerful countries/kingdoms (up to 10) and their rulers in the year {year} {era}.
 Each ruler should include the ruler's name and a brief description.
 In addition to that, provide a long and detailed report of the most significant discovery in the year {year2} CE, with a description of the discovery, founders and its impact on the world.
 Answer only with JSON, do not include any other text.
@@ -51,7 +88,7 @@ countries and their rulers in the year 2020 CE, significant discovery in the yea
     ],
     "discovery": {{
         "year": {year2},
-        "description": "Detailed description of the discovery."
+        "description": "Detailed description of the discovery, founders biography and its impact on the world"
     }}
 }}
 """
@@ -96,102 +133,127 @@ async def _collector(idx: int, response_task: asyncio.Task) -> tuple[list[str], 
     return chunks, timings
 
 
+async def _run_single_calibration(uid_tracker: UidTracker) -> None:
+    """Execute one complete calibration cycle.
+
+    Args:
+        uid_tracker: The in-memory tracker whose statistics are updated.
+    """
+    uid_tracker.resync()
+
+    all_uids: list[int] = [
+        int(uid)
+        for uid in shared_settings.METAGRAPH.uids
+        if shared_settings.METAGRAPH.stake[uid] * 0.05 < 1000
+    ]
+    logger.debug(f"Starting network calibration for {len(all_uids)} UIDs.")
+
+    for start in range(0, len(all_uids), STEP):
+        uids = all_uids[start : start + STEP]
+
+        body = await generate_json_query()
+
+        response_tasks: list[asyncio.Task[AsyncGenerator[Any, None] | tuple[list[str], list[float]]]] = [
+            asyncio.create_task(
+                make_openai_query(
+                    shared_settings.METAGRAPH,
+                    shared_settings.WALLET,
+                    timeout_seconds=TIMEOUT_CALIBRATION,
+                    body=body,
+                    uid=uid,
+                    stream=True,
+                )
+            )
+            for uid in uids
+        ]
+
+        collector_tasks: list[asyncio.Task[tuple[list[str], list[float]]]] = [
+            asyncio.create_task(_collector(idx, rt))
+            for idx, rt in enumerate(response_tasks)
+        ]
+        results: list[tuple[list[str], list[float]]] = await asyncio.gather(
+            *collector_tasks, return_exceptions=False
+        )
+
+        chunks_list: list[list[str]] = [res[0] for res in results]
+        timings_list: list[list[float]] = [res[1] for res in results]
+
+        tps_values: list[float] = [
+            (len(chks) / tms[-1]) if chks and tms and tms[-1] > 0 else 0.0
+            for chks, tms in zip(chunks_list, timings_list)
+        ]
+
+        if tps_values:
+            mean_tps = np.mean(tps_values)
+            logger.debug(
+                f"Calibration TPS - mean: {mean_tps:.2f}, "
+                f"min: {min(tps_values):.2f}, "
+                f"max: {max(tps_values):.2f}"
+            )
+
+        await uid_tracker.score_uid_chunks(
+            uids=uids,
+            chunks=chunks_list,
+            task_name=TaskType.Inference,
+            format=CompletionFormat.JSON,
+        )
+
+        await asyncio.sleep(30)
+
+    logger.debug(f"Network calibration completed for {len(all_uids)} UIDs")
+
+
 async def periodic_network_calibration(
     uid_tracker: UidTracker,
-    interval_hours: int = 24,
-    write_results: bool = True,
+    interval_hours: int = 12,
+    write_results: bool | None = None,
 ):
-    """Periodically queries the subnet to assess UID reliability."""
-    # TODO: Add docstring.
-    STEP = 100
-    await asyncio.sleep(random.randint(0, 60))
+    """Run calibration at fixed intervals with single-writer semantics.
+
+    The first worker that acquires the SQLite lock becomes the *writer*,
+    performs calibration, and persists the tracker via
+    :pyfunc:`UidTracker.save_to_sqlite`. Other workers act as *readers*:
+    they block until the writer finishes, then load the fresh snapshot with
+    :pyfunc:`UidTracker.load_from_sqlite`.
+
+    Args:
+        uid_tracker: The tracker instance local to this worker process.
+        interval_hours: Interval between global calibration cycles.
+        write_results: Deprecated. Retained so existing calls stay valid.
+    """
+    # Stagger startup to reduce lock contention bursts.
+    # await asyncio.sleep(random.randint(0, 120))
+
+    worker_id = f"{socket.gethostname()}:{os.getpid()}"
+
     while True:
         try:
-            uid_tracker.resync()
-            # Filter out validators.
-            all_uids: list[int] = [
-                int(uid) for uid in shared_settings.METAGRAPH.uids if shared_settings.METAGRAPH.stake[uid] * 0.05 < 1000
-            ]
-            logger.debug(f"Starting network calibration for {len(all_uids)} UIDs.")
+            with maybe_acquire_lock(worker_id) as is_writer:
+                if is_writer:
+                    logger.info(f"{worker_id} acquired writer lock")
+                    try:
+                        await _run_single_calibration(uid_tracker)
+                        uid_tracker.save_to_sqlite()
+                    finally:
+                        with contextlib.closing(sqlite3.connect(SQLITE_PATH)) as con, con:
+                            con.execute("DELETE FROM calibration_lock WHERE id = 1")
+                        logger.info(f"{worker_id} released writer lock")
+                else:
+                    logger.info(f"{worker_id} acting as reader; waiting for snapshot")
+                    while True:
+                        await asyncio.sleep(30)
+                        with sqlite3.connect(SQLITE_PATH) as con:
+                            row = con.execute(
+                                "SELECT 1 FROM calibration_lock WHERE id = 1"
+                            ).fetchone()
+                            if row is None:
+                                break
+                    uid_tracker.load_from_sqlite()
+                    logger.info(f"{worker_id} loaded fresh uid_tracker snapshot")
+        except BaseException as exc:  # pylint: disable=broad-except
+            logger.error(f"Calibration error on {worker_id}: {exc}")
 
-            for start in range(0, len(all_uids), STEP):
-                uids = all_uids[start : start + STEP]
-
-                body = await generate_json_query()
-
-                # Fire off all queries concurrently.
-                response_tasks: list[asyncio.Task[AsyncGenerator[Any, None] | tuple[list[str], list[float]]]] = [
-                    asyncio.create_task(
-                        make_openai_query(
-                            shared_settings.METAGRAPH,
-                            shared_settings.WALLET,
-                            timeout_seconds=TIMEOUT_CALIBRATION,
-                            body=body,
-                            uid=uid,
-                            stream=True,
-                        )
-                    )
-                    for uid in uids
-                ]
-
-                # Collect the streams.
-                collector_tasks: list[asyncio.Task[tuple[list[str], list[float]]]] = [
-                    asyncio.create_task(_collector(i, rt)) for i, rt in enumerate(response_tasks)
-                ]
-                results: list[tuple[list[str], list[float]]] = await asyncio.gather(
-                    *collector_tasks, return_exceptions=False
-                )
-
-                # Split into parallel lists so indices align with `uids`.
-                chunks_list: list[list[str]] = [res[0] for res in results]
-                timings_list: list[list[float]] = [res[1] for res in results]
-
-                # Tokens per second statistics.
-                tps_values: list[float] = []
-                for chunks, timings in zip(chunks_list, timings_list):
-                    # Need at least one timing point to measure duration.
-                    if chunks and timings and timings[-1] > 0:
-                        tps_values.append(len(chunks) / timings[-1])
-                    else:
-                        tps_values.append(0.0)
-
-                if tps_values:
-                    mean_tps = np.mean(tps_values)
-                    min_tps = min(tps_values)
-                    max_tps = max(tps_values)
-                    logger.debug(f"Calibration TPS - mean: {mean_tps:.2f}, min: {min_tps:.2f}, max: {max_tps:.2f}")
-
-                # Feed into the tracker.
-                await uid_tracker.score_uid_chunks(
-                    uids=uids,
-                    chunks=chunks_list,
-                    task_name=TaskType.Inference,
-                    format=CompletionFormat.JSON,
-                )
-
-                # Write results to a JSONL file if enabled.
-                # TODO: Move to SQLite.
-                if write_results:
-                    with open("calibration_results.jsonl", "a+") as f:
-                        for idx, (uid, tps) in enumerate(zip(uids, tps_values)):
-                            success_rate = await uid_tracker.uids[uid].success_rate(TaskType.Inference)
-                            result: dict[str, Any] = {
-                                "uid": uid,
-                                "success_rate": success_rate,
-                                "tps": round(tps, 2),
-                                "token_amount": len(chunks_list[idx]),
-                                "date": datetime.now().isoformat(),
-                                "hotkey": uid_tracker.uids[uid].hkey,
-                            }
-                            f.write(json.dumps(result) + "\n")
-
-                await asyncio.sleep(30)
-
-            logger.debug(f"Network calibration completed for UIDs: {len(all_uids)}")
-        except Exception as e:
-            logger.error(f"Error during periodic network calibration: {e}")
-
-        logger.debug(f"Waiting for next calibration in {interval_hours:.2f}h")
+        logger.debug(f"Waiting {interval_hours:.2f}h before next calibration")
         await asyncio.sleep(interval_hours * 3600)
 
 
