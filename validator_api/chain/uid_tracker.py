@@ -75,7 +75,7 @@ class UidTracker(BaseModel):
         self.resync()
 
     def resync(self):
-        self.load_from_sqlite()
+        # self.load_from_sqlite()
         hotkeys = shared_settings.METAGRAPH.hotkeys
         for uid in range(int(shared_settings.METAGRAPH.n)):
             if uid in self.uids and hotkeys[uid] == self.uids[uid].hkey:
