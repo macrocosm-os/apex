@@ -198,7 +198,7 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
             format=CompletionFormat.JSON,
         )
 
-        await asyncio.sleep(30)
+        await asyncio.sleep(20)
 
     logger.debug(f"Network calibration completed for {len(all_uids)} UIDs")
 
