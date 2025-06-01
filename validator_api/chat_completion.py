@@ -23,6 +23,7 @@ TOKENS_MIN_STREAM = 21
 
 async def stream_best_response(  # noqa: C901
     responses: list[asyncio.Task[Any]],
+    stream_finished: list[bool],
     collected_chunks_list: list[list[str]],
     collected_chunks_raw_list: list[list[Any]],
     body: dict[str, Any],
@@ -104,16 +105,17 @@ async def stream_best_response(  # noqa: C901
                 collected_chunks_list[idx].append(chunk.choices[0].delta.content)
                 timings_list[idx].append(time.monotonic() - response_start_time)
 
-            # Stream ended before N tokens - submit what we have.
-            if reliable_uid and not first_found_evt.is_set() and token_buffer:
+            stream_finished[idx] = True
+            # Stream ended before N tokens, and all miners finished the stream - submit what we have.
+            if reliable_uid and not first_found_evt.is_set() and token_buffer and sum(stream_finished) == len(stream_finished):
                 first_found_evt.set()
                 # None = stream ended.
                 await first_queue.put((idx, token_buffer, None))
                 
         except (openai.APIConnectionError, asyncio.CancelledError):
             pass
-        except BaseException as e:
-            logger.error(f"Collector error for miner uid {uids[idx]}: {e}")
+        except Exception as e:
+            logger.exception(f"Collector error for miner index {idx}: {e}")
 
     # Spawn collectors for every miner.
     reliable_uids: list[int] = []
@@ -246,6 +248,7 @@ async def chat_completion(
     timeout_seconds = min(timeout_seconds, shared_settings.MAX_TIMEOUT)
 
     # Initialize chunks collection for each miner
+    stream_finished = [False for _ in uids]
     collected_chunks_list = [[] for _ in uids]
     collected_chunks_raw_list = [[] for _ in uids]
     timings_list = [[] for _ in uids]
@@ -271,6 +274,7 @@ async def chat_completion(
         return StreamingResponse(
             stream_best_response(
                 responses=response_tasks,
+                stream_finished=stream_finished,
                 collected_chunks_list=collected_chunks_list,
                 collected_chunks_raw_list=collected_chunks_raw_list,
                 body=body,

@@ -120,6 +120,8 @@ async def _collector(idx: int, response_task: asyncio.Task) -> tuple[list[str], 
             return chunks, timings
 
         async for chunk in stream:
+            if not chunk.choices:
+                continue
             content = getattr(chunk.choices[0].delta, "content", None)
             if content:
                 chunks.append(content)
