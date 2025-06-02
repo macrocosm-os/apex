@@ -113,7 +113,7 @@ class SharedSettings(BaseSettings):
     API_TOP_MINERS_TO_STREAM: int = Field(10, env="API_TOP_MINERS_TO_STREAM")
     API_MIN_MINERS_TO_SAMPLE: int = Field(50, env="API_MIN_UIDS_TO_SAMPLE")
     OVERRIDE_AVAILABLE_AXONS: list[str] | None = Field(None, env="OVERRIDE_AVAILABLE_AXONS")
-    API_ENABLE_BALANCE: bool = Field(True, env="API_ENABLE_BALANCE")
+    API_ENABLE_BALANCE: bool = Field(False, env="API_ENABLE_BALANCE")
 
     # Validator scoring API (.env.validator).
     SCORE_ORGANICS: bool = Field(False, env="SCORE_ORGANICS")
