@@ -3,6 +3,7 @@ import copy
 import threading
 from multiprocessing.managers import AcquirerProxy
 
+import wandb
 from loguru import logger
 from pydantic import ConfigDict
 
@@ -11,9 +12,11 @@ from prompting.rewards.scoring_config import ScoringConfig
 from prompting.tasks.base_task import BaseTextTask
 from prompting.tasks.MSRv2_task import MSRv2Task
 from prompting.tasks.task_registry import TaskRegistry
+from shared import settings
 from shared.base import DatasetEntry
 from shared.dendrite import DendriteResponseEvent
 from shared.logging import RewardLoggingEvent, log_event
+from shared.logging.logging import reinit_wandb, should_reinit_wandb
 from shared.loop_runner import AsyncLoopRunner
 from shared.timer import Timer
 
@@ -96,7 +99,7 @@ class TaskScorer(AsyncLoopRunner):
 
         # and there we then calculate the reward
         reward_pipeline = TaskRegistry.get_task_reward(scoring_config.task)
-        with Timer(label=f"Scoring {scoring_config.task.__class__.__name__}"):
+        with Timer(label=f"Scoring {scoring_config.task.__class__.__name__}") as scoring_timer:
             if self.task_queue is None:
                 raise ValueError("Task queue must be provided to TaskScorer.run_step()")
             reward_events = await reward_pipeline.apply(
@@ -110,6 +113,35 @@ class TaskScorer(AsyncLoopRunner):
             )
             if scoring_config.task.organic:
                 logger.debug(f"Reward events size: {len(reward_events)}")
+                organic_reward_value = None
+                # Ensure reward_events and rewards list are not empty
+                if reward_events and reward_events[0].rewards:
+                    organic_reward_value = reward_events[0].rewards[0]
+
+                final_scoring_time = scoring_timer.final_time
+
+                logger.info(
+                    f"Organic task {scoring_config.task.task_id} scored. "
+                    f"Reward: {organic_reward_value}, Duration: {final_scoring_time:.2f}s"
+                )
+
+                # Log only specific fields to wandb for organic tasks
+                if settings.shared_settings.WANDB_ON:
+                    if should_reinit_wandb():
+                        reinit_wandb()
+
+                    organic_log_data = {
+                        "organic_reward": organic_reward_value,
+                        "organic_chunk_timings": scoring_config.response.stream_results_all_chunks_timings,
+                        "organic_task_name": scoring_config.task.name,
+                        "organic_task_id": scoring_config.task.task_id,
+                    }
+                    try:
+                        wandb.log(organic_log_data, step=scoring_config.step)
+                    except Exception as e:
+                        logger.error(
+                            f"Error during wandb log for organic task {scoring_config.task_id}: {e} - data: {organic_log_data}"
+                        )
         self.reward_events.append(reward_events)
 
         logger.debug(
