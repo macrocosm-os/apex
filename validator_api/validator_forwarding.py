@@ -86,15 +86,18 @@ class ValidatorRegistry(BaseModel):
                 break
             else:
                 await asyncio.sleep(5)
+
         if not validators:
             logger.error(f"Could not find available validator after {self.max_retries}")
             return None
+
         if balance:
             weights = [validator.stake for validator in validators.values()]
             uid = random.choices(list(validators.keys()), weights=weights, k=1)[0]
             chosen = {uid: validators[uid]}
         else:
-            chosen = self.validators
+            # populated by get_available_validators
+            chosen = validators
         return chosen
 
     def update_validators(self, uid: int, response_code: int) -> None:
