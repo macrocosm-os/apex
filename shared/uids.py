@@ -80,7 +80,7 @@ def get_random_uids(k: int | None = 10**6, exclude: list[int] = None, own_uid: i
         if exclude is None or uid not in exclude:
             candidate_uids.append(uid)
 
-    # Check if candidate_uids contain enough for querying, if not grab all avaliable uids
+    # Check if candidate_uids contain enough for querying, if not grab all available uids
     if 0 < len(candidate_uids) < k:
         logger.warning(
             f"Requested {k} uids but only {len(candidate_uids)} were available. To disable this warning reduce the sample size (--neuron.sample_size)"
