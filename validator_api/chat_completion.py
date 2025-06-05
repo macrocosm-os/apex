@@ -21,7 +21,9 @@ from validator_api.utils import filter_available_uids
 TOKENS_MIN_STREAM = 21
 
 
-async def stream_best_response(  # noqa: C901
+async def collect_streams(  # noqa: C901
+    primary_responses: list[asyncio.Task[Any]],
+    primary_uids: list[int],
     responses: list[asyncio.Task[Any]],
     stream_finished: list[bool],
     collected_chunks_list: list[list[str]],
@@ -30,7 +32,6 @@ async def stream_best_response(  # noqa: C901
     uids: list[int],
     timings_list: list[list[float]],
     uid_tracker: UidTracker,
-    format: CompletionFormat | None = None,
     timeout: float = shared_settings.INFERENCE_TIMEOUT,
 ) -> AsyncGenerator[str, None]:
     """Start streaming as soon as any miner produces the first non-empty chunk.
@@ -207,56 +208,57 @@ async def get_response_from_miner(body: dict[str, Any], uid: int, timeout_second
 
 async def chat_completion(
     body: dict[str, Any],
+    # uids parameter is deprecated.
     uids: Optional[list[int]] = None,
-    num_miners: int = 10,
+    num_miners: int = 5,
     uid_tracker: UidTracker | None = None,
     add_reliable_miners: int = 2,
 ) -> tuple | StreamingResponse:
     # TODO: Add docstring.
     """Handle chat completion with multiple miners in parallel."""
     body["seed"] = int(body.get("seed") or random.randint(0, 1000000))
-    if not uids:
-        logger.debug(
-            "Finding miners for task: {} model: {} test: {} n_miners: {}",
-            body.get("task"),
-            body.get("model"),
-            shared_settings.API_TEST_MODE,
-            num_miners,
-        )
-        uids = body.get("uids") or filter_available_uids(
-            task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=num_miners
-        )
-        if not uids:
-            raise HTTPException(status_code=500, detail="No available miners")
-        uids = random.sample(uids, min(len(uids), num_miners))
+    logger.debug(
+        "Finding miners for task: {} model: {} test: {} n_miners: {}",
+        body.get("task"),
+        body.get("model"),
+        shared_settings.API_TEST_MODE,
+        num_miners,
+    )
+    top_uids = filter_available_uids(
+        task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=num_miners
+    )
+    if not top_uids:
+        raise HTTPException(status_code=500, detail="No available miners")
+    top_uids = random.sample(top_uids, min(len(top_uids), num_miners))
 
     # Add reliable uids to the stream, to guarantee reliable stream.
-    if uid_tracker is not None:
-        reliable_uids = await uid_tracker.sample_reliable(
-            task=TaskType.Inference, amount=add_reliable_miners, success_rate=SUCCESS_RATE_MIN, add_random_extra=False
-        )
-        uids.extend(list(reliable_uids.keys()))
-        uids = list(set(uids))
-        logger.debug(
-            f"Added reliable miners: {list(reliable_uids.keys())} to the request, total uids: {len(uids)}. "
-            f"Requested: {num_miners}"
-        )
+    # if uid_tracker is not None and add_reliable_miners > 0:
+    #     reliable_uids = await uid_tracker.sample_reliable(
+    #         task=TaskType.Inference, amount=add_reliable_miners, success_rate=SUCCESS_RATE_MIN, add_random_extra=False
+    #     )
+    #     uids.extend(list(reliable_uids.keys()))
+    #     uids = list(set(uids))
+    #     logger.debug(
+    #         f"Added reliable miners: {list(reliable_uids.keys())} to the request, total uids: {len(uids)}. "
+    #         f"Requested: {num_miners}"
+    #     )
 
     STREAM = body.get("stream", False)
-    timeout_seconds = float(body.get("timeout", shared_settings.INFERENCE_TIMEOUT))
-    timeout_seconds = max(timeout_seconds, shared_settings.INFERENCE_TIMEOUT)
+    timeout_seconds = float(body.get("timeout", shared_settings.INFERENCE_TIMEOUT * 2))
+    timeout_seconds = max(timeout_seconds, shared_settings.INFERENCE_TIMEOUT * 2)
     timeout_seconds = min(timeout_seconds, shared_settings.MAX_TIMEOUT)
+    logger.debug(f"Changing timeout from {body.get('timeout')} to {timeout_seconds}. Messages: {body.get('messages')}")
 
     # Initialize chunks collection for each miner
-    stream_finished = [False for _ in uids]
-    collected_chunks_list = [[] for _ in uids]
-    collected_chunks_raw_list = [[] for _ in uids]
-    timings_list = [[] for _ in uids]
+    stream_finished = [False for _ in top_uids]
+    collected_chunks_list = [[] for _ in top_uids]
+    collected_chunks_raw_list = [[] for _ in top_uids]
+    timings_list = [[] for _ in top_uids]
 
     if STREAM:
         # Create tasks for all miners
         response_tasks: list[asyncio.Task] = []
-        for uid in uids:
+        for uid in top_uids:
             try:
                 response_tasks.append(
                     asyncio.create_task(
@@ -269,16 +271,16 @@ async def chat_completion(
                 logger.error(f"Error creating task for miner {uid}: {e}")
                 continue
 
-        logger.debug(f"Created {len(response_tasks)}/{len(uids)} response tasks for streaming.")
+        logger.debug(f"Created {len(response_tasks)}/{len(top_uids)} response tasks for streaming.")
 
         return StreamingResponse(
-            stream_best_response(
+            collect_streams(
                 responses=response_tasks,
                 stream_finished=stream_finished,
                 collected_chunks_list=collected_chunks_list,
                 collected_chunks_raw_list=collected_chunks_raw_list,
                 body=body,
-                uids=uids,
+                uids=top_uids,
                 timings_list=timings_list,
                 uid_tracker=uid_tracker,
                 timeout=timeout_seconds,
@@ -293,7 +295,7 @@ async def chat_completion(
         # For non-streaming requests, wait for first valid response
         response_tasks = [
             asyncio.create_task(get_response_from_miner(body=body, uid=uid, timeout_seconds=timeout_seconds))
-            for uid in uids
+            for uid in top_uids
         ]
 
         first_valid_response = None

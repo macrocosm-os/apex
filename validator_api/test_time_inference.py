@@ -98,7 +98,7 @@ async def make_api_call(
                         "seed": random.randint(0, 1000000),
                     },
                     num_miners=3,
-                    uids=uids,
+                    top_uids=uids,
                 )
                 response_str = response.choices[0].message.content
             else:

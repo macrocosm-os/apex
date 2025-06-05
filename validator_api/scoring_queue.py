@@ -91,6 +91,40 @@ class ScoringQueue(AsyncLoopRunner):
             tasks.append(task)
         await asyncio.gather(*tasks)
         await asyncio.sleep(0.1)
+    
+    async def _is_request_valid(self, body: dict[str, Any]) -> bool:
+        messages = body.get("messages")
+        if not messages:
+            # No messages.
+            return False
+
+        if not isinstance(messages, list):
+            # Invalid messages type.
+            return False
+
+        roles: list[str] = []
+        for message in messages:
+            role = message.get("role")
+            if not role:
+                # No role specified.
+                return False
+
+            roles.append(role)
+
+            content = message.get("content")
+            # TODO: After image support, check for dict with "type", "text", "image".
+            if not isinstance(content, str):
+                # Invalid content.
+                return False
+            
+            # For now do not score Apex, since it can be exploited.
+            if role == "system" and "You are Apex" in content:
+                return False
+
+        if roles.count("system") >= 2:
+            return False
+
+        return True
 
     async def append_response(
         self,
@@ -127,6 +161,35 @@ class ScoringQueue(AsyncLoopRunner):
             "timings": timing_dict,
             "chunk_dicts_raw": chunk_dict_raw,
         }
+        if not await self._is_request_valid(body):
+            logger.debug(
+                f"Invalid request, skipping scoring: {body.get('messages')}"
+            )
+            return
+
+        try:
+            with open("api.jsonl", "a+", encoding="utf-8") as f:
+                f.write(json.dumps(payload) + "\n")
+            tps = {}
+            response_len = {}
+            for u in uids:
+                uid = str(u)
+                response_len[uid] = len(chunk_dict_raw.get(uid, []))
+                timings_u = timing_dict.get(uid, [])
+                if timings_u:
+                    dur = timings_u[-1] or 1e-6
+                    tps[u] = len(chunk_dict_raw.get(uid, [])) / dur
+            sorted_tps = dict(sorted(tps.items(), key=lambda x: x[1], reverse=True))
+            response_len = dict(sorted(response_len.items(), key=lambda x: x[1], reverse=True))
+
+            logger.debug(
+                "Sending to score\n"
+                f"Body: {body.get('messages')}\n"
+                f"TPS: {sorted_tps}\n"
+                f"Responses: {response_len}\n"
+            )
+        except BaseException as e:
+            logger.exception(e)
         scoring_item = ScoringPayload(payload=payload, date=datetime.datetime.now().replace(microsecond=0))
         # logger.info(f"Appending organic to scoring queue: {scoring_item}")
         async with self._scoring_lock:

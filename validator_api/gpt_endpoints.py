@@ -107,7 +107,7 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
         elif body.get("mixture", False) or body.get("inference_mode", None) == "Mixture-of-Agents":
             return await mixture_of_miners(body, uids=uids)
         else:
-            return await chat_completion(body, uids=uids, uid_tracker=uid_tracker)
+            return await chat_completion(body, top_uids=uids, uid_tracker=uid_tracker)
 
     except Exception as e:
         logger.exception(f"Error in chat completion: {e}")
