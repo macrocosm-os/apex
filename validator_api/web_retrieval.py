@@ -43,20 +43,13 @@ async def web_retrieval(  # noqa: C901
 ):
     """Launch *all* requested miners in parallel, return immediately when the first miner delivers a valid result."""
     # Choose miners.
-    if request.uids:
-        try:
-            uids: list[int] = list(map(int, request.uids))
-        except Exception:
-            logger.error(f"Invalid uids supplied: {request.uids}")
-            raise HTTPException(status_code=500, detail="Invalid miner uids")
-    else:
-        available = filter_available_uids(
-            task="WebRetrievalTask",
-            test=shared_settings.API_TEST_MODE,
-            n_miners=request.n_miners,
-            explore=shared_settings.API_UIDS_EXPLORE,
-        )
-        uids = random.sample(available, min(len(available), request.n_miners))
+    available = filter_available_uids(
+        task="WebRetrievalTask",
+        test=shared_settings.API_TEST_MODE,
+        n_miners=request.n_miners,
+        explore=shared_settings.API_UIDS_EXPLORE,
+    )
+    uids = random.sample(available, min(len(available), request.n_miners))
 
     if not uids:
         raise HTTPException(status_code=500, detail="No available miners")
