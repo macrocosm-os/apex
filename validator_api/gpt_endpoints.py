@@ -89,8 +89,8 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
                 task=body.get("task"),
                 model=body.get("model"),
                 test=shared_settings.API_TEST_MODE,
-                n_miners=shared_settings.API_TOP_MINERS_TO_STREAM,
-                n_top_incentive=shared_settings.API_TOP_MINERS_SAMPLE,
+                n_miners=shared_settings.API_TOP_UIDS_TO_STREAM,
+                n_top_incentive=shared_settings.API_TOP_UIDS_SAMPLE,
                 explore=shared_settings.API_UIDS_EXPLORE,
             )
         if not uids:
@@ -225,7 +225,7 @@ async def submit_chain_of_thought_job(
                 task=body.get("task"),
                 model=body.get("model"),
                 test=shared_settings.API_TEST_MODE,
-                n_miners=shared_settings.API_TOP_MINERS_TO_STREAM,
+                n_miners=shared_settings.API_TOP_UIDS_TO_STREAM,
             )
         )
 
