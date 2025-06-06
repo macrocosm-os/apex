@@ -14,20 +14,23 @@ class WeightSynchronizer:
 
     def __init__(self, metagraph: bt.Metagraph, wallet: bt.Wallet, weight_dict: dict[int, list[float]]):
         self.wallet = wallet
-        self.uid = metagraph.hotkeys.index(wallet.hotkey.ss58_address)
+        self.current_hotkey = wallet.hotkey.ss58_address
+        self.uid = metagraph.hotkeys.index(self.current_hotkey)
+        # Handle testnet case.
+        validator_uids = set([uid for uid in WHITELISTED_VALIDATORS_UIDS if uid < metagraph.n.item()])
 
-        self.weight_matrix = np.zeros((len(WHITELISTED_VALIDATORS_UIDS), 1024))
-        self.stake_matrix = np.array([metagraph.S[uid] for uid in WHITELISTED_VALIDATORS_UIDS])
+        self.weight_matrix = np.zeros((len(validator_uids), metagraph.n.item()))
+        self.stake_matrix = np.array([metagraph.S[uid] for uid in validator_uids])
 
-        self.validator_uids = np.array(WHITELISTED_VALIDATORS_UIDS)
-        self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in WHITELISTED_VALIDATORS_UIDS])
+        self.validator_uids = np.array(validator_uids)
+        self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in validator_uids])
         self.validator_addresses = np.array(
-            [f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}" for uid in WHITELISTED_VALIDATORS_UIDS]
+            [f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}" for uid in validator_uids if uid < metagraph.n.item()]
         )
 
         self.weight_dict = weight_dict
 
-        self.request_tracker = np.zeros(len(WHITELISTED_VALIDATORS_UIDS))
+        self.request_tracker = np.zeros(len(validator_uids))
 
     async def make_epistula_request(self, weight_matrix: np.ndarray, validator_address: str, validator_hotkey: str):
         """Make an epistula request to the validator at the given address."""
