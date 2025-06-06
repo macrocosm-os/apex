@@ -41,17 +41,13 @@ jobs:
         poetry run pip list
 
     # Style/format checks.
-    - name: Run Black (code formatter)
-      run: |
-        poetry run black --check --diff .
-
-    - name: Run isort (import sorting)
-      run: |
-        poetry run isort --check-only --diff --profile black .
-
     - name: Run Ruff (linter)
       run: |
         poetry run ruff check --diff .
+
+    - name: Run Ruff (formatter)
+      run: |
+        poetry run ruff format --check --diff .
 
     - name: Test with pytest
       run: |
