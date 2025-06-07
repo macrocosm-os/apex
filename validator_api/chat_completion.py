@@ -110,9 +110,9 @@ async def collect_streams(  # noqa: C901
                 await producer_chunks.put(_END_OF_STREAM)
 
             elif not producer_found.is_set() and collected_chunks_raw_list:
-                # No primary stream found, fallback to the longest response once 80% of the uids finished the stream.
+                # No primary stream found, fallback to the longest response once 50% of the uids finished the stream.
                 finished_streams = sum(stream_finished)
-                if finished_streams > int(len(stream_finished) * 0.8):
+                if finished_streams > int(len(stream_finished) * 0.5):
                     logger.debug(
                         f"Fallback to the longest response, finished streams: "
                         f"{finished_streams} / {len(stream_finished)}"
@@ -142,7 +142,7 @@ async def collect_streams(  # noqa: C901
     try:
         chunk = await asyncio.wait_for(producer_chunks.get(), timeout=timeout)
     except asyncio.TimeoutError:
-        logger.error("No miner produced a valid chunk within %.1f s", timeout)
+        logger.error(f"No miner produced a valid chunk within {timeout:.2f}")
         yield 'data: {"error": "502 - No valid response received"}\n\n'
         return
 
