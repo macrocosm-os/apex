@@ -1,27 +1,20 @@
-import time
 import asyncio
 import contextlib
 import os
 import random
 import socket
 import sqlite3
+import time
 from typing import Any, AsyncGenerator
 
 import numpy as np
-from loguru import logger
 import openai
+from loguru import logger
 
 from shared import settings
-from validator_api.chain.uid_tracker import (
-    UidTracker,
-    CompletionFormat,
-    TaskType,
-    SQLITE_PATH,
-    connect_db,
-)
-from validator_api.deep_research.orchestrator_v2 import MODEL_ID
 from shared.epistula import make_openai_query
-
+from validator_api.chain.uid_tracker import SQLITE_PATH, CompletionFormat, TaskType, UidTracker, connect_db
+from validator_api.deep_research.orchestrator_v2 import MODEL_ID
 
 shared_settings = settings.shared_settings
 STEP = 100
@@ -30,22 +23,24 @@ TIMEOUT_CALIBRATION = 150
 
 @contextlib.contextmanager
 def maybe_acquire_lock(worker_id: str, ttl_sec: int = 600):
-    """
-    Try to grab writer lock. If we return True, caller is the writer.
-    Otherwise return False and the caller should act as a reader.
-    """
+    """Try to grab writer lock. If we return True, caller is the writer."""
     with contextlib.closing(connect_db()) as con, con:
-        con.execute("""
+        con.execute(
+            """
             CREATE TABLE IF NOT EXISTS calibration_lock(
                 id          INTEGER PRIMARY KEY CHECK(id = 1),
                 holder      TEXT,
                 acquired_at INTEGER
-            )""")
+            )"""
+        )
         # Clean up stale lock (no update for ttl)
-        con.execute("""
+        con.execute(
+            """
             DELETE FROM calibration_lock
             WHERE id = 1 AND strftime('%s','now') - acquired_at > ?
-        """, (ttl_sec,))
+        """,
+            (ttl_sec,),
+        )
         try:
             con.execute(
                 "INSERT INTO calibration_lock(id, holder, acquired_at) VALUES (1, ?, strftime('%s','now'))",
@@ -144,9 +139,7 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
     uid_tracker.resync()
 
     all_uids: list[int] = [
-        int(uid)
-        for uid in shared_settings.METAGRAPH.uids
-        if shared_settings.METAGRAPH.stake[uid] * 0.05 < 1000
+        int(uid) for uid in shared_settings.METAGRAPH.uids if shared_settings.METAGRAPH.stake[uid] * 0.05 < 1000
     ]
     logger.debug(f"Starting network calibration for {len(all_uids)} UIDs.")
 
@@ -170,12 +163,9 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
         ]
 
         collector_tasks: list[asyncio.Task[tuple[list[str], list[float]]]] = [
-            asyncio.create_task(_collector(idx, rt))
-            for idx, rt in enumerate(response_tasks)
+            asyncio.create_task(_collector(idx, rt)) for idx, rt in enumerate(response_tasks)
         ]
-        results: list[tuple[list[str], list[float]]] = await asyncio.gather(
-            *collector_tasks, return_exceptions=False
-        )
+        results: list[tuple[list[str], list[float]]] = await asyncio.gather(*collector_tasks, return_exceptions=False)
 
         chunks_list: list[list[str]] = [res[0] for res in results]
         timings_list: list[list[float]] = [res[1] for res in results]
@@ -241,26 +231,20 @@ async def periodic_network_calibration(
                             con.execute("DELETE FROM calibration_lock WHERE id = 1")
                         logger.info(f"{worker_id} released writer lock")
                         success_rates = [await sr.success_rate(TaskType.Inference) for sr in uid_tracker.uids.values()]
-                        logger.debug(
-                            f"Success rate average (writer): {np.mean(success_rates):.2f}"
-                        )
+                        logger.debug(f"Success rate average (writer): {np.mean(success_rates):.2f}")
                 else:
                     logger.info(f"{worker_id} acting as reader; waiting for snapshot")
                     while True:
                         await asyncio.sleep(30)
                         with sqlite3.connect(SQLITE_PATH) as con:
-                            row = con.execute(
-                                "SELECT 1 FROM calibration_lock WHERE id = 1"
-                            ).fetchone()
+                            row = con.execute("SELECT 1 FROM calibration_lock WHERE id = 1").fetchone()
                             if row is None:
                                 break
-                    
+
                     uid_tracker.load_from_sqlite()
                     logger.info(f"{worker_id} loaded fresh uid_tracker snapshot")
                     success_rates = [await sr.success_rate(TaskType.Inference) for sr in uid_tracker.uids.values()]
-                    logger.debug(
-                        f"Success rate average (reader): {np.mean(success_rates):.2f}"
-                    )
+                    logger.debug(f"Success rate average (reader): {np.mean(success_rates):.2f}")
         except BaseException as exc:  # pylint: disable=broad-except
             logger.error(f"Calibration error on {worker_id}: {exc}")
 

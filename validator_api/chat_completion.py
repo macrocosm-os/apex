@@ -1,12 +1,11 @@
 import asyncio
+import itertools
 import json
 import random
 import time
 from typing import Any, AsyncGenerator, Optional
 
 import numpy as np
-from numpy import ndarray
-
 import openai
 from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
@@ -14,7 +13,7 @@ from loguru import logger
 
 from shared import settings
 from shared.uids import get_uids
-from validator_api.chain.uid_tracker import SUCCESS_RATE_MIN, CompletionFormat, TaskType, UidTracker
+from validator_api.chain.uid_tracker import SUCCESS_RATE_MIN, TaskType, UidTracker
 
 shared_settings = settings.shared_settings
 
@@ -23,17 +22,18 @@ from validator_api import scoring_queue
 from validator_api.utils import filter_available_uids
 
 TOKENS_MIN_STREAM = 21
+_END_OF_STREAM: object = object()
 
 
 async def collect_streams(  # noqa: C901
-    primary_responses: list[asyncio.Task[Any]],
+    primary_streams: list[asyncio.Task[Any]],
     primary_uids: list[int],
-    responses: list[asyncio.Task[Any]],
+    extra_streams: list[asyncio.Task[Any]],
     stream_finished: list[bool],
     collected_chunks_list: list[list[str]],
     collected_chunks_raw_list: list[list[Any]],
     body: dict[str, Any],
-    uids: list[int],
+    extra_uids: list[int],
     timings_list: list[list[float]],
     uid_tracker: UidTracker,
     timeout: float = shared_settings.INFERENCE_TIMEOUT,
@@ -64,133 +64,112 @@ async def collect_streams(  # noqa: C901
             return False
 
     # Guards first stream.
-    first_found_evt = asyncio.Event()
-    first_queue: asyncio.Queue[tuple[int, Any, AsyncGenerator]] = asyncio.Queue()
+    producer_found = asyncio.Event()
+    producer_idx: int | None = None
+    producer_chunks: asyncio.Queue[str | object] = asyncio.Queue()
 
     async def _collector(idx: int, resp_task: asyncio.Task, reliable_uid: bool) -> None:
         """Miner stream collector with enhanced N-token buffering for reliable miners."""
+        nonlocal producer_idx
         try:
             resp_gen = await resp_task
             if not resp_gen or isinstance(resp_gen, Exception):
                 return
-
-            # Buffer for reliable miners competing to be primary.
-            token_buffer: list[str] = []
 
             async for chunk in resp_gen:
                 if not _is_valid(chunk):
                     continue
 
                 # If this is a reliable miner and no primary chosen yet.
-                if reliable_uid and not first_found_evt.is_set():
-                    # Add to buffer.
-                    token_buffer.append(chunk)
-                    collected_chunks_raw_list[idx].append(chunk)
-                    collected_chunks_list[idx].append(chunk.choices[0].delta.content)
-                    timings_list[idx].append(time.monotonic() - response_start_time)
-
-                    # If we've collected N tokens or stream ended, compete to be primary.
-                    if len(token_buffer) >= TOKENS_MIN_STREAM:
-                        first_found_evt.set()
-                        await first_queue.put((idx, token_buffer, resp_gen))
-                        return
-
-                    # Continue buffering (don't break the loop).
-                    continue
+                if (
+                    not producer_found.is_set()
+                    and reliable_uid
+                    and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM
+                ):
+                    producer_idx = idx
+                    producer_found.set()
+                    # Flush buffered chunks collected so far.
+                    for chunk in collected_chunks_raw_list[idx]:
+                        await producer_chunks.put(chunk)
+                if idx == producer_idx:
+                    await producer_chunks.put(chunk)
 
                 # We're NOT competing for primary – just collect for scoring.
                 collected_chunks_raw_list[idx].append(chunk)
                 collected_chunks_list[idx].append(chunk.choices[0].delta.content)
                 timings_list[idx].append(time.monotonic() - response_start_time)
 
-            stream_finished[idx] = True
-            # Stream ended before N tokens, and all miners finished the stream - submit what we have.
-            if reliable_uid and not first_found_evt.is_set() and token_buffer and sum(stream_finished) == len(stream_finished):
-                first_found_evt.set()
-                # None = stream ended.
-                await first_queue.put((idx, token_buffer, None))
-
         except (openai.APIConnectionError, asyncio.CancelledError):
             pass
         except Exception as e:
             logger.exception(f"Collector error for miner index {idx}: {e}")
+        finally:
+            stream_finished[idx] = True
 
-    # Spawn collectors for every miner.
-    reliable_uids: list[int] = []
-    for uid in uids:
-        success_rate = await uid_tracker.uids[uid].success_rate(TaskType.Inference)
-        if success_rate > SUCCESS_RATE_MIN:
-            reliable_uids.append(uid)
+            if idx == producer_idx:
+                await producer_chunks.put(_END_OF_STREAM)
 
-    reliable_uids_exist = bool(reliable_uids)
-    logger.debug(f"Reliable uids {reliable_uids}")
+            elif not producer_found.is_set() and collected_chunks_raw_list:
+                # No primary stream found, fallback to the longest response once 80% of the uids finished the stream.
+                finished_streams = sum(stream_finished)
+                if finished_streams > int(len(stream_finished) * 0.8):
+                    logger.debug(
+                        f"Fallback to the longest response, finished streams: "
+                        f"{finished_streams} / {len(stream_finished)}"
+                    )
+                    producer_idx, _ = max(enumerate(collected_chunks_raw_list), key=lambda response: len(response[1]))
+                    producer_found.set()
+                    for chunk in collected_chunks_raw_list[producer_idx]:
+                        await producer_chunks.put(chunk)
+                    await producer_chunks.put(_END_OF_STREAM)
+
     # Trigger primary (client stream) candidates first to reduce latency.
+    streams = itertools.chain(
+        zip(primary_streams, primary_uids),
+        zip(extra_streams, extra_uids),
+    )
     collectors: list[asyncio.Task] = []
-    for idx, (stream, uid) in enumerate(zip(primary_responses, primary_uids)):
+    all_uids: list[int] = []
+    for idx, (stream, uid) in enumerate(streams):
         try:
-            if reliable_uids_exist:
-                # Reliable uids are preffered for primary client stream.
-                collectors.append(asyncio.create_task(_collector(idx, stream, uid in reliable_uids)))
-            else:
-                # If no reliable uids, we just collect everything.
-                collectors.append(asyncio.create_task(_collector(idx, stream, True)))
+            success_rate = await uid_tracker.uids[idx].success_rate(TaskType.Inference)
+            collectors.append(asyncio.create_task(_collector(idx, stream, success_rate > SUCCESS_RATE_MIN)))
+            all_uids.append(uid)
         except BaseException as exc:
             logger.exception(f"Error during primary stream, uids: {primary_uids}: {exc}")
 
-    # Collect remaining streams.
-    for idx, (stream, uid) in enumerate(zip(responses, uids)):
-        try:
-            collectors.append(asyncio.create_task(_collector(idx, stream, True)))
-        except BaseException as exc:
-            logger.exception(f"Error during extra stream, uids: {uids}: {exc}")
-
-    # Wait for the first valid chunk.
+    # Primary stream.
     try:
-        try:
-            primary_idx, token_buffer, primary_gen = await asyncio.wait_for(first_queue.get(), timeout=timeout)
-        except asyncio.TimeoutError:
-            logger.error("No miner produced a valid chunk")
-            yield 'data: {"error": "502 - No valid response received"}\n\n'
-            return
+        chunk = await asyncio.wait_for(producer_chunks.get(), timeout=timeout)
+    except asyncio.TimeoutError:
+        logger.error("No miner produced a valid chunk within %.1f s", timeout)
+        yield 'data: {"error": "502 - No valid response received"}\n\n'
+        return
 
-        # Stream all buffered tokens first.
-        for chunk in token_buffer:
-            yield f"data: {json.dumps(chunk.model_dump())}\n\n"
+    if chunk is not _END_OF_STREAM:
+        yield f"data: {json.dumps(chunk.model_dump())}\n\n"
 
-        # Continue with remaining stream (if any).
-        if primary_gen is not None:
-            try:
-                async for chunk in primary_gen:
-                    if not _is_valid(chunk):
-                        continue
-                    collected_chunks_raw_list[primary_idx].append(chunk)
-                    collected_chunks_list[primary_idx].append(chunk.choices[0].delta.content)
-                    timings_list[primary_idx].append(time.monotonic() - response_start_time)
-                    yield f"data: {json.dumps(chunk.model_dump())}\n\n"
-            except (openai.APIConnectionError, asyncio.CancelledError):
-                logger.warning(f"Primary miner stream cancelled: {uids[primary_idx]}")
+    # Drain the queue until end‑of‑stream sentinel.
+    while True:
+        chunk = await producer_chunks.get()
+        if chunk is _END_OF_STREAM:
+            break
+        yield f"data: {json.dumps(chunk.model_dump())}\n\n"
+    yield "data: [DONE]\n\n"
 
-        yield "data: [DONE]\n\n"
-
-        # Wait for background collectors to finish.
-        await asyncio.gather(*collectors, return_exceptions=True)
-        # Push everything to the scoring queue.
-        asyncio.create_task(
-            scoring_queue.scoring_queue.append_response(
-                uids=uids,
-                body=body,
-                chunks=collected_chunks_list,
-                chunk_dicts_raw=collected_chunks_raw_list,
-                timings=timings_list,
-            )
+    # Wait for background collectors to finish.
+    await asyncio.gather(*collectors)
+    # Push everything to the scoring queue.
+    asyncio.create_task(
+        scoring_queue.scoring_queue.append_response(
+            uids=all_uids,
+            body=body,
+            chunks=collected_chunks_list,
+            chunk_dicts_raw=collected_chunks_raw_list,
+            timings=timings_list,
         )
-        # await uid_tracker.score_uid_chunks(uids, collected_chunks_list, TaskType.Inference, format)
-    except (openai.APIConnectionError, asyncio.CancelledError):
-        logger.debug("Client disconnected, stream cancelled")
-        raise
-    except Exception as e:
-        logger.exception(f"Error during streaming: {e}")
-        yield 'data: {"error": "Internal server Error"}\n\n'
+    )
+    # await uid_tracker.score_uid_chunks(uids, collected_chunks_list, TaskType.Inference, format)
 
 
 async def get_response_from_miner(body: dict[str, Any], uid: int, timeout_seconds: int) -> tuple:
@@ -209,19 +188,12 @@ async def get_response_from_miner(body: dict[str, Any], uid: int, timeout_second
         return None
 
 
-
-# Number of uids to choose from to so stream back to the client.
-# settings.API_STREAM_UIDS
-# Number of uids to sample on each API query (used to normalize scoring).
-# settings.API_MIN_QUERY_UIDS
-# 
 async def chat_completion(
     body: dict[str, Any],
     # uids parameter is deprecated.
     uids: Optional[list[int]] = None,
     num_miners: int = 5,
     uid_tracker: UidTracker | None = None,
-    add_reliable_miners: int = 2,
 ) -> tuple | StreamingResponse:
     # TODO: Add docstring.
     """Handle chat completion with multiple miners in parallel."""
@@ -240,10 +212,13 @@ async def chat_completion(
         raise HTTPException(status_code=500, detail="No available miners")
     primary_uids: list[int] = random.sample(primary_uids, min(len(primary_uids), num_miners))
 
-    extra_uids: np.ndarray = get_uids(sampling_mode="random", k=settings.API_MIN_UIDS_QUERY, exclude=primary_uids)
     # TODO: Revisit why returned uids types are not unified for different modes.
+    extra_uids: np.ndarray = get_uids(
+        sampling_mode="random", k=shared_settings.API_EXTRA_UIDS_QUERY, exclude=primary_uids
+    )
     if isinstance(extra_uids, np.ndarray):
         extra_uids = extra_uids.tolist()
+
     total_amount = len(primary_uids) + len(extra_uids)
 
     STREAM = body.get("stream", False)
@@ -252,10 +227,11 @@ async def chat_completion(
     timeout_seconds = min(timeout_seconds, shared_settings.MAX_TIMEOUT)
     logger.debug(f"Changing timeout from {body.get('timeout')} to {timeout_seconds}. Messages: {body.get('messages')}")
 
-    # Initialize chunks collection for each miner
-    stream_finished = [False for _ in range(total_amount)]
+    # Initialize chunks collection for each miner.
+    stream_finished: list[bool] = [False for _ in range(total_amount)]
     collected_chunks_list = [[] for _ in range(total_amount)]
     collected_chunks_raw_list = [[] for _ in range(total_amount)]
+    collected_tokens = [[] for _ in range(total_amount)]
     timings_list = [[] for _ in range(total_amount)]
 
     if STREAM:
@@ -274,11 +250,11 @@ async def chat_completion(
                 logger.error(f"Error creating task for miner {uid}: {e}")
                 continue
 
-        responses: list[asyncio.Task] = []
+        extra_streams: list[asyncio.Task] = []
         # Query remaining uids.
         for uid in extra_uids:
             try:
-                responses.append(
+                extra_streams.append(
                     asyncio.create_task(
                         make_openai_query(
                             shared_settings.METAGRAPH, shared_settings.WALLET, timeout_seconds, body, uid, stream=True
@@ -289,16 +265,17 @@ async def chat_completion(
                 logger.error(f"Error creating task for miner {uid}: {e}")
                 continue
 
-        assert len(responses) == total_amount, f"Requested streams {len(responses)} != {total_amount} uids"
+        total_streams = len(primary_streams) + len(extra_streams)
+        assert total_streams == total_amount, f"Requested streams {total_streams} != {total_amount} uids"
 
-        logger.debug(f"Created {len(primary_streams)}/{len(primary_uids)} response tasks for streaming.")
+        logger.debug(f"Created {total_streams} response tasks for streaming")
 
         return StreamingResponse(
             collect_streams(
-                primary_responses=primary_responses,
+                primary_streams=primary_streams,
                 primary_uids=primary_uids,
-                responses=responses,
-                uids=extra_uids,
+                extra_streams=extra_streams,
+                extra_uids=extra_uids,
                 stream_finished=stream_finished,
                 collected_chunks_list=collected_chunks_list,
                 collected_chunks_raw_list=collected_chunks_raw_list,
@@ -315,7 +292,7 @@ async def chat_completion(
         )
     else:
         # For non-streaming requests, wait for first valid response
-        responses = [
+        extra_streams = [
             asyncio.create_task(get_response_from_miner(body=body, uid=uid, timeout_seconds=timeout_seconds))
             for uid in primary_uids
         ]
@@ -323,8 +300,8 @@ async def chat_completion(
         first_valid_response = None
         collected_responses = []
 
-        while responses and first_valid_response is None:
-            done, pending = await asyncio.wait(responses, return_when=asyncio.FIRST_COMPLETED)
+        while extra_streams and first_valid_response is None:
+            done, pending = await asyncio.wait(extra_streams, return_when=asyncio.FIRST_COMPLETED)
 
             for task in done:
                 try:
@@ -335,7 +312,7 @@ async def chat_completion(
                         collected_responses.append(response)
                 except Exception as e:
                     logger.error(f"Error in miner response: {e}")
-                responses.remove(task)
+                extra_streams.remove(task)
 
         if first_valid_response is None:
             raise HTTPException(status_code=502, detail="No valid response received")

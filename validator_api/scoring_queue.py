@@ -91,7 +91,7 @@ class ScoringQueue(AsyncLoopRunner):
             tasks.append(task)
         await asyncio.gather(*tasks)
         await asyncio.sleep(0.1)
-    
+
     async def _is_request_valid(self, body: dict[str, Any]) -> bool:
         messages = body.get("messages")
         if not messages:
@@ -116,7 +116,7 @@ class ScoringQueue(AsyncLoopRunner):
             if not isinstance(content, str):
                 # Invalid content.
                 return False
-            
+
             # For now do not score Apex, since it can be exploited.
             if role == "system" and "You are Apex" in content:
                 return False
@@ -154,7 +154,7 @@ class ScoringQueue(AsyncLoopRunner):
             timing_dict = {str(u): t for u, t in zip(uids, timings)}
         else:
             timing_dict = {}
-        payload = {
+        payload: dict[str, Any] = {
             "body": body,
             "chunks": chunk_dict,
             "uids": uids,
@@ -162,9 +162,7 @@ class ScoringQueue(AsyncLoopRunner):
             "chunk_dicts_raw": chunk_dict_raw,
         }
         if not await self._is_request_valid(body):
-            logger.debug(
-                f"Invalid request, skipping scoring: {body.get('messages')}"
-            )
+            logger.debug(f"Invalid request, skipping scoring: {body.get('messages')}")
             return
 
         try:

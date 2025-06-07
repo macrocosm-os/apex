@@ -1,9 +1,11 @@
+import contextlib
 import json
+import os
 import random
+import sqlite3
+from datetime import datetime
 from enum import Enum
 from typing import Any, Iterable
-import sqlite3, json, os, contextlib
-from datetime import datetime
 
 from loguru import logger
 from pydantic import BaseModel
@@ -38,7 +40,7 @@ class CompletionFormat(str, Enum):
 
 
 class TaskType(str, Enum):
-    Inference = "Chain-of-Thought"
+    Inference = "InferenceTask"
     WebRetrieval = "WebRetrieval"
     Unknown = None
 
@@ -193,7 +195,7 @@ class UidTracker(BaseModel):
         ts = datetime.utcnow().isoformat(timespec="seconds")
 
         with contextlib.closing(connect_db(db_path)) as con:
-            con.execute("BEGIN IMMEDIATE")            # lock for writing, readers still allowed (WAL mode)
+            con.execute("BEGIN IMMEDIATE")  # lock for writing, readers still allowed (WAL mode)
             try:
                 # Ensure tables exist.
                 con.execute(
@@ -251,9 +253,11 @@ class UidTracker(BaseModel):
 
     def load_from_sqlite(self, db_path: str = SQLITE_PATH) -> None:
         with contextlib.closing(connect_db(db_path)) as con:
-            rows = con.execute("""
+            rows = con.execute(
+                """
                 SELECT uid,hkey,requests_per_task,success_per_task FROM uids
-            """).fetchall()
+            """
+            ).fetchall()
             if not rows:
                 return
             self.uids.clear()

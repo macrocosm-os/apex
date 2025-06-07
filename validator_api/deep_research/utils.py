@@ -31,15 +31,15 @@ def parse_llm_json(json_str: str, allow_empty: bool = True) -> dict[str, Any]:
         json_candidates = []
 
         # Look for JSON objects {...}.
-        brace_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+        brace_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
         object_matches = re.findall(brace_pattern, json_str)
         json_candidates.extend(object_matches)
 
         # Look for JSON arrays [...].
-        bracket_pattern = r'\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]'
+        bracket_pattern = r"\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]"
         array_matches = re.findall(bracket_pattern, json_str)
         json_candidates.extend(array_matches)
-        
+
         # Try to parse each candidate and use the first valid one.
         for candidate in json_candidates:
             try:

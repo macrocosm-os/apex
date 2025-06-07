@@ -109,14 +109,14 @@ class SharedSettings(BaseSettings):
     # Scoring queue threshold when rate-limit start to kick in, used to query validator API with scoring requests.
     SCORING_QUEUE_API_THRESHOLD: int = Field(1, env="SCORING_QUEUE_API_THRESHOLD")
     API_TEST_MODE: bool = Field(False, env="API_TEST_MODE")
-    # Top UIDs used for primary API stream.
-    API_TOP_UIDS_TO_STREAM: int = Field(5, env="API_TOP_UIDS_TO_STREAM")
-    # Top UIDs used for primary API stream.
-    API_TOP_UIDS_SAMPLE: int = Field(400, env="API_TOP_UIDS_SAMPLE")
+    # Top UIDs used for the primary API stream.
+    API_TOP_UIDS_TO_STREAM: int = Field(10, env="API_TOP_UIDS_TO_STREAM")
+    # Top UIDs to sample from to use for the primary API stream.
+    API_TOP_UIDS_SAMPLE: int = Field(300, env="API_TOP_UIDS_SAMPLE")
     # Exploration ratio for UIDs to include into primary API stream besides top incentive.
     API_UIDS_EXPLORE: float = Field(0.0, env="API_UIDS_EXPLORE")
     # Minimum UIDs to query from API (not recommended to set anything lower than 30, since scoring will be slowed down).
-    API_MIN_UIDS_QUERY: int = Field(35, env="API_MIN_UIDS_QUERY")
+    API_EXTRA_UIDS_QUERY: int = Field(40, env="API_MIN_UIDS_QUERY")
     # If enabled, sends request to a random validator, otherwise sends to all available validators.
     API_ENABLE_BALANCE: bool = Field(True, env="API_ENABLE_BALANCE")
     OVERRIDE_AVAILABLE_AXONS: list[str] | None = Field(None, env="OVERRIDE_AVAILABLE_AXONS")

@@ -78,4 +78,4 @@ async def mixture_of_miners(body: dict[str, any], uids: list[int]) -> tuple | St
 
     # Get final response using a random top miner.
     final_uid = random.choice(get_uids(sampling_mode="top_incentive", k=TOP_INCENTIVE_POOL))
-    return await chat_completion(final_body, top_uids=[int(final_uid)])
+    return await chat_completion(final_body, uids=[int(final_uid)])
