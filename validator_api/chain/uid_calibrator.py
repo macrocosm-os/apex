@@ -17,8 +17,8 @@ from validator_api.chain.uid_tracker import SQLITE_PATH, CompletionFormat, TaskT
 from validator_api.deep_research.orchestrator_v2 import MODEL_ID
 
 shared_settings = settings.shared_settings
-STEP = 512
-TIMEOUT_CALIBRATION = 150
+STEP = 256
+TIMEOUT_CALIBRATION = 180
 
 
 @contextlib.contextmanager
