@@ -17,7 +17,7 @@ from validator_api.chain.uid_tracker import SQLITE_PATH, CompletionFormat, TaskT
 from validator_api.deep_research.orchestrator_v2 import MODEL_ID
 
 shared_settings = settings.shared_settings
-STEP = 100
+STEP = 512
 TIMEOUT_CALIBRATION = 150
 
 
@@ -190,7 +190,7 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
             format=CompletionFormat.JSON,
         )
 
-        await asyncio.sleep(20)
+        await asyncio.sleep(15)
 
     logger.debug(f"Network calibration completed for {len(all_uids)} UIDs")
 
