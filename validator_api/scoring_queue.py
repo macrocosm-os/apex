@@ -117,10 +117,6 @@ class ScoringQueue(AsyncLoopRunner):
                 # Invalid content.
                 return False
 
-            # For now do not score Apex, since it can be exploited.
-            if role == "system" and "You are Apex" in content:
-                return False
-
         if roles.count("system") >= 2:
             return False
 
