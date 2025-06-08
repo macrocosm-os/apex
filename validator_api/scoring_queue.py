@@ -162,8 +162,8 @@ class ScoringQueue(AsyncLoopRunner):
             return
 
         try:
-            with open("api.jsonl", "a+", encoding="utf-8") as f:
-                f.write(json.dumps(payload) + "\n")
+            # with open("api.jsonl", "a+", encoding="utf-8") as f:
+            #     f.write(json.dumps(payload) + "\n")
             tps = {}
             response_len = {}
             for u in uids:

@@ -68,7 +68,7 @@ async def collect_streams(  # noqa: C901
     producer_idx: int | None = None
     producer_chunks: asyncio.Queue[str | object] = asyncio.Queue()
 
-    async def _collector(idx: int, resp_task: asyncio.Task, reliable_uid: bool) -> None:
+    async def _collector(idx: int, resp_task: asyncio.Task, reliable_uid: bool, top_incentive: bool) -> None:
         """Miner stream collector with enhanced N-token buffering for reliable miners."""
         nonlocal producer_idx
         try:
@@ -84,6 +84,7 @@ async def collect_streams(  # noqa: C901
                 if (
                     not producer_found.is_set()
                     and reliable_uid
+                    and top_incentive
                     and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM
                 ):
                     producer_idx = idx
@@ -110,9 +111,9 @@ async def collect_streams(  # noqa: C901
                 await producer_chunks.put(_END_OF_STREAM)
 
             elif not producer_found.is_set() and collected_chunks_raw_list:
-                # No primary stream found, fallback to the longest response once 50% of the uids finished the stream.
+                # No primary stream found, fallback to the longest response once 20% of the uids finished the stream.
                 finished_streams = sum(stream_finished)
-                if finished_streams > int(len(stream_finished) * 0.5):
+                if finished_streams > int(len(stream_finished) * 0.2):
                     logger.debug(
                         f"Fallback to the longest response, finished streams: "
                         f"{finished_streams} / {len(stream_finished)}"
@@ -132,8 +133,9 @@ async def collect_streams(  # noqa: C901
     all_uids: list[int] = []
     for idx, (stream, uid) in enumerate(streams):
         try:
-            success_rate = await uid_tracker.uids[idx].success_rate(TaskType.Inference)
-            collectors.append(asyncio.create_task(_collector(idx, stream, success_rate > SUCCESS_RATE_MIN)))
+            top_incentive = uid in primary_uids
+            reliable = await uid_tracker.uids[idx].success_rate(TaskType.Inference) > SUCCESS_RATE_MIN
+            collectors.append(asyncio.create_task(_collector(idx, stream, reliable, top_incentive)))
             all_uids.append(uid)
         except BaseException as exc:
             logger.exception(f"Error during primary stream, uids: {primary_uids}: {exc}")
