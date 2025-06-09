@@ -220,20 +220,6 @@ class WeightSetter(AsyncLoopRunner):
         except Exception as ex:
             logger.exception(f"{ex}")
 
-        if shared_settings.LOG_WEIGHTS:
-            logger.info("SAVING REWARDS")
-            import json
-
-            try:
-                with open("rewards.jsonl", "a+") as f:
-                    for config, rewards in miner_rewards.items():
-                        task_name = config.task.__name__ if hasattr(config.task, "__name__") else str(config.task)
-                        rewards_str = {str(uid): reward_info["reward"] for uid, reward_info in rewards.items()}
-                        record = {"task_config": task_name, "rewards": rewards_str}
-                        f.write(json.dumps(record) + "\n")
-            except Exception as e:
-                logger.exception(f"Failed to save miner_rewards to miner_rewards.jsonl: {e}")
-
         # set weights on chain
         set_weights(
             final_rewards, step=self.step, subtensor=shared_settings.SUBTENSOR, metagraph=shared_settings.METAGRAPH
