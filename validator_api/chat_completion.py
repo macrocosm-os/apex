@@ -89,11 +89,7 @@ async def collect_streams(  # noqa: C901
                     continue
 
                 if not producer_found.is_set():
-                    if (
-                        reliable_uid
-                        and top_incentive
-                        and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM
-                    ):
+                    if reliable_uid and top_incentive and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM:
                         # Set UID as a primary stream if it's in reliable list and top incentive.
                         producer_idx = idx
                         producer_found.set()
@@ -101,9 +97,8 @@ async def collect_streams(  # noqa: C901
                         for chunk in collected_chunks_raw_list[idx]:
                             await producer_chunks.put(chunk)
                     elif (
-                        (time.monotonic() - response_start_time) > TIMEOUT_ALL_UIDS_FALLBACK
-                        and collected_chunks_raw_list
-                    ):
+                        time.monotonic() - response_start_time
+                    ) > TIMEOUT_ALL_UIDS_FALLBACK and collected_chunks_raw_list:
                         # If no reliable UID has declared the primary stream, fallback to any UID for primary stream
                         # with the longest response.
                         producer_idx, _ = max(
@@ -191,7 +186,7 @@ async def collect_streams(  # noqa: C901
         format=CompletionFormat.STR,
         # UIDs response 2 times lower than average is probably not complete.
         # Might have FP, althrough reliability tracker used only to choose primary stream.
-        min_chunks=int(np.mean([len(chunks) for chunks in collected_chunks_list]) * 0.5)
+        min_chunks=int(np.mean([len(chunks) for chunks in collected_chunks_list]) * 0.5),
     )
 
     # Push everything to the scoring queue.

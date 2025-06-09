@@ -69,7 +69,7 @@ class CompletionsRequest(BaseModel):
     )
     top_logprobs: int = Field(
         default=10,
-        description="Amount of top logprobs for completion tokens. Not supported yet, will always return 10 logprobs."
+        description="Amount of top logprobs for completion tokens. Not supported yet, will always return 10 logprobs.",
     )
     inference_mode: Optional[str] = Field(
         default=None,

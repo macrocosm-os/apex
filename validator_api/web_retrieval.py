@@ -11,14 +11,12 @@ import json
 import random
 
 import numpy as np
-
 from loguru import logger
 
 from shared.epistula import SynapseStreamResult, query_miners
 from validator_api import scoring_queue
 from validator_api.api_management import validate_api_key
 from validator_api.serializers import WebRetrievalRequest, WebRetrievalResponse, WebSearchResult
-from validator_api.utils import filter_available_uids
 
 router = APIRouter()
 
@@ -53,9 +51,7 @@ async def web_retrieval(  # noqa: C901
     #         logger.error(f"Invalid uids supplied: {request.uids}")
     #         raise HTTPException(status_code=500, detail="Invalid miner uids")
     # else:
-    uids: np.ndarray = get_uids(
-        sampling_mode="random", k=shared_settings.API_EXTRA_UIDS_QUERY
-    )
+    uids: np.ndarray = get_uids(sampling_mode="random", k=shared_settings.API_EXTRA_UIDS_QUERY)
 
     if isinstance(uids, np.ndarray):
         uids = uids.tolist()
@@ -121,11 +117,7 @@ async def web_retrieval(  # noqa: C901
     collected_chunks_raw_list: list[list[Any]] = [[] for _ in uids]
 
     try:
-        done, pending = await asyncio.wait(
-            miner_tasks,
-            timeout=timeout_seconds,
-            return_when=asyncio.ALL_COMPLETED
-        )
+        done, pending = await asyncio.wait(miner_tasks, timeout=timeout_seconds, return_when=asyncio.ALL_COMPLETED)
         for task in pending:
             task.cancel()
 
@@ -174,13 +166,15 @@ async def web_retrieval(  # noqa: C901
         )
 
         # Launch background for scoring.
-        asyncio.create_task(scoring_queue.scoring_queue.append_response(
-            uids=uids,
-            body=body,
-            chunks=collected_chunks_list,
-            chunk_dicts_raw=collected_chunks_raw_list,
-            timings=None,
-        ))
+        asyncio.create_task(
+            scoring_queue.scoring_queue.append_response(
+                uids=uids,
+                body=body,
+                chunks=collected_chunks_list,
+                chunk_dicts_raw=collected_chunks_raw_list,
+                timings=None,
+            )
+        )
 
         return WebRetrievalResponse(results=selected_items)
 
