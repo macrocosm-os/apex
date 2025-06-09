@@ -44,24 +44,10 @@ async def web_retrieval(  # noqa: C901
 ):
     """Launch *all* requested miners in parallel, return immediately when the first miner delivers a valid result."""
     # Requesting UIDs is deprecated.
-    # if request.uids:
-    #     try:
-    #         uids: list[int] = list(map(int, request.uids))
-    #     except Exception:
-    #         logger.error(f"Invalid uids supplied: {request.uids}")
-    #         raise HTTPException(status_code=500, detail="Invalid miner uids")
-    # else:
     uids: np.ndarray = get_uids(sampling_mode="random", k=shared_settings.API_EXTRA_UIDS_QUERY)
 
     if isinstance(uids, np.ndarray):
         uids = uids.tolist()
-    # available = filter_available_uids(
-    #     task="WebRetrievalTask",
-    #     test=shared_settings.API_TEST_MODE,
-    #     n_miners=shared_settings.API_EXTRA_UIDS_QUERY,
-    #     explore=shared_settings.API_UIDS_EXPLORE,
-    # )
-    # uids = random.sample(available, min(len(available), request.n_miners))
 
     if not uids:
         raise HTTPException(status_code=500, detail="No available miners")

@@ -126,20 +126,6 @@ async def collect_streams(  # noqa: C901
             if idx == producer_idx:
                 await producer_chunks.put(_END_OF_STREAM)
 
-            # elif not producer_found.is_set() and collected_chunks_raw_list:
-            #     # No primary stream found, fallback to the longest response once 20% of the uids finished the stream.
-            #     finished_streams = sum(stream_finished)
-            #     if finished_streams > int(len(stream_finished) * 0.2):
-            #         logger.debug(
-            #             f"Fallback to the longest response, finished streams: "
-            #             f"{finished_streams} / {len(stream_finished)}"
-            #         )
-            #         producer_idx, _ = max(enumerate(collected_chunks_raw_list), key=lambda response: len(response[1]))
-            #         producer_found.set()
-            #         for chunk in collected_chunks_raw_list[producer_idx]:
-            #             await producer_chunks.put(chunk)
-            #         await producer_chunks.put(_END_OF_STREAM)
-
     # Trigger primary (client stream) candidates first to reduce latency.
     streams = itertools.chain(
         zip(primary_streams, primary_uids),
