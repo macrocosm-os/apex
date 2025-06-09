@@ -25,7 +25,11 @@ class WeightSynchronizer:
         self.validator_uids = np.array(validator_uids)
         self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in validator_uids])
         self.validator_addresses = np.array(
-            [f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}" for uid in validator_uids if uid < metagraph.n.item()]
+            [
+                f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}"
+                for uid in validator_uids
+                if uid < metagraph.n.item()
+            ]
         )
 
         self.weight_dict = weight_dict
