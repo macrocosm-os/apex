@@ -32,6 +32,7 @@ def connect_db(db_path: str = SQLITE_PATH):
 
 class CompletionFormat(str, Enum):
     JSON = "json"
+    STR = "str"
     UNKNOWN = None
     # Not supported yet.
     # YAML = "yaml"
@@ -156,6 +157,7 @@ class UidTracker(BaseModel):
         chunks: list[list[str]],
         task_name: TaskType | str,
         format: CompletionFormat | None,
+        min_chunks: int = 514,
     ):
         if not isinstance(task_name, TaskType):
             try:
@@ -169,20 +171,26 @@ class UidTracker(BaseModel):
             except ValueError:
                 format = CompletionFormat.UNKNOWN
 
-        # Only JSON is supported at this moment.
-        if format != CompletionFormat.JSON:
-            return
-
-        await self.set_query_attempt(uids, task_name)
-        for idx, uid in enumerate(uids):
-            if len(chunks[idx]) <= MIN_CHUNKS:
-                continue
-            completion = "".join(chunks[idx])
-            try:
-                parse_llm_json(completion, allow_empty=False)
+        if format == CompletionFormat.JSON:
+            await self.set_query_attempt(uids, task_name)
+            for idx, uid in enumerate(uids):
+                if len(chunks[idx]) <= min_chunks:
+                    continue
+                completion = "".join(chunks[idx])
+                try:
+                    parse_llm_json(completion, allow_empty=False)
+                    await self.set_query_success(uid, task_name)
+                except json.JSONDecodeError:
+                    pass
+        elif format == CompletionFormat.STR:
+            await self.set_query_attempt(uids, task_name)
+            for idx, uid in enumerate(uids):
+                if len(chunks[idx]) <= min_chunks:
+                    continue
                 await self.set_query_success(uid, task_name)
-            except json.JSONDecodeError:
-                pass
+        else:
+            logger.error(f"Unsupported completion format: {format}")
+            return
 
     def save_to_sqlite(self, db_path: str = SQLITE_PATH) -> None:
         """Persist the current UID stats to SQLite.
@@ -195,9 +203,9 @@ class UidTracker(BaseModel):
         ts = datetime.utcnow().isoformat(timespec="seconds")
 
         with contextlib.closing(connect_db(db_path)) as con:
-            con.execute("BEGIN IMMEDIATE")  # lock for writing, readers still allowed (WAL mode)
+            # Lock for writing, readers still allowed (WAL mode).
+            con.execute("BEGIN IMMEDIATE")
             try:
-                # Ensure tables exist.
                 con.execute(
                     """
                     CREATE TABLE IF NOT EXISTS uids (
@@ -253,11 +261,7 @@ class UidTracker(BaseModel):
 
     def load_from_sqlite(self, db_path: str = SQLITE_PATH) -> None:
         with contextlib.closing(connect_db(db_path)) as con:
-            rows = con.execute(
-                """
-                SELECT uid,hkey,requests_per_task,success_per_task FROM uids
-            """
-            ).fetchall()
+            rows = con.execute("SELECT uid, hkey, requests_per_task, success_per_task FROM uids").fetchall()
             if not rows:
                 return
             self.uids.clear()

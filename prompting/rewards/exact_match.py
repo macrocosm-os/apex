@@ -19,7 +19,7 @@ TOP_LOGPROBS = 10
 MIN_VERIFY_TOKENS = 10
 MAX_VERIFY_TOKENS = 51
 # Partial completion is much more harmful from API perspective, compared to no response.
-PARTIAL_PENALTY = -5.0
+PARTIAL_PENALTY = -4.0
 INCORRECT_PENALTY = -2.0
 NOT_ENOUGH_TOKENS_PENALTY_SCALE = 0.1
 MIN_SMOOTH_PENALTY_SCALE = 0.3

@@ -56,6 +56,8 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
     - **test_time_inference** (bool, default=False): Enable step-by-step reasoning mode.
     - **mixture** (bool, default=False): Enable mixture of miners mode.
     - **sampling_parameters** (dict, optional): Parameters to control text generation.
+    - **logprobs** (bool, optional): Whether to return logprobs for completion tokens, defaults to False.
+    - **top_logprobs** (int, optional): Amount of top logprobs for completion tokens, max. amount 10.
 
     The endpoint selects miners based on the provided UIDs or filters available miners
     based on task and model requirements.
@@ -79,20 +81,14 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
             # By setting default, we are allowing a user to use whatever model we define as the standard, could also set to None.
             body["model"] = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
         body["seed"] = int(body.get("seed") or random.randint(0, 1000000))
-        if body.get("uids"):
-            try:
-                uids = list(map(int, body.get("uids")))
-            except Exception:
-                logger.error(f"Error in uids: {body.get('uids')}")
-        else:
-            uids = filter_available_uids(
-                task=body.get("task"),
-                model=body.get("model"),
-                test=shared_settings.API_TEST_MODE,
-                n_miners=shared_settings.API_TOP_UIDS_TO_STREAM,
-                n_top_incentive=shared_settings.API_TOP_UIDS_SAMPLE,
-                explore=shared_settings.API_UIDS_EXPLORE,
-            )
+        uids = filter_available_uids(
+            task=body.get("task"),
+            model=body.get("model"),
+            test=shared_settings.API_TEST_MODE,
+            n_miners=shared_settings.API_TOP_UIDS_TO_STREAM,
+            n_top_incentive=shared_settings.API_TOP_UIDS_SAMPLE,
+            explore=shared_settings.API_UIDS_EXPLORE,
+        )
         if not uids:
             raise HTTPException(status_code=500, detail="No available miners")
 

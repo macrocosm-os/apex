@@ -52,9 +52,10 @@ def maybe_acquire_lock(worker_id: str, ttl_sec: int = 600):
 
 
 async def generate_json_query() -> dict[str, Any]:
-    year, era = random.randint(100, 2025), random.choice(["BCE", "CE"])
-    year2 = random.randint(600, 2025)
-    content = f"""\
+    async def _generate_prompt() -> str:
+        year, era = random.randint(100, 2025), random.choice(["BCE", "CE"])
+        year2 = random.randint(600, 2025)
+        content = f"""\
 Provide a detailed JSON response containing a list the most powerful countries/kingdoms (up to 10) and their rulers in the year {year} {era}.
 Each ruler should include the ruler's name and a brief description.
 In addition to that, provide a long and detailed report of the most significant discovery in the year {year2} CE, with a description of the discovery, founders biography and its impact on the world.
@@ -87,12 +88,19 @@ countries and their rulers in the year 2020 CE, significant discovery in the yea
     }}
 }}
 """
+        return content
+
+    messages = [{"role": "system", "content": "You are a historian specializing in world history."}]
+    history_len = random.randint(3, 8)
+    for idx in range(history_len):
+        if idx < history_len:
+            messages.append({"role": "assistant", "content": ""})
+        content = await _generate_prompt()
+        messages.append({"role": "user", "content": content})
+
     return {
         "model": MODEL_ID,
-        "messages": [
-            {"role": "system", "content": "You are a historian specializing in world history."},
-            {"role": "user", "content": content},
-        ],
+        "messages": messages,
         "stream": True,
         "task": "InferenceTask",
         "sampling_parameters": {
@@ -197,7 +205,7 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
 
 async def periodic_network_calibration(
     uid_tracker: UidTracker,
-    interval_hours: int = 12,
+    interval_hours: int = 48,
     write_results: bool | None = None,
 ):
     """Run calibration at fixed intervals with single-writer semantics.

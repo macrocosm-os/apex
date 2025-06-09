@@ -13,7 +13,7 @@ from loguru import logger
 
 from shared import settings
 from shared.uids import get_uids
-from validator_api.chain.uid_tracker import SUCCESS_RATE_MIN, TaskType, UidTracker
+from validator_api.chain.uid_tracker import SUCCESS_RATE_MIN, CompletionFormat, TaskType, UidTracker
 
 shared_settings = settings.shared_settings
 
@@ -22,7 +22,15 @@ from validator_api import scoring_queue
 from validator_api.utils import filter_available_uids
 
 TOKENS_MIN_STREAM = 21
+TIMEOUT_ALL_UIDS_FALLBACK = 5
 _END_OF_STREAM: object = object()
+
+
+async def _prepare_chunk(chunk, body: dict[str, Any]):
+    chunk_dict = chunk.model_dump(mode="python")
+    if not body.get("logprobs"):
+        chunk_dict["choices"][0].pop("logprobs", None)
+    return f"data: {json.dumps(chunk_dict)}\n\n"
 
 
 async def collect_streams(  # noqa: C901
@@ -80,18 +88,31 @@ async def collect_streams(  # noqa: C901
                 if not _is_valid(chunk):
                     continue
 
-                # If this is a reliable miner and no primary chosen yet.
-                if (
-                    not producer_found.is_set()
-                    and reliable_uid
-                    and top_incentive
-                    and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM
-                ):
-                    producer_idx = idx
-                    producer_found.set()
-                    # Flush buffered chunks collected so far.
-                    for chunk in collected_chunks_raw_list[idx]:
-                        await producer_chunks.put(chunk)
+                if not producer_found.is_set():
+                    if (
+                        reliable_uid
+                        and top_incentive
+                        and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM
+                    ):
+                        # Set UID as a primary stream if it's in reliable list and top incentive.
+                        producer_idx = idx
+                        producer_found.set()
+                        # Flush buffered chunks collected so far.
+                        for chunk in collected_chunks_raw_list[idx]:
+                            await producer_chunks.put(chunk)
+                    elif (
+                        (time.monotonic() - response_start_time) > TIMEOUT_ALL_UIDS_FALLBACK
+                        and collected_chunks_raw_list
+                    ):
+                        # If no reliable UID has declared the primary stream, fallback to any UID for primary stream
+                        # with the longest response.
+                        producer_idx, _ = max(
+                            enumerate(collected_chunks_raw_list), key=lambda response: len(response[1])
+                        )
+                        producer_found.set()
+                        for chunk in collected_chunks_raw_list[idx]:
+                            await producer_chunks.put(chunk)
+
                 if idx == producer_idx:
                     await producer_chunks.put(chunk)
 
@@ -110,19 +131,19 @@ async def collect_streams(  # noqa: C901
             if idx == producer_idx:
                 await producer_chunks.put(_END_OF_STREAM)
 
-            elif not producer_found.is_set() and collected_chunks_raw_list:
-                # No primary stream found, fallback to the longest response once 20% of the uids finished the stream.
-                finished_streams = sum(stream_finished)
-                if finished_streams > int(len(stream_finished) * 0.2):
-                    logger.debug(
-                        f"Fallback to the longest response, finished streams: "
-                        f"{finished_streams} / {len(stream_finished)}"
-                    )
-                    producer_idx, _ = max(enumerate(collected_chunks_raw_list), key=lambda response: len(response[1]))
-                    producer_found.set()
-                    for chunk in collected_chunks_raw_list[producer_idx]:
-                        await producer_chunks.put(chunk)
-                    await producer_chunks.put(_END_OF_STREAM)
+            # elif not producer_found.is_set() and collected_chunks_raw_list:
+            #     # No primary stream found, fallback to the longest response once 20% of the uids finished the stream.
+            #     finished_streams = sum(stream_finished)
+            #     if finished_streams > int(len(stream_finished) * 0.2):
+            #         logger.debug(
+            #             f"Fallback to the longest response, finished streams: "
+            #             f"{finished_streams} / {len(stream_finished)}"
+            #         )
+            #         producer_idx, _ = max(enumerate(collected_chunks_raw_list), key=lambda response: len(response[1]))
+            #         producer_found.set()
+            #         for chunk in collected_chunks_raw_list[producer_idx]:
+            #             await producer_chunks.put(chunk)
+            #         await producer_chunks.put(_END_OF_STREAM)
 
     # Trigger primary (client stream) candidates first to reduce latency.
     streams = itertools.chain(
@@ -149,18 +170,30 @@ async def collect_streams(  # noqa: C901
         return
 
     if chunk is not _END_OF_STREAM:
-        yield f"data: {json.dumps(chunk.model_dump())}\n\n"
+        yield await _prepare_chunk(chunk=chunk, body=body)
 
     # Drain the queue until end‑of‑stream sentinel.
     while True:
         chunk = await producer_chunks.get()
         if chunk is _END_OF_STREAM:
             break
-        yield f"data: {json.dumps(chunk.model_dump())}\n\n"
+        yield await _prepare_chunk(chunk=chunk, body=body)
     yield "data: [DONE]\n\n"
 
     # Wait for background collectors to finish.
     await asyncio.gather(*collectors)
+
+    # Update UID reliability tracker.
+    await uid_tracker.score_uid_chunks(
+        uids=all_uids,
+        chunks=collected_chunks_list,
+        task_name=TaskType.Inference,
+        format=CompletionFormat.STR,
+        # UIDs response 2 times lower than average is probably not complete.
+        # Might have FP, althrough reliability tracker used only to choose primary stream.
+        min_chunks=int(np.mean([len(chunks) for chunks in collected_chunks_list]) * 0.5)
+    )
+
     # Push everything to the scoring queue.
     asyncio.create_task(
         scoring_queue.scoring_queue.append_response(
@@ -171,7 +204,6 @@ async def collect_streams(  # noqa: C901
             timings=timings_list,
         )
     )
-    # await uid_tracker.score_uid_chunks(uids, collected_chunks_list, TaskType.Inference, format)
 
 
 async def get_response_from_miner(body: dict[str, Any], uid: int, timeout_seconds: int) -> tuple:
@@ -233,7 +265,6 @@ async def chat_completion(
     stream_finished: list[bool] = [False for _ in range(total_amount)]
     collected_chunks_list = [[] for _ in range(total_amount)]
     collected_chunks_raw_list = [[] for _ in range(total_amount)]
-    collected_tokens = [[] for _ in range(total_amount)]
     timings_list = [[] for _ in range(total_amount)]
 
     if STREAM:
