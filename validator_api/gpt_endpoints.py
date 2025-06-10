@@ -48,7 +48,7 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
     - Mixture of miners
 
     ## Request Parameters:
-    - **uids** (List[int], optional): Specific miner UIDs to query. If not provided, miners will be selected automatically.
+    - **uids** (List[int], optional, deprecated): Specific miner UIDs to query. If not provided, miners will be selected automatically. **Note: This parameter is deprecated and will be removed in a future version.**
     - **messages** (List[dict]): List of message objects with 'role' and 'content' keys. Required.
     - **seed** (int, optional): Random seed for reproducible results.
     - **task** (str, optional): Task identifier to filter available miners.
@@ -81,7 +81,7 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
             # By setting default, we are allowing a user to use whatever model we define as the standard, could also set to None.
             body["model"] = "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"
         body["seed"] = int(body.get("seed") or random.randint(0, 1000000))
-        
+
         uids = filter_available_uids(
             task=body.get("task"),
             model=body.get("model"),
@@ -90,7 +90,7 @@ async def completions(request: CompletionsRequest, api_key: str = Depends(valida
             n_top_incentive=shared_settings.API_TOP_UIDS_SAMPLE,
             explore=shared_settings.API_UIDS_EXPLORE,
         )
-        
+
         if not uids:
             raise HTTPException(status_code=500, detail="No available miners")
 
@@ -123,7 +123,7 @@ async def test_time_inference(request: TestTimeInferenceRequest):
     ## Request Parameters:
     - **messages** (List[dict]): List of message objects with 'role' and 'content' keys. Required.
     - **model** (str, optional): Optional model identifier to use for inference.
-    - **uids** (List[int], optional): Optional list of specific miner UIDs to query.
+    - **uids** (List[int], optional, deprecated): Optional list of specific miner UIDs to query. **Note: This parameter is deprecated and will be removed in a future version.**
 
     ## Response:
     The response is streamed as server-sent events (SSE) with each step of reasoning.
@@ -183,7 +183,7 @@ async def submit_chain_of_thought_job(
     /v1/chat/completions/jobs/{job_id} endpoint.
 
     ## Request Parameters:
-    - **uids** (List[int], optional): Specific miner UIDs to query. If not provided, miners will be selected automatically.
+    - **uids** (List[int], optional, deprecated): Specific miner UIDs to query. If not provided, miners will be selected automatically. **Note: This parameter is deprecated and will be removed in a future version.**
     - **messages** (List[dict]): List of message objects with 'role' and 'content' keys. Required.
     - **model** (str, optional): Model identifier to filter available miners.
 
