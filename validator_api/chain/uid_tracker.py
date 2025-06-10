@@ -1,3 +1,4 @@
+import asyncio
 import contextlib
 import json
 import os
@@ -22,11 +23,17 @@ SQLITE_PATH = os.getenv("UID_TRACKER_DB", "uid_tracker.sqlite")
 
 
 def connect_db(db_path: str = SQLITE_PATH):
-    # Autocommit.
     con = sqlite3.connect(db_path, isolation_level=None)
-    # Cheap concurrent reads.
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA busy_timeout=5000")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS uids (
+            uid TEXT PRIMARY KEY,
+            hkey TEXT NOT NULL,
+            requests_per_task TEXT NOT NULL,
+            success_per_task TEXT NOT NULL
+        )
+    """)
     return con
 
 
@@ -49,6 +56,7 @@ class TaskType(str, Enum):
 class Uid(BaseModel):
     uid: int
     hkey: str
+    all_uids: list[int]
     requests_per_task: dict[TaskType, int]
     success_per_task: dict[TaskType, int]
 
@@ -72,25 +80,30 @@ class Uid(BaseModel):
 
 
 class UidTracker(BaseModel):
+    bind_uid_coldkey: bool = True
     uids: dict[int, Uid] = {}
+    write_frequency: float = 10
+    track_counter: float = 0
 
     def model_post_init(self, __context: object) -> None:
         self.resync()
 
     def resync(self):
-        # self.load_from_sqlite()
+        self.load_from_sqlite()
         hotkeys = shared_settings.METAGRAPH.hotkeys
         for uid in range(int(shared_settings.METAGRAPH.n)):
             if uid in self.uids and hotkeys[uid] == self.uids[uid].hkey:
+                self.uids[uid].all_uids = self.get_all_coldkey_uids(uid)
                 continue
 
             self.uids[uid] = Uid(
                 uid=uid,
                 hkey=hotkeys[uid],
+                all_uids=self.get_all_coldkey_uids(uid),
                 requests_per_task={task: 0 for task in TaskType},
                 success_per_task={task: 0 for task in TaskType},
             )
-        self.save_to_sqlite()
+        # self.save_to_sqlite()
 
     @staticmethod
     async def body_to_task(body: dict[str, Any]) -> TaskType:
@@ -104,23 +117,57 @@ class UidTracker(BaseModel):
         else:
             return TaskType.Unknown
 
+    def get_all_coldkey_uids(self, uid: int) -> list[int]:
+        """Get all UIDs assosiated with given uid and its coldkey."""
+        # Metagraph is lazily initialized.
+        coldkeys = shared_settings.METAGRAPH.coldkeys
+        uid_ckey = coldkeys[uid]
+        all_uids = [related_uid for related_uid, ckey in enumerate(coldkeys) if ckey == uid_ckey]
+        return all_uids
+
     async def set_query_attempt(self, uids: list[int] | int, task_name: TaskType | str):
+        """Set query attempt, in case of success `set_query_success` should be called for the given uid."""
         if not isinstance(task_name, TaskType):
             task_name = TaskType(task_name)
+
         if not isinstance(uids, Iterable):
             uids = [uids]
+
         for uid in uids:
-            self.uids[uid].requests_per_task[task_name] = self.uids[uid].requests_per_task.get(task_name, 0) + 1
-            logger.debug(f"Setting query attempt for UID {uid} and task {task_name}")
+            if self.bind_uid_coldkey:
+                for uid_assosiated in self.uids[uid].all_uids:
+                    # Update all assosiated UIDs with given coldkey.
+                    value = self.uids[uid_assosiated].requests_per_task.get(task_name, 0) + 1
+                    self.uids[uid_assosiated].requests_per_task[task_name] = value
+                    logger.debug(f"Setting query attempt for task {task_name} and UIDs {self.uids[uid].all_uids}")
+            else:
+                self.uids[uid].requests_per_task[task_name] = self.uids[uid].requests_per_task.get(task_name, 0) + 1
+                logger.debug(f"Setting query attempt for task {task_name} and UID {uid}")
 
     async def set_query_success(self, uids: list[int] | int, task_name: TaskType | str):
         if not isinstance(task_name, TaskType):
             task_name = TaskType(task_name)
+
         if not isinstance(uids, Iterable):
             uids = [uids]
+
+        self.track_counter += 1
+        if self.track_counter % self.write_frequency == 0:
+            await asyncio.to_thread(self.save_to_sqlite)
+
+        if self.track_counter % self.write_frequency == self.write_frequency - 1:
+            await asyncio.to_thread(self.resync)
+
         for uid in uids:
-            self.uids[uid].success_per_task[task_name] = self.uids[uid].success_per_task.get(task_name, 0) + 1
-            logger.debug(f"Setting query success for UID {uid} and task {task_name}")
+            if self.bind_uid_coldkey:
+                for uid_assosiated in self.uids[uid].all_uids:
+                    # Update all assosiated UIDs with given coldkey.
+                    value = self.uids[uid_assosiated].success_per_task.get(task_name, 0) + 1
+                    self.uids[uid_assosiated].success_per_task[task_name] = value
+                logger.debug(f"Setting query success for task {task_name} and UIDs {self.uids[uid].all_uids}")
+            else:
+                self.uids[uid].success_per_task[task_name] = self.uids[uid].success_per_task.get(task_name, 0) + 1
+                logger.debug(f"Setting query success for task {task_name} and UID {uid}")
 
     async def sample_reliable(
         self, task: TaskType | str, amount: int, success_rate: float = SUCCESS_RATE_MIN, add_random_extra: bool = True
@@ -129,7 +176,7 @@ class UidTracker(BaseModel):
             try:
                 task = TaskType(task)
             except ValueError:
-                return []
+                return {}
 
         uid_success_rates: list[tuple[Uid, float]] = []
         for uid in self.uids.values():
@@ -196,7 +243,7 @@ class UidTracker(BaseModel):
         """Persist the current UID stats to SQLite.
 
         Uses an UPSERT (`ON CONFLICT ... DO UPDATE`) so concurrent writers
-        cannot collide on the PRIMARY KEY (uid).  A short IMMEDIATE
+        cannot collide on the PRIMARY KEY (uid). A short IMMEDIATE
         transaction guarantees readers never see a partially-written table
         but lets other processes keep reading while we write.
         """
@@ -255,23 +302,35 @@ class UidTracker(BaseModel):
                 )
 
                 con.commit()
+                logger.debug(f"Successfully updated UID tracker database")
             except Exception:
                 con.rollback()
+                logger.debug(f"Failed to update UID tracker database")
                 raise
 
     def load_from_sqlite(self, db_path: str = SQLITE_PATH) -> None:
         with contextlib.closing(connect_db(db_path)) as con:
-            rows = con.execute("SELECT uid, hkey, requests_per_task, success_per_task FROM uids").fetchall()
+            try:
+                rows = con.execute("SELECT uid, hkey, requests_per_task, success_per_task FROM uids").fetchall()
+            except sqlite3.OperationalError as e:
+                if "no such table" in str(e):
+                    # Empty DB, nothing to load.
+                    return
+                raise
+
             if not rows:
                 return
+
             self.uids.clear()
             for uid, hkey, req_json, succ_json in rows:
-                self.uids[uid] = Uid(
+                self.uids[int(uid)] = Uid(
                     uid=uid,
                     hkey=hkey,
+                    all_uids=self.get_all_coldkey_uids(int(uid)),
                     requests_per_task=json.loads(req_json),
                     success_per_task=json.loads(succ_json),
                 )
+        logger.debug(f"Loaded from database")
 
 
 # TODO: Move to FastAPI lifespan.
