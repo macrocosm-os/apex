@@ -2,42 +2,70 @@ import json
 import re
 import traceback
 from functools import wraps
+from typing import Any
 
 from fastapi.responses import StreamingResponse
 from loguru import logger
 
 
-def parse_llm_json(json_str):
-    """
-    Parse JSON output from LLM that may contain code blocks, newlines and other formatting.
-    Extracts JSON from code blocks if present.
+def parse_llm_json(json_str: str, allow_empty: bool = True) -> dict[str, Any]:
+    """Parse JSON output from LLM that may contain code blocks, newlines and other formatting.
+
+    Extracts JSON from code blocks if present, or finds JSON objects/arrays within text.
 
     Args:
-        json_str (str): The JSON string to parse
+        json_str (str): The JSON string to parse.
+        allow_empty (bool): Whether to allow empty JSON objects.
 
     Returns:
         dict: The parsed JSON object
     """
-    # logger.info(f"Parsing JSON from: {json_str}")
-    # First try to extract JSON from code blocks if they exist
+    # First try to extract JSON from code blocks if they exist.
     code_block_pattern = r"```(?:json)?\s*([\s\S]*?)```"
     code_block_matches = re.findall(code_block_pattern, json_str)
-
     if code_block_matches:
-        # Use the first code block found
+        # Use the first code block found.
         json_str = code_block_matches[0]
-        # logger.info(f"Extracted JSON from code block: {json_str}")
     else:
-        raise json.JSONDecodeError("Expecting value", json_str, 0)
+        # Try to find JSON objects or arrays within the string.
+        json_candidates = []
 
-    # Replace escaped newlines with actual newlines
+        # Look for JSON objects {...}.
+        brace_pattern = r"\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}"
+        object_matches = re.findall(brace_pattern, json_str)
+        json_candidates.extend(object_matches)
+
+        # Look for JSON arrays [...].
+        bracket_pattern = r"\[[^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*\]"
+        array_matches = re.findall(bracket_pattern, json_str)
+        json_candidates.extend(array_matches)
+
+        # Try to parse each candidate and use the first valid one.
+        for candidate in json_candidates:
+            try:
+                candidate = candidate.strip()
+                json.loads(candidate)
+                json_str = candidate
+                break
+            except json.JSONDecodeError:
+                continue
+        else:
+            # If no valid JSON found in candidates, try the original string.
+            pass
+
+    # Replace escaped newlines with actual newlines.
     json_str = json_str.replace("\\n", "\n")
 
-    # Remove any redundant newlines/whitespace while preserving content
+    # Remove any redundant newlines/whitespace while preserving content.
     json_str = " ".join(line.strip() for line in json_str.splitlines())
 
-    # Parse the cleaned JSON string
-    return json.loads(json_str)
+    # Parse the cleaned JSON string.
+    result = json.loads(json_str)
+
+    if not allow_empty and not result:
+        raise json.JSONDecodeError("Empty JSON string", json_str, 0)
+
+    return result
 
 
 def with_retries(max_retries: int = 3):

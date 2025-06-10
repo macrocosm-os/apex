@@ -3,19 +3,20 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from shared import settings
+from shared.uids import get_uids
 
 shared_settings = settings.shared_settings
 import asyncio
 import json
 import random
 
+import numpy as np
 from loguru import logger
 
 from shared.epistula import SynapseStreamResult, query_miners
 from validator_api import scoring_queue
 from validator_api.api_management import validate_api_key
 from validator_api.serializers import WebRetrievalRequest, WebRetrievalResponse, WebSearchResult
-from validator_api.utils import filter_available_uids
 
 router = APIRouter()
 
@@ -42,21 +43,11 @@ async def web_retrieval(  # noqa: C901
     api_key: str = Depends(validate_api_key),
 ):
     """Launch *all* requested miners in parallel, return immediately when the first miner delivers a valid result."""
-    # Choose miners.
-    if request.uids:
-        try:
-            uids: list[int] = list(map(int, request.uids))
-        except Exception:
-            logger.error(f"Invalid uids supplied: {request.uids}")
-            raise HTTPException(status_code=500, detail="Invalid miner uids")
-    else:
-        available = filter_available_uids(
-            task="WebRetrievalTask",
-            test=shared_settings.API_TEST_MODE,
-            n_miners=request.n_miners,
-            explore=shared_settings.API_UIDS_EXPLORE,
-        )
-        uids = random.sample(available, min(len(available), request.n_miners))
+    # Requesting UIDs is deprecated.
+    uids: np.ndarray = get_uids(sampling_mode="random", k=shared_settings.API_EXTRA_UIDS_QUERY)
+
+    if isinstance(uids, np.ndarray):
+        uids = uids.tolist()
 
     if not uids:
         raise HTTPException(status_code=500, detail="No available miners")
@@ -112,61 +103,70 @@ async def web_retrieval(  # noqa: C901
     collected_chunks_raw_list: list[list[Any]] = [[] for _ in uids]
 
     try:
-        first_valid: list[dict[str, Any]] | None = None
-        primary_idx: int | None = None
+        done, pending = await asyncio.wait(miner_tasks, timeout=timeout_seconds, return_when=asyncio.ALL_COMPLETED)
+        for task in pending:
+            task.cancel()
 
-        # as_completed yields tasks exactly when each finishes.
-        for fut in asyncio.as_completed(miner_tasks):
-            idx, chunks, raw_chunks = await fut
+        # Gather results that finished on time.
+        per_miner_items: list[list[dict[str, Any]]] = [[] for _ in uids]
+        for fut in done:
+            idx, chunks, raw_chunks = fut.result()
             collected_chunks_list[idx] = chunks
             collected_chunks_raw_list[idx] = raw_chunks
-
             parsed = _parse_chunks(chunks)
             if parsed:
-                first_valid = parsed[: request.n_results]
-                primary_idx = idx
-                # Stop iterating; others handled in background
-                break
+                per_miner_items[idx] = parsed  # keep association with this miner
 
-        if first_valid is None:
+        # nothing parsed at all?
+        if not any(per_miner_items):
             logger.warning("No miner produced a valid (non-empty) result list")
-            raise HTTPException(status_code=500, detail="No miner responded successfully")
+            # raise HTTPException(status_code=500, detail="No miner responded successfully")
+            return WebRetrievalResponse(results=[WebSearchResult(url="", content="", relevant="")])
 
-        # Build client response from the winner.
-        unique, seen = [], set()
-        for item in first_valid:
-            if item["url"] not in seen:
-                seen.add(item["url"])
-                unique.append(WebSearchResult(**item))
+        # Deduplicate then sample.
+        max_needed = request.n_results
+        unique_urls: set[str] = set()
+        selected_items: list[WebSearchResult] = []
 
-        # Collect all remaining miners *quietly* then push to scoring.
-        async def _collect_remaining(pending: list[asyncio.Task]) -> None:
-            try:
-                for fut in asyncio.as_completed(pending):
-                    idx, chunks, raw_chunks = await fut
-                    collected_chunks_list[idx] = chunks
-                    collected_chunks_raw_list[idx] = raw_chunks
-            except Exception as exc:
-                logger.debug(f"Error collecting remaining miners: {exc}")
+        round_idx = 0
+        while len(selected_items) < max_needed:
+            made_progress = False
+            for miner_items in per_miner_items:
+                if round_idx < len(miner_items):
+                    item = miner_items[round_idx]
+                    url = item["url"]
+                    if url not in unique_urls:
+                        unique_urls.add(url)
+                        selected_items.append(WebSearchResult(**item))
+                    # This miner had >= round_idx items.
+                    made_progress = True
+                    if len(selected_items) == max_needed:
+                        # Early exit.
+                        break
+            if not made_progress:
+                # No miner had an item at this depth - we’re out.
+                break
+            round_idx += 1
+        logger.info(
+            f"Returning {len(selected_items)} unique results across {sum(bool(m) for m in per_miner_items)} miners"
+        )
 
-            await scoring_queue.scoring_queue.append_response(
+        # Launch background for scoring.
+        asyncio.create_task(
+            scoring_queue.scoring_queue.append_response(
                 uids=uids,
                 body=body,
                 chunks=collected_chunks_list,
                 chunk_dicts_raw=collected_chunks_raw_list,
                 timings=None,
             )
+        )
 
-        # Pending tasks still not finished.
-        pending_tasks = [t for t in miner_tasks if not t.done()]
-        asyncio.create_task(_collect_remaining(pending_tasks))
-
-        logger.info(f"✅ Returning {len(unique)} results from miner idx={primary_idx}, uid={uids[primary_idx]}")
-        return WebRetrievalResponse(results=unique)
+        return WebRetrievalResponse(results=selected_items)
 
     # Cleanup and error handling.
     except asyncio.CancelledError:
-        logger.warning("Client disconnected – cancelling miner tasks")
+        logger.warning("Client disconnected - cancelling miner tasks")
         for t in miner_tasks:
             t.cancel()
         raise

@@ -255,12 +255,17 @@ async def make_openai_query(
         body["messages"] = model_factory(body.get("model")).format_messages(body["messages"])
 
     start_time = time.perf_counter()
-    chat = await miner.chat.completions.create(
-        model=body.get("model", None),
-        messages=body["messages"],
-        stream=True,
-        extra_body=extra_body,
-    )
+    try:
+        chat = await miner.chat.completions.create(
+            model=body.get("model", None),
+            messages=body["messages"],
+            stream=True,
+            extra_body=extra_body,
+        )
+    except BaseException as e:
+        logger.warning(f"Error while querying UID {uid}: {e}")
+        return
+
     if stream:
         return chat
     else:
