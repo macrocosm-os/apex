@@ -1,0 +1,6 @@
+angle-emb
+vllm 
+torch
+fastapi
+uvicorn
+pydantic
