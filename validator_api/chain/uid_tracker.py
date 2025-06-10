@@ -26,14 +26,16 @@ def connect_db(db_path: str = SQLITE_PATH):
     con = sqlite3.connect(db_path, isolation_level=None)
     con.execute("PRAGMA journal_mode=WAL")
     con.execute("PRAGMA busy_timeout=5000")
-    con.execute("""
+    con.execute(
+        """
         CREATE TABLE IF NOT EXISTS uids (
             uid TEXT PRIMARY KEY,
             hkey TEXT NOT NULL,
             requests_per_task TEXT NOT NULL,
             success_per_task TEXT NOT NULL
         )
-    """)
+    """
+    )
     return con
 
 
@@ -302,10 +304,10 @@ class UidTracker(BaseModel):
                 )
 
                 con.commit()
-                logger.debug(f"Successfully updated UID tracker database")
+                logger.debug("Successfully updated UID tracker database")
             except Exception:
                 con.rollback()
-                logger.debug(f"Failed to update UID tracker database")
+                logger.debug("Failed to update UID tracker database")
                 raise
 
     def load_from_sqlite(self, db_path: str = SQLITE_PATH) -> None:
@@ -330,7 +332,7 @@ class UidTracker(BaseModel):
                     requests_per_task=json.loads(req_json),
                     success_per_task=json.loads(succ_json),
                 )
-        logger.debug(f"Loaded from database")
+        logger.debug("Loaded from database")
 
 
 # TODO: Move to FastAPI lifespan.
