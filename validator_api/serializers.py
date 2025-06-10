@@ -65,6 +65,13 @@ class CompletionsRequest(BaseModel):
             "do_sample": True,
         },
     )
+    logprobs: bool = Field(
+        default=False, description="Whether to return logprobs for completion tokens, defaults to False."
+    )
+    top_logprobs: int = Field(
+        default=10,
+        description="Amount of top logprobs for completion tokens. Not supported yet, will always return 10 logprobs.",
+    )
     inference_mode: Optional[str] = Field(
         default=None,
         description="Inference mode to use for the task.",
@@ -106,7 +113,7 @@ class WebRetrievalRequest(BaseModel):
     search_query: str = Field(
         ..., description="The query to search for on the web.", example="latest advancements in quantum computing"
     )
-    n_miners: int = Field(default=3, description="Number of miners to query for results.", example=15, ge=1)
+    n_miners: int = Field(default=5, description="Number of miners to query for results.", example=15, ge=1)
     n_results: int = Field(
         default=1, description="Maximum number of results to return in the response.", example=5, ge=1
     )
