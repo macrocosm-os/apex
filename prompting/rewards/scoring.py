@@ -109,41 +109,19 @@ class TaskScorer(AsyncLoopRunner):
                 model_manager=self.model_scheduler.llm_model_manager,
                 task_queue=self.task_queue,
             )
-            if scoring_config.task.organic:
-                logger.debug(f"Reward events size: {len(reward_events)}")
 
-                # Extract all rewards from all reward events
-                all_rewards = []
-                for reward_event in reward_events:
-                    if reward_event.rewards:
-                        all_rewards.append(reward_event.rewards)
-
-                # Log organic query timing and scoring data using dedicated event
-                chunk_timings = []
-                if scoring_config.response.stream_results_all_chunks_timings:
-                    # Flatten the list of timings from all UIDs
-                    for timing_list in scoring_config.response.stream_results_all_chunks_timings:
-                        chunk_timings.extend(timing_list)
-
-                log_event(
-                    OrganicQueryLoggingEvent(
-                        task_id=scoring_config.task.task_id,
-                        task_name=scoring_config.task.name or scoring_config.task.__class__.__name__,
-                        rewards=all_rewards,
-                        chunk_timings=chunk_timings,
-                        step=scoring_config.step,
-                    )
-                )
         self.reward_events.append(reward_events)
+        response = copy.deepcopy(scoring_config.response)
+        response.stream_results_all_chunk_dicts_raw = []
 
         logger.debug(
             f"Scored {scoring_config.task.__class__.__name__} {scoring_config.task.task_id} with model "
             f"{scoring_config.task.llm_model_id}"
         )
+
+        # Synthetic queries
         if not scoring_config.task.organic:
             # Reduce log size for raw chunks, wandb fails to log any data when overloaded.
-            response = copy.deepcopy(scoring_config.response)
-            response.stream_results_all_chunk_dicts_raw = []
             for idx in range(len(response.stream_results)):
                 response.stream_results[idx].accumulated_chunk_dicts_raw = []
 
@@ -167,6 +145,31 @@ class TaskScorer(AsyncLoopRunner):
                     task_id=scoring_config.task_id,
                     task_dict=scoring_config.task.model_dump(),
                     source=scoring_config.dataset_entry.source,
+                )
+            )
+
+        # Organic queries
+        else:
+            # Extract all rewards from all reward events
+            all_rewards = []
+            for reward_event in reward_events:
+                if reward_event.rewards:
+                    all_rewards.append(reward_event.rewards)
+
+            # Log organic query timing and scoring data using dedicated event
+            chunk_timings = []
+            if scoring_config.response.stream_results_all_chunks_timings:
+                # Flatten the list of timings from all UIDs
+                for timing_list in scoring_config.response.stream_results_all_chunks_timings:
+                    chunk_timings.extend(timing_list)
+
+            log_event(
+                OrganicQueryLoggingEvent(
+                    task_id=scoring_config.task.task_id,
+                    task_name=scoring_config.task.name or scoring_config.task.__class__.__name__,
+                    rewards=all_rewards,
+                    chunk_timings=chunk_timings,
+                    step=scoring_config.step,
                 )
             )
 
