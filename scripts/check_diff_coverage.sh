@@ -1,0 +1,21 @@
+#!/bin/bash
+
+# Diff coverage script for prompting project
+# This script checks coverage only on changed/new code
+
+set -e
+
+# Get the comparison branch (default to main)
+COMPARE_BRANCH=${1:-main}
+
+echo "🔍 Checking diff coverage against branch: $COMPARE_BRANCH"
+
+# First, run tests with coverage
+echo "🧪 Running tests with coverage..."
+poetry run pytest --cov=prompting --cov-report=xml tests/
+
+# Check diff coverage
+echo "📊 Checking diff coverage (minimum 80%)..."
+poetry run diff-cover coverage.xml --compare-branch=$COMPARE_BRANCH --fail-under=80
+
+echo "✅ Diff coverage check complete!"

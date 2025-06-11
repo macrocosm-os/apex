@@ -16,6 +16,9 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        # Fetch full history for diff-cover to work properly
+        fetch-depth: 0
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v3
@@ -49,10 +52,23 @@ jobs:
       run: |
         poetry run ruff format --check --diff .
 
-    - name: Test with pytest
+    - name: Test with pytest and coverage
       run: |
-        # run tests in tests/ dir and only fail if there are failures or errors
-        poetry run pytest tests/ --verbose --failed-first --exitfirst --disable-warnings
+        # run tests in tests/ dir with coverage
+        poetry run pytest tests/ --cov=prompting --cov-report=xml --cov-report=term-missing --verbose --failed-first --exitfirst --disable-warnings
+
+    - name: Check diff coverage
+      run: |
+        # Check coverage on changed code (80% minimum)
+        poetry run diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+
+    - name: Upload coverage to Codecov (optional)
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: unittests
+        name: codecov-umbrella
+        fail_ci_if_error: false
 
     - name: Cache pip
       uses: actions/cache@v3
