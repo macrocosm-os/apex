@@ -22,12 +22,12 @@ from validator_api import scoring_queue
 from validator_api.utils import filter_available_uids
 
 TOKENS_MIN_STREAM = 21
-TIMEOUT_ALL_UIDS_FALLBACK = 5
+TIMEOUT_ALL_UIDS_FALLBACK = 7
 _END_OF_STREAM: object = object()
 
 
 async def _prepare_chunk(chunk, body: dict[str, Any]):
-    chunk_dict = chunk.model_dump(mode="python")
+    chunk_dict = chunk.model_dump()
     if not body.get("logprobs"):
         chunk_dict["choices"][0].pop("logprobs", None)
     return f"data: {json.dumps(chunk_dict)}\n\n"
@@ -94,8 +94,8 @@ async def collect_streams(  # noqa: C901
                         producer_idx = idx
                         producer_found.set()
                         # Flush buffered chunks collected so far.
-                        for chunk in collected_chunks_raw_list[idx]:
-                            await producer_chunks.put(chunk)
+                        for cached_chunk in collected_chunks_raw_list[idx]:
+                            await producer_chunks.put(cached_chunk)
                     elif (
                         time.monotonic() - response_start_time
                     ) > TIMEOUT_ALL_UIDS_FALLBACK and collected_chunks_raw_list:
@@ -105,8 +105,11 @@ async def collect_streams(  # noqa: C901
                             enumerate(collected_chunks_raw_list), key=lambda response: len(response[1])
                         )
                         producer_found.set()
-                        for chunk in collected_chunks_raw_list[idx]:
-                            await producer_chunks.put(chunk)
+                        for cached_chunk in collected_chunks_raw_list[idx]:
+                            await producer_chunks.put(cached_chunk)
+                        if stream_finished[idx]:
+                            # Fallback stream might be already finished.
+                            await producer_chunks.put(_END_OF_STREAM)
 
                 if idx == producer_idx:
                     await producer_chunks.put(chunk)

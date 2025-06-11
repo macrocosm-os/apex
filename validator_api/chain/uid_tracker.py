@@ -16,7 +16,7 @@ from validator_api.deep_research.utils import parse_llm_json
 
 shared_settings = settings.shared_settings
 
-SUCCESS_RATE_MIN = 0.9
+SUCCESS_RATE_MIN = 0.95
 MIN_CHUNKS = 514
 
 SQLITE_PATH = os.getenv("UID_TRACKER_DB", "uid_tracker.sqlite")
@@ -127,6 +127,14 @@ class UidTracker(BaseModel):
         all_uids = [related_uid for related_uid, ckey in enumerate(coldkeys) if ckey == uid_ckey]
         return all_uids
 
+    async def success_rate_per_coldkey(self) -> dict[str, float]:
+        coldkey_rate: dict[str, float] = {}
+        for sr in self.uids.values():
+            coldkey = shared_settings.METAGRAPH.coldkeys[sr.uid]
+            if coldkey in coldkey_rate:
+                coldkey_rate[coldkey] = round(sr.success_rate(TaskType.Inference), 2)
+        return coldkey_rate
+
     async def set_query_attempt(self, uids: list[int] | int, task_name: TaskType | str):
         """Set query attempt, in case of success `set_query_success` should be called for the given uid."""
         if not isinstance(task_name, TaskType):
@@ -156,6 +164,8 @@ class UidTracker(BaseModel):
         self.track_counter += 1
         if self.track_counter % self.write_frequency == 0:
             await asyncio.to_thread(self.save_to_sqlite)
+            coldkey_rate = await self.success_rate_per_coldkey()
+            logger.debug(f"Success rate per coldkey: {coldkey_rate}")
 
         if self.track_counter % self.write_frequency == self.write_frequency - 1:
             await asyncio.to_thread(self.resync)
