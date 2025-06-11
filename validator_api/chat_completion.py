@@ -89,7 +89,8 @@ async def collect_streams(  # noqa: C901
                     continue
 
                 if not producer_found.is_set():
-                    if reliable_uid and top_incentive and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM:
+                    # if reliable_uid and top_incentive and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM:
+                    if reliable_uid and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM:
                         # Set UID as a primary stream if it's in reliable list and top incentive.
                         producer_idx = idx
                         producer_found.set()
