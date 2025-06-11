@@ -87,11 +87,11 @@ bash run_api.sh
 
 **Endpoint:** `POST /miner_availabilities/miner_availabilities`
 
-**Description:** Fetches miner availabilities based on provided UIDs.
+**Description:** Fetches miner availabilities based on provided UIDs. **Note: Specifying UIDs is deprecated.**
 
 **Request Body:**
 
-- JSON array of integers or null (optional).
+- JSON array of integers or null (optional, deprecated).
 
 ---
 
@@ -169,13 +169,13 @@ Web Retrieval
 
 **Endpoint:** `GET /web_retrieval`
 
-**Description:** Retrieves a list websites about a search query
+**Description:** Retrieves a list websites about a search query. **Note: The `uids` parameter is deprecated.**
 
 **Parameters:**
 
 - **search_query** (str): The search term you'd like to look up
 - **n_miners** (int, optional): How many miners to query
-- **uids**: (list[int], optional): which specific uids to query (Deprecated)
+- **uids**: (list[int], optional, deprecated): which specific uids to query
 
 ---
 
