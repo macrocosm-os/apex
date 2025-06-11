@@ -236,7 +236,8 @@ async def chat_completion(
         primary_uids.extend(list(reliable_uids.keys()))
         primary_uids = list(set(primary_uids))
         logger.debug(
-            f"Added reliable miners: {list(reliable_uids.keys())} to the request, total uids: {len(primary_uids)}"
+            f"Added reliable miners: {list(reliable_uids.keys())} to the request, "
+            f"total primary uids: {len(primary_uids)}"
         )
 
     if not primary_uids:
