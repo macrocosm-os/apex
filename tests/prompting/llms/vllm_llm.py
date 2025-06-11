@@ -9,7 +9,10 @@ from prompting.llms.vllm_llm import ReproducibleVLLM
 def _fake_tokenizer():
     tok = MagicMock()
     tok.apply_chat_template.side_effect = (
-        lambda conversation, tokenize, add_generation_prompt, continue_final_message: f"TEMPLATE::{conversation[-1]['role']}::{conversation[-1]['content']}"
+        lambda conversation,
+        tokenize,
+        add_generation_prompt,
+        continue_final_message: f"TEMPLATE::{conversation[-1]['role']}::{conversation[-1]['content']}"
     )
     tok.decode.side_effect = lambda ids: "<s>" if ids == [0] else f"tok{ids[0]}"
     return tok
@@ -41,8 +44,9 @@ async def test_generate_logits(monkeypatch, messages, continue_last):
     tokenizer_stub = _fake_tokenizer()
     llm_stub = _fake_llm(fake_logprobs)
 
-    with patch("prompting.llms.vllm_llm.LLM", return_value=llm_stub), patch(
-        "prompting.llms.vllm_llm.SamplingParams", lambda **kw: kw
+    with (
+        patch("prompting.llms.vllm_llm.LLM", return_value=llm_stub),
+        patch("prompting.llms.vllm_llm.SamplingParams", lambda **kw: kw),
     ):
         model = ReproducibleVLLM(model_id="mock-model")
         # Swap tokenizer (LLM stub has none).
