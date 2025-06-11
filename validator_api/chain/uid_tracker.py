@@ -16,7 +16,7 @@ from validator_api.deep_research.utils import parse_llm_json
 
 shared_settings = settings.shared_settings
 
-SUCCESS_RATE_MIN = 0.95
+SUCCESS_RATE_MIN = 0.98
 MIN_CHUNKS = 514
 
 SQLITE_PATH = os.getenv("UID_TRACKER_DB", "uid_tracker.sqlite")

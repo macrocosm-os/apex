@@ -212,6 +212,7 @@ async def chat_completion(
     uids: Optional[list[int]] = None,
     num_miners: int = 5,
     uid_tracker: UidTracker | None = None,
+    add_reliable_miners: int = 1,
 ) -> tuple | StreamingResponse:
     # TODO: Add docstring.
     """Handle chat completion with multiple miners in parallel."""
@@ -226,8 +227,20 @@ async def chat_completion(
     primary_uids = filter_available_uids(
         task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=num_miners
     )
+    if uid_tracker is not None:
+        # Add reliable uids, or ones with highest success rate to guarantee completed stream.
+        reliable_uids = await uid_tracker.sample_reliable(
+            task=TaskType.Inference, amount=add_reliable_miners, success_rate=0.99, add_random_extra=False
+        )
+        primary_uids.extend(list(reliable_uids.keys()))
+        primary_uids = list(set(primary_uids))
+        logger.debug(
+            f"Added reliable miners: {list(reliable_uids.keys())} to the request, total uids: {len(primary_uids)}"
+        )
+
     if not primary_uids:
         raise HTTPException(status_code=500, detail="No available miners")
+
     primary_uids: list[int] = random.sample(primary_uids, min(len(primary_uids), num_miners))
 
     # TODO: Revisit why returned uids types are not unified for different modes.
