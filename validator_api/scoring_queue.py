@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 from collections import deque
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -162,19 +163,31 @@ class ScoringQueue(AsyncLoopRunner):
             return
 
         try:
-            # with open("api.jsonl", "a+", encoding="utf-8") as f:
-            #     f.write(json.dumps(payload) + "\n")
-            tps = {}
-            response_len = {}
+            total_time: dict[int, float] = {}
+            tps: dict[int, float] = {}
+            response_len: dict[int, int] = {}
             for u in uids:
                 uid = str(u)
                 response_len[uid] = len(chunk_dict_raw.get(uid, []))
                 timings_u = timing_dict.get(uid, [])
                 if timings_u:
+                    total_time[u] = timings_u[-1]
                     dur = timings_u[-1] or 1e-6
                     tps[u] = len(chunk_dict_raw.get(uid, [])) / dur
             sorted_tps = dict(sorted(tps.items(), key=lambda x: x[1], reverse=True))
             response_len = dict(sorted(response_len.items(), key=lambda x: x[1], reverse=True))
+
+            # Save debug values to jsonl.
+            LOG_PATH = Path("api.jsonl")
+            record = {
+                "ts": datetime.datetime.utcnow().isoformat(timespec="seconds") + "Z",
+                "body": body.get("messages"),
+                "tps": sorted_tps,
+                "responses": response_len,
+                "total_time": total_time,
+            }
+            with LOG_PATH.open("a+", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
 
             logger.debug(
                 "Sending to score\n"

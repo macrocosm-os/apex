@@ -149,10 +149,10 @@ class UidTracker(BaseModel):
                     # Update all assosiated UIDs with given coldkey.
                     value = self.uids[uid_assosiated].requests_per_task.get(task_name, 0) + 1
                     self.uids[uid_assosiated].requests_per_task[task_name] = value
-                    logger.debug(f"Setting query attempt for task {task_name} and UIDs {self.uids[uid].all_uids}")
+                    # logger.debug(f"Setting query attempt for task {task_name} and UIDs {self.uids[uid].all_uids}")
             else:
                 self.uids[uid].requests_per_task[task_name] = self.uids[uid].requests_per_task.get(task_name, 0) + 1
-                logger.debug(f"Setting query attempt for task {task_name} and UID {uid}")
+                # logger.debug(f"Setting query attempt for task {task_name} and UID {uid}")
 
     async def set_query_success(self, uids: list[int] | int, task_name: TaskType | str):
         if not isinstance(task_name, TaskType):
@@ -164,8 +164,6 @@ class UidTracker(BaseModel):
         self.track_counter += 1
         if self.track_counter % self.write_frequency == 0:
             await asyncio.to_thread(self.save_to_sqlite)
-            coldkey_rate = await self.success_rate_per_coldkey()
-            logger.debug(f"Success rate per coldkey: {coldkey_rate}")
 
         if self.track_counter % self.write_frequency == self.write_frequency - 1:
             await asyncio.to_thread(self.resync)
@@ -176,10 +174,10 @@ class UidTracker(BaseModel):
                     # Update all assosiated UIDs with given coldkey.
                     value = self.uids[uid_assosiated].success_per_task.get(task_name, 0) + 1
                     self.uids[uid_assosiated].success_per_task[task_name] = value
-                logger.debug(f"Setting query success for task {task_name} and UIDs {self.uids[uid].all_uids}")
+                # logger.debug(f"Setting query success for task {task_name} and UIDs {self.uids[uid].all_uids}")
             else:
                 self.uids[uid].success_per_task[task_name] = self.uids[uid].success_per_task.get(task_name, 0) + 1
-                logger.debug(f"Setting query success for task {task_name} and UID {uid}")
+                # logger.debug(f"Setting query success for task {task_name} and UID {uid}")
 
     async def sample_reliable(
         self, task: TaskType | str, amount: int, success_rate: float = SUCCESS_RATE_MIN, add_random_extra: bool = True
@@ -189,6 +187,9 @@ class UidTracker(BaseModel):
                 task = TaskType(task)
             except ValueError:
                 return {}
+
+        coldkey_rate = await self.success_rate_per_coldkey()
+        logger.debug(f"Success rate per coldkey: {coldkey_rate}")
 
         uid_success_rates: list[tuple[Uid, float]] = []
         for uid in self.uids.values():
