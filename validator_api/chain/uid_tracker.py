@@ -123,15 +123,15 @@ class UidTracker(BaseModel):
         """Get all UIDs assosiated with given uid and its coldkey."""
         # Metagraph is lazily initialized.
         coldkeys = shared_settings.METAGRAPH.coldkeys
-        uid_ckey = coldkeys[uid]
+        uid_ckey = coldkeys[int(uid)]
         all_uids = [related_uid for related_uid, ckey in enumerate(coldkeys) if ckey == uid_ckey]
         return all_uids
 
     async def success_rate_per_coldkey(self) -> dict[str, float]:
         coldkey_rate: dict[str, float] = {}
         for sr in self.uids.values():
-            coldkey = shared_settings.METAGRAPH.coldkeys[sr.uid]
-            if coldkey in coldkey_rate:
+            coldkey = shared_settings.METAGRAPH.coldkeys[int(sr.uid)]
+            if coldkey not in coldkey_rate:
                 coldkey_rate[coldkey] = round(sr.success_rate(TaskType.Inference), 2)
         return coldkey_rate
 
