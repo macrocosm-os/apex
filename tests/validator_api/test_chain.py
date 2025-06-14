@@ -8,6 +8,7 @@ def mock_shared_settings(monkeypatch: pytest.MonkeyPatch):
     class MockMetagraph:
         n: int = 3
         hotkeys: dict[int, str] = {0: "key0", 1: "key1", 2: "key2"}
+        coldkeys: list[str] = ["coldkey0", "coldkey1", "coldkey2"]
 
     class MockSettings:
         METAGRAPH: MockMetagraph = MockMetagraph()
@@ -32,21 +33,21 @@ async def test_resync(uid_tracker: UidTracker) -> None:
 
 @pytest.mark.asyncio
 async def test_set_query_attempt(uid_tracker: UidTracker):
-    await uid_tracker.set_query_attempt(0, TaskType.CompletionInference)
-    assert uid_tracker.uids[0].requests_per_task[TaskType.CompletionInference] == 1
+    await uid_tracker.set_query_attempt(0, TaskType.Inference)
+    assert uid_tracker.uids[0].requests_per_task[TaskType.Inference] == 1
 
 
 @pytest.mark.asyncio
 async def test_set_query_success(uid_tracker: UidTracker):
-    await uid_tracker.set_query_success(0, TaskType.CompletionInference)
-    assert uid_tracker.uids[0].success_per_task[TaskType.CompletionInference] == 1
+    await uid_tracker.set_query_success(0, TaskType.Inference)
+    assert uid_tracker.uids[0].success_per_task[TaskType.Inference] == 1
 
 
 @pytest.mark.asyncio
 async def test_sample_reliable(uid_tracker: UidTracker):
-    await uid_tracker.set_query_success(0, TaskType.CompletionInference)
-    await uid_tracker.set_query_attempt(0, TaskType.CompletionInference)
-    reliable: list[Uid] = await uid_tracker.sample_reliable(TaskType.CompletionInference, 1)
+    await uid_tracker.set_query_success(0, TaskType.Inference)
+    await uid_tracker.set_query_attempt(0, TaskType.Inference)
+    reliable: list[Uid] = await uid_tracker.sample_reliable(TaskType.Inference, 1)
     assert len(reliable) == 1
     assert reliable[0].uid == 0
 
@@ -54,27 +55,25 @@ async def test_sample_reliable(uid_tracker: UidTracker):
 @pytest.mark.asyncio
 async def test_sample_reliable_not_enough_uids(uid_tracker: UidTracker):
     # Set up one UID with a success rate above 0.8.
-    await uid_tracker.set_query_success(0, TaskType.CompletionInference)
-    await uid_tracker.set_query_attempt(0, TaskType.CompletionInference)
+    await uid_tracker.set_query_success(0, TaskType.Inference)
+    await uid_tracker.set_query_attempt(0, TaskType.Inference)
 
     # Set up another UID with a lower success rate 0.5.
-    await uid_tracker.set_query_attempt(1, TaskType.CompletionInference)
-    await uid_tracker.set_query_attempt(1, TaskType.CompletionInference)
-    await uid_tracker.set_query_success(1, TaskType.CompletionInference)
+    await uid_tracker.set_query_attempt(1, TaskType.Inference)
+    await uid_tracker.set_query_attempt(1, TaskType.Inference)
+    await uid_tracker.set_query_success(1, TaskType.Inference)
 
     amount = 3
 
     # Request more UIDs than available with success_rate.
-    reliable: list[Uid] = await uid_tracker.sample_reliable(
-        TaskType.CompletionInference, amount=amount, success_rate=0.8
-    )
+    reliable: list[Uid] = await uid_tracker.sample_reliable(TaskType.Inference, amount=amount, success_rate=0.8)
 
     # Verify that the requested number of UIDs is returned.
     assert len(reliable) == amount
     # Verify that the top UIDs are returned, sorted by success rate.
     assert reliable[0].uid == 0
-    assert await reliable[0].success_rate(TaskType.CompletionInference) == 1.0
+    assert await reliable[0].success_rate(TaskType.Inference) == 1.0
     assert reliable[1].uid == 1
-    assert await reliable[1].success_rate(TaskType.CompletionInference) == 0.5
+    assert await reliable[1].success_rate(TaskType.Inference) == 0.5
     assert reliable[2].uid == 2
-    assert await reliable[2].success_rate(TaskType.CompletionInference) == 0.0
+    assert await reliable[2].success_rate(TaskType.Inference) == 0.0

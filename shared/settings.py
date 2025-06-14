@@ -115,7 +115,7 @@ class SharedSettings(BaseSettings):
     # Exploration ratio for UIDs to include into primary API stream besides top incentive.
     API_UIDS_EXPLORE: float = Field(0.0, env="API_UIDS_EXPLORE")
     # Minimum UIDs to query from API (not recommended to set anything lower than 30, since scoring will be slowed down).
-    API_EXTRA_UIDS_QUERY: int = Field(70, env="API_MIN_UIDS_QUERY")
+    API_EXTRA_UIDS_QUERY: int = Field(50, env="API_MIN_UIDS_QUERY")
     # If enabled, sends request to a random validator, otherwise sends to all available validators.
     API_ENABLE_BALANCE: bool = Field(True, env="API_ENABLE_BALANCE")
     OVERRIDE_AVAILABLE_AXONS: list[str] | None = Field(None, env="OVERRIDE_AVAILABLE_AXONS")

@@ -134,7 +134,7 @@ async def _collector(idx: int, response_task: asyncio.Task) -> tuple[list[str], 
         # Treat as empty result.
         pass
     except Exception as e:
-        logger.exception(f"Collector error for miner index {idx}: {e}")
+        logger.error(f"Collector error for miner index {idx}: {e}")
     return chunks, timings
 
 
@@ -149,10 +149,22 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
     all_uids: list[int] = [
         int(uid) for uid in shared_settings.METAGRAPH.uids if shared_settings.METAGRAPH.stake[uid] * 0.05 < 1000
     ]
-    logger.debug(f"Starting network calibration for {len(all_uids)} UIDs.")
 
-    for start in range(0, len(all_uids), STEP):
-        uids = all_uids[start : start + STEP]
+    # Sample single uid from each coldkey.
+    tracked_uids = []
+    tracked_coldkeys = []
+    for uid in all_uids:
+        ckey = shared_settings.METAGRAPH.coldkeys[uid]
+        if ckey in tracked_coldkeys:
+            continue
+
+        tracked_coldkeys.append(ckey)
+        tracked_uids.append(uid)
+
+    logger.debug(f"Starting network calibration for {len(tracked_uids)} UIDs.")
+
+    for start in range(0, len(tracked_uids), STEP):
+        uids = tracked_uids[start : start + STEP]
 
         body = await generate_json_query()
 
@@ -200,7 +212,7 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
 
         await asyncio.sleep(15)
 
-    logger.debug(f"Network calibration completed for {len(all_uids)} UIDs")
+    logger.debug(f"Network calibration completed for {len(tracked_uids)} UIDs and {len(tracked_coldkeys)} coldkeys")
 
 
 async def periodic_network_calibration(
@@ -254,7 +266,7 @@ async def periodic_network_calibration(
                     success_rates = [await sr.success_rate(TaskType.Inference) for sr in uid_tracker.uids.values()]
                     logger.debug(f"Success rate average (reader): {np.mean(success_rates):.2f}")
         except BaseException as exc:  # pylint: disable=broad-except
-            logger.error(f"Calibration error on {worker_id}: {exc}")
+            logger.exception(f"Calibration error on {worker_id}: {exc}")
 
         logger.debug(f"Waiting {interval_hours:.2f}h before next calibration")
         await asyncio.sleep(interval_hours * 3600)

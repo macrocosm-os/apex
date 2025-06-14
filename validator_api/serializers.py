@@ -65,13 +65,14 @@ class CompletionsRequest(BaseModel):
             "do_sample": True,
         },
     )
-    logprobs: bool = Field(
-        default=False, description="Whether to return logprobs for completion tokens, defaults to False."
-    )
-    top_logprobs: int = Field(
-        default=10,
-        description="Amount of top logprobs for completion tokens. Not supported yet, will always return 10 logprobs.",
-    )
+    # TODO: Uncomment this, once backend will support new optional params.
+    # logprobs: Optional[bool] = Field(
+    #     default=False, description="Whether to return logprobs for completion tokens, defaults to False."
+    # )
+    # top_logprobs: Optional[int] = Field(
+    #     default=10,
+    #     description="Amount of top logprobs for completion tokens. Not supported yet, will always return 10 logprobs.",
+    # )
     inference_mode: Optional[str] = Field(
         default=None,
         description="Inference mode to use for the task.",
