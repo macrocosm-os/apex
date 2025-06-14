@@ -127,12 +127,15 @@ class UidTracker(BaseModel):
         all_uids = [related_uid for related_uid, ckey in enumerate(coldkeys) if ckey == uid_ckey]
         return all_uids
 
-    async def success_rate_per_coldkey(self) -> dict[str, float]:
+    async def success_rate_per_coldkey(self, include_zeros: bool = True) -> dict[str, float]:
         coldkey_rate: dict[str, float] = {}
         for sr in self.uids.values():
             coldkey = shared_settings.METAGRAPH.coldkeys[int(sr.uid)]
             if coldkey not in coldkey_rate:
-                coldkey_rate[coldkey] = round(sr.success_rate(TaskType.Inference), 2)
+                rate = await sr.success_rate(TaskType.Inference)
+                if not include_zeros and rate == 0:
+                    continue
+                coldkey_rate[coldkey] = round(await sr.success_rate(TaskType.Inference), 2)
         return coldkey_rate
 
     async def set_query_attempt(self, uids: list[int] | int, task_name: TaskType | str):
@@ -143,9 +146,14 @@ class UidTracker(BaseModel):
         if not isinstance(uids, Iterable):
             uids = [uids]
 
+        updated_uids: set[int] = set()
+
         for uid in uids:
             if self.bind_uid_coldkey:
                 for uid_assosiated in self.uids[uid].all_uids:
+                    if uid_assosiated in updated_uids:
+                        continue
+                    updated_uids.add(uid_assosiated)
                     # Update all assosiated UIDs with given coldkey.
                     value = self.uids[uid_assosiated].requests_per_task.get(task_name, 0) + 1
                     self.uids[uid_assosiated].requests_per_task[task_name] = value
@@ -154,7 +162,9 @@ class UidTracker(BaseModel):
                 self.uids[uid].requests_per_task[task_name] = self.uids[uid].requests_per_task.get(task_name, 0) + 1
                 # logger.debug(f"Setting query attempt for task {task_name} and UID {uid}")
 
-    async def set_query_success(self, uids: list[int] | int, task_name: TaskType | str):
+    async def set_query_success(
+            self, uids: list[int] | int, task_name: TaskType | str, values: dict[int, bool] | None = None
+        ):
         if not isinstance(task_name, TaskType):
             task_name = TaskType(task_name)
 
@@ -168,14 +178,23 @@ class UidTracker(BaseModel):
         if self.track_counter % self.write_frequency == self.write_frequency - 1:
             await asyncio.to_thread(self.resync)
 
+        updated_uids: set[int] = set()
+
         for uid in uids:
             if self.bind_uid_coldkey:
                 for uid_assosiated in self.uids[uid].all_uids:
+                    if uid_assosiated in updated_uids:
+                        continue
+                    updated_uids.add(uid_assosiated)
+                    if values and not values.get(uid):
+                        continue
                     # Update all assosiated UIDs with given coldkey.
                     value = self.uids[uid_assosiated].success_per_task.get(task_name, 0) + 1
                     self.uids[uid_assosiated].success_per_task[task_name] = value
                 # logger.debug(f"Setting query success for task {task_name} and UIDs {self.uids[uid].all_uids}")
             else:
+                if values and values.get(uid):
+                    continue
                 self.uids[uid].success_per_task[task_name] = self.uids[uid].success_per_task.get(task_name, 0) + 1
                 # logger.debug(f"Setting query success for task {task_name} and UID {uid}")
 
@@ -188,7 +207,7 @@ class UidTracker(BaseModel):
             except ValueError:
                 return {}
 
-        coldkey_rate = await self.success_rate_per_coldkey()
+        coldkey_rate = await self.success_rate_per_coldkey(include_zeros=False)
         logger.debug(f"Success rate per coldkey: {coldkey_rate}")
 
         uid_success_rates: list[tuple[Uid, float]] = []
@@ -233,21 +252,25 @@ class UidTracker(BaseModel):
 
         if format == CompletionFormat.JSON:
             await self.set_query_attempt(uids, task_name)
+            success = {uid: False for uid in uids}
             for idx, uid in enumerate(uids):
                 if len(chunks[idx]) <= min_chunks:
                     continue
                 completion = "".join(chunks[idx])
-                try:
+
+                with contextlib.suppress():
                     parse_llm_json(completion, allow_empty=False)
-                    await self.set_query_success(uid, task_name)
-                except json.JSONDecodeError:
-                    pass
+                    success[uid] = True
+
+            await self.set_query_success(uids, task_name, success)
         elif format == CompletionFormat.STR:
             await self.set_query_attempt(uids, task_name)
+            success = {uid: False for uid in uids}
             for idx, uid in enumerate(uids):
-                if len(chunks[idx]) <= min_chunks:
-                    continue
-                await self.set_query_success(uid, task_name)
+                if len(chunks[idx]) > min_chunks:
+                    success[uid] = True
+
+            await self.set_query_success(uids, task_name, success)
         else:
             logger.error(f"Unsupported completion format: {format}")
             return
