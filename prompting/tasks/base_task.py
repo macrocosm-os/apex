@@ -8,7 +8,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from prompting.llms.apis.gpt_wrapper import LLMMessage, LLMMessages
 from prompting.llms.apis.llm_wrapper import LLMWrapper
-from prompting.llms.model_zoo import ModelConfig
 from shared import settings
 from shared.base import DatasetEntry
 from shared.docker_utils import get_generation
@@ -59,7 +58,7 @@ class BaseTextTask(BaseTask):
     roles: list[str] | None = None
     messages: list[str] | list[dict] | None = None
     reference: str | None = None
-    llm_model: ModelConfig = None
+    llm_model: str | None = None
     llm_model_id: str = None
     seed: int = Field(default_factory=lambda: random.randint(0, 1000000), allow_mutation=False)
     query_system_prompt: ClassVar[str | None] = None
