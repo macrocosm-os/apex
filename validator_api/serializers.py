@@ -20,8 +20,9 @@ class CompletionsRequest(BaseModel):
 
     uids: Optional[List[int]] = Field(
         default=None,
-        description="List of specific miner UIDs to query. If not provided, miners will be selected automatically.",
+        description="[DEPRECATED] This field will be removed in a future version. List of specific miner UIDs to query. If not provided, miners will be selected automatically. Please consider alternative mechanisms for miner selection if available.",
         example=[1, 2, 3],
+        deprecated=True,
     )
     messages: List[Dict[str, str]] = Field(
         ...,
@@ -105,8 +106,9 @@ class WebRetrievalRequest(BaseModel):
 
     uids: Optional[List[int]] = Field(
         default=None,
-        description="List of specific miner UIDs to query. If not provided, miners will be selected automatically.",
+        description="[DEPRECATED] This field will be removed in a future version. List of specific miner UIDs to query. If not provided, miners will be selected automatically. Please consider alternative mechanisms for miner selection if available.",
         example=[1, 2, 3],
+        deprecated=True,
     )
     search_query: str = Field(
         ..., description="The query to search for on the web.", example="latest advancements in quantum computing"
@@ -150,8 +152,9 @@ class TestTimeInferenceRequest(BaseModel):
 
     uids: Optional[List[int]] = Field(
         default=None,
-        description="List of specific miner UIDs to query. If not provided, miners will be selected automatically.",
+        description="[DEPRECATED] This field will be removed in a future version. List of specific miner UIDs to query. If not provided, miners will be selected automatically. Please consider alternative mechanisms for miner selection if available.",
         example=[1, 2, 3],
+        deprecated=True,
     )
     messages: List[Dict[str, str]] = Field(
         ...,

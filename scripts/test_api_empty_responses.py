@@ -7,6 +7,7 @@ Results will be stored in test/
 Additional requirements:
 pip install plotly kaleido
 """
+
 import argparse
 import asyncio
 import csv

@@ -43,6 +43,7 @@ async def web_retrieval(  # noqa: C901
     api_key: str = Depends(validate_api_key),
 ):
     """Launch *all* requested miners in parallel, return immediately when the first miner delivers a valid result."""
+
     # Requesting UIDs is deprecated.
     uids: np.ndarray = get_uids(sampling_mode="random", k=shared_settings.API_EXTRA_UIDS_QUERY)
 
