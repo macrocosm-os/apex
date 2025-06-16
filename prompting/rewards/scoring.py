@@ -14,7 +14,6 @@ from prompting.tasks.task_registry import TaskRegistry
 from shared.base import DatasetEntry
 from shared.dendrite import DendriteResponseEvent
 from shared.logging import RewardLoggingEvent, log_event
-from shared.logging.logging import OrganicQueryLoggingEvent
 from shared.loop_runner import AsyncLoopRunner
 from shared.timer import Timer
 
@@ -111,68 +110,63 @@ class TaskScorer(AsyncLoopRunner):
             )
 
         self.reward_events.append(reward_events)
-        response = copy.deepcopy(scoring_config.response)
-        response.stream_results_all_chunk_dicts_raw = []
 
         logger.debug(
             f"Scored {scoring_config.task.__class__.__name__} {scoring_config.task.task_id} with model "
             f"{scoring_config.task.llm_model_id}"
         )
 
-        # Synthetic queries
-        if not scoring_config.task.organic:
-            # Reduce log size for raw chunks, wandb fails to log any data when overloaded.
-            for idx in range(len(response.stream_results)):
-                response.stream_results[idx].accumulated_chunk_dicts_raw = []
+        # Reduce log size for raw chunks, wandb fails to log any data when overloaded.
+        response = copy.deepcopy(scoring_config.response)
+        response.stream_results_all_chunk_dicts_raw = []
+        for idx in range(len(response.stream_results)):
+            response.stream_results[idx].accumulated_chunk_dicts_raw = []
 
-            if isinstance(scoring_config.task, MSRv2Task):
-                if scoring_config.task.ground_truth is not None:
-                    reference_value = str(scoring_config.task.ground_truth)  # "0" or "1"
-                else:
-                    reference_value = None
+        if isinstance(scoring_config.task, MSRv2Task):
+            if scoring_config.task.ground_truth is not None:
+                reference_value = str(scoring_config.task.ground_truth)  # "0" or "1"
             else:
-                reference_value = scoring_config.task.reference
-
-            log_event(
-                RewardLoggingEvent(
-                    response_event=response,
-                    reward_events=reward_events,
-                    reference=reference_value,
-                    challenge=scoring_config.task.query,
-                    task=scoring_config.task.name,
-                    block=scoring_config.block,
-                    step=scoring_config.step,
-                    task_id=scoring_config.task_id,
-                    task_dict=scoring_config.task.model_dump(),
-                    source=scoring_config.dataset_entry.source,
-                )
-            )
-
-        # Organic queries
+                reference_value = None
         else:
-            # Extract all rewards from all reward events
-            all_rewards = []
-            for reward_event in reward_events:
-                if reward_event.rewards:
-                    all_rewards.append(reward_event.rewards)
+            reference_value = scoring_config.task.reference
 
-            # Log organic query timing and scoring data using dedicated event
-            chunk_timings = []
-            if scoring_config.response.stream_results_all_chunks_timings:
-                # Flatten the list of timings from all UIDs
-                for timing_list in scoring_config.response.stream_results_all_chunks_timings:
-                    chunk_timings.extend(timing_list)
+        if scoring_config.task.organic:
+            response.stream_results = []
+            response.axons = []
+            response.completions = []
+            response.stream_results_all_chunks = []
+            response.stream_results_all_tokens_per_chunk = []
+            reward_events_organic = []
+            for event in reward_events:
+                event_organic = copy.deepcopy(event)
+                event_organic.task = event_organic.task.__class__()
+                reward_events_organic.append(event_organic)
+                reward_events = reward_events_organic
 
-            log_event(
-                OrganicQueryLoggingEvent(
-                    task_id=scoring_config.task.task_id,
-                    task_name=scoring_config.task.name or scoring_config.task.__class__.__name__,
-                    rewards=all_rewards,
-                    chunk_timings=chunk_timings,
-                    step=scoring_config.step,
-                )
+            reference = None
+            challenge = ""
+            task_dict = {}
+            source = "organic"
+        else:
+            reference = reference_value
+            challenge = scoring_config.task.query
+            task_dict = scoring_config.task.model_dump()
+            source = scoring_config.dataset_entry.source
+
+        log_event(
+            RewardLoggingEvent(
+                response_event=response,
+                reward_events=reward_events,
+                reference=reference,
+                challenge=challenge,
+                task=scoring_config.task.name,
+                block=scoring_config.block,
+                step=scoring_config.step,
+                task_id=scoring_config.task_id,
+                task_dict=task_dict,
+                source=source,
             )
-
+        )
         self.model_scheduler.llm_model_manager.lock.release()
         await asyncio.sleep(0.01)
 

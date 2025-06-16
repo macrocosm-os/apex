@@ -233,27 +233,6 @@ class MinerLoggingEvent(BaseEvent):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-class OrganicQueryLoggingEvent(BaseEvent):
-    """Event for logging organic query timings and scorings to wandb."""
-
-    task_id: str
-    task_name: str
-    rewards: list[list[float]]  # All rewards from all reward events
-    chunk_timings: list[float]
-    step: int | None = None
-
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-
-    def __str__(self):
-        return f"""OrganicQueryLoggingEvent:
-            Task ID: {self.task_id}
-            Task Name: {self.task_name}
-            Rewards: {self.rewards}
-            Chunk Timings: {self.chunk_timings}
-            Step: {self.step}
-        """
-
-
 def log_event(event: BaseEvent):
     if not settings.shared_settings.LOGGING_DONT_SAVE_EVENTS:
         logger.info(f"{event}")
