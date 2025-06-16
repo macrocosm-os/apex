@@ -69,15 +69,8 @@ class TaskScorer(AsyncLoopRunner):
 
     async def run_step(self) -> RewardLoggingEvent:
         await asyncio.sleep(0.1)
-        # Only score responses for which the model is loaded
-        await self.model_scheduler.llm_model_manager.lock.acquire()
         with self.mp_lock:
-            scorable = [
-                scoring_config
-                for scoring_config in self.scoring_queue
-                if (scoring_config.task.llm_model in self.model_scheduler.llm_model_manager.active_models.keys())
-                or (scoring_config.task.llm_model is None)
-            ]
+            scorable = self.scoring_queue # TODO: Filter based on active
             if len(scorable) == 0:
                 return
             self.scoring_queue.remove(scorable[0])
@@ -87,7 +80,6 @@ class TaskScorer(AsyncLoopRunner):
         with Timer(label=f"Generating reference for {scoring_config.task.__class__.__name__}"):
             await scoring_config.task.make_reference(
                 dataset_entry=scoring_config.dataset_entry,
-                model_manager=self.model_scheduler.llm_model_manager,
             )
             logger.info(f"Reference: {scoring_config.task.reference}")
 
@@ -102,7 +94,6 @@ class TaskScorer(AsyncLoopRunner):
                 reference=scoring_config.task.reference,
                 model_id=scoring_config.task.llm_model_id,
                 task=scoring_config.task,
-                model_manager=self.model_scheduler.llm_model_manager,
                 task_queue=self.task_queue,
             )
             if scoring_config.task.organic:
@@ -143,7 +134,6 @@ class TaskScorer(AsyncLoopRunner):
                 )
             )
 
-        self.model_scheduler.llm_model_manager.lock.release()
         await asyncio.sleep(0.01)
 
 
