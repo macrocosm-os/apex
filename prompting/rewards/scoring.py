@@ -108,44 +108,62 @@ class TaskScorer(AsyncLoopRunner):
                 model_manager=self.model_scheduler.llm_model_manager,
                 task_queue=self.task_queue,
             )
-            if scoring_config.task.organic:
-                logger.debug(f"Reward events size: {len(reward_events)}")
+
         self.reward_events.append(reward_events)
 
         logger.debug(
             f"Scored {scoring_config.task.__class__.__name__} {scoring_config.task.task_id} with model "
             f"{scoring_config.task.llm_model_id}"
         )
-        if not scoring_config.task.organic:
-            # Reduce log size for raw chunks, wandb fails to log any data when overloaded.
-            response = copy.deepcopy(scoring_config.response)
-            response.stream_results_all_chunk_dicts_raw = []
-            for idx in range(len(response.stream_results)):
-                response.stream_results[idx].accumulated_chunk_dicts_raw = []
 
-            if isinstance(scoring_config.task, MSRv2Task):
-                if scoring_config.task.ground_truth is not None:
-                    reference_value = str(scoring_config.task.ground_truth)  # "0" or "1"
-                else:
-                    reference_value = None
+        # Reduce log size for raw chunks, wandb fails to log any data when overloaded.
+        response = copy.deepcopy(scoring_config.response)
+        response.stream_results_all_chunk_dicts_raw = []
+        for idx in range(len(response.stream_results)):
+            response.stream_results[idx].accumulated_chunk_dicts_raw = []
+
+        if isinstance(scoring_config.task, MSRv2Task):
+            if scoring_config.task.ground_truth is not None:
+                reference_value = str(scoring_config.task.ground_truth)  # "0" or "1"
             else:
-                reference_value = scoring_config.task.reference
+                reference_value = None
+        else:
+            reference_value = scoring_config.task.reference
 
-            log_event(
-                RewardLoggingEvent(
-                    response_event=response,
-                    reward_events=reward_events,
-                    reference=reference_value,
-                    challenge=scoring_config.task.query,
-                    task=scoring_config.task.name,
-                    block=scoring_config.block,
-                    step=scoring_config.step,
-                    task_id=scoring_config.task_id,
-                    task_dict=scoring_config.task.model_dump(),
-                    source=scoring_config.dataset_entry.source,
-                )
+        if scoring_config.task.organic:
+            response.stream_results = []
+            response.axons = []
+            response.completions = []
+            response.stream_results_all_chunks = []
+            response.stream_results_all_tokens_per_chunk = []
+            reward_events = copy.deepcopy(reward_events)
+            for event in reward_events:
+                event.task = event.task.__class__()
+
+            reference = None
+            challenge = ""
+            task_dict = {}
+            source = "organic"
+        else:
+            reference = reference_value
+            challenge = scoring_config.task.query
+            task_dict = scoring_config.task.model_dump()
+            source = scoring_config.dataset_entry.source
+
+        log_event(
+            RewardLoggingEvent(
+                response_event=response,
+                reward_events=reward_events,
+                reference=reference,
+                challenge=challenge,
+                task=scoring_config.task.name,
+                block=scoring_config.block,
+                step=scoring_config.step,
+                task_id=scoring_config.task_id,
+                task_dict=task_dict,
+                source=source,
             )
-
+        )
         self.model_scheduler.llm_model_manager.lock.release()
         await asyncio.sleep(0.01)
 
