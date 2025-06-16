@@ -11,6 +11,7 @@ from prompting.rewards.inference_reward_model import InferenceRewardModel
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.tasks.base_task import BaseTextTask
 from shared import settings
+from shared.docker_utils import get_generation
 
 shared_settings = settings.shared_settings
 
@@ -71,8 +72,7 @@ class InferenceTask(BaseTextTask):
 
         return self.query
 
-    async def make_reference(self, dataset_entry: ChatEntry, model_manager: ModelManager | None = None) -> str:
-        assert model_manager is not None, f"Model manager must be provided for {self.__class__.__name__}"
+    async def make_reference(self, dataset_entry: ChatEntry) -> str:
         # With logits scoring there is no reference, and instead we need to generate the logits based
         # on the miner's completions.
         logger.info(f"self.llm_model: {self.llm_model}")
@@ -81,7 +81,7 @@ class InferenceTask(BaseTextTask):
             self.reference = ""
             return self.reference
 
-        self.reference = await model_manager.generate(
+        self.reference = await get_generation(
             messages=self.messages,
             model=self.llm_model_id,
             seed=self.seed,

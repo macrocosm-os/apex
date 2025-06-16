@@ -8,10 +8,10 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from prompting.llms.apis.gpt_wrapper import LLMMessage, LLMMessages
 from prompting.llms.apis.llm_wrapper import LLMWrapper
-from prompting.llms.model_manager import ModelManager
 from prompting.llms.model_zoo import ModelConfig
 from shared import settings
 from shared.base import DatasetEntry
+from shared.docker_utils import get_generation
 
 
 def CHATTENSOR_SYSTEM_PROMPT():
@@ -83,14 +83,13 @@ class BaseTextTask(BaseTask):
     async def make_query(self, dataset_entry: DatasetEntry, **kwargs) -> str:
         return self.query
 
-    async def make_reference(self, dataset_entry: DatasetEntry, model_manager: ModelManager | None = None) -> str:
+    async def make_reference(self, dataset_entry: DatasetEntry) -> str:
         return self.reference
 
-    async def generate_reference(self, messages: list[str], model_manager: ModelManager | None = None) -> str:
+    async def generate_reference(self, messages: list[str]) -> str:
         """Generate reference answer to be used for scoring miner completions"""
-        model = await model_manager.get_model(settings.shared_settings.LLM_MODEL[0])
-        self.reference = await model.generate(messages=messages)
-        if self.reference is None:
+        self.reference = await get_generation(messages=messages, model = settings.shared_settings.LLM_MODEL[0])
+        if not self.reference:
             raise Exception("Reference generation failed")
 
         return self.reference
