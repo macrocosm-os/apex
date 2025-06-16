@@ -198,7 +198,7 @@ async def collect_streams(  # noqa: C901
         chunks=collected_chunks_list,
         task_name=TaskType.Inference,
         format=CompletionFormat.STR,
-        # UIDs response is lower than average it's probably not complete.
+        # If UIDs response is lower than average, it's probably not complete.
         # Might have FP, althrough reliability tracker used only to choose primary stream.
         min_chunks=int(np.mean([len(chunks) for chunks in collected_chunks_list]) * 0.7),
     )
