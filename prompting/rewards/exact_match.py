@@ -2,6 +2,7 @@ import random
 from typing import Any
 
 import numpy as np
+import requests
 import torch
 import torch.nn.functional as F
 from loguru import logger
@@ -10,8 +11,36 @@ from openai.types.chat import ChatCompletionChunk
 from prompting.llms.model_manager import ModelManager
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
-from shared import settings
+from shared import constants, settings
 from shared.dendrite import DendriteResponseEvent
+
+
+# @async_lru_cache(maxsize=1000)
+async def generate_logits(
+    messages: list[str],
+    model: None = None,
+    sampling_params: dict[str, float] = None,
+    seed: int = None,
+    continue_last_message: bool = False,
+    top_logprobs: int = 10,
+):
+    url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "messages": messages,
+        "seed": seed,
+        "sampling_params": sampling_params,
+        "top_logprobs": top_logprobs,
+        "continue_last_message": continue_last_message,
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    try:
+        json_response = response.json()
+        return json_response
+    except requests.exceptions.JSONDecodeError:
+        logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
+        return ""
+
 
 shared_settings = settings.shared_settings
 
@@ -35,13 +64,10 @@ class LogitsRewardModel(BaseRewardModel):
         reference: str,
         response_event: DendriteResponseEvent,
         task: BaseTextTask,
-        model_manager: ModelManager,
+        model_manager: ModelManager | None = None,
         **kwargs,
     ) -> BatchRewardOutput:
         """Calculate rewards based on the logits of the response and verifies them."""
-        if model_manager is None:
-            raise ValueError("Model manager must be set")
-
         all_chunks: list[list[str]] = response_event.stream_results_all_chunks
         all_chunk_dicts_raw: list[list[ChatCompletionChunk | dict]] = response_event.stream_results_all_chunk_dicts_raw
         uids: np.ndarray | list[float] = response_event.uids
@@ -63,10 +89,10 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError("Timeout must be greater than 0.")
 
         # If max_tokens are not provided, always check for eos.
-        model = await model_manager.get_model(task.llm_model_id)
-        max_tokens = await model.get_max_tokens(sampling_parameters, default_value=2048)
-        eos_token = model.tokenizer.eos_token
-        bos_token = model.tokenizer.bos_token
+        model = task.llm_model_id
+        max_tokens = sampling_parameters.get("max_tokens", 2048)
+        eos_token = constants.SPECIAL_TOKENS.get(model, {}).get("eos_token")
+        bos_token = constants.SPECIAL_TOKENS.get(model, {}).get("bos_token")
         special_tokens = set([bos_token, eos_token])
         timing_verified: list[list[float]] = []
         rewards: list[float] = []
@@ -109,13 +135,14 @@ class LogitsRewardModel(BaseRewardModel):
                     to_complete = "".join(chunks[:check_idx])
                     if to_complete:
                         messages.extend([{"role": "assistant", "content": to_complete}])
-                    verification_logits, _ = await model_manager.generate_logits(
+                    response = await generate_logits(
                         model=task.llm_model_id,
                         messages=messages,
                         top_logprobs=TOP_LOGPROBS,
                         sampling_params=sampling_parameters,
                         continue_last_message=len(to_complete) > 0,
                     )
+                    verification_logits = response[0]
                     if check_idx < eos_idx:
                         if chunks[check_idx] in special_tokens:
                             raise ValueError("Special tokens mid-completion")

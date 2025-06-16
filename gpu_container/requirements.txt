@@ -1,6 +1,6 @@
 angle-emb
-vllm 
 torch
 fastapi
 uvicorn
 pydantic
+vllm == 0.8.5

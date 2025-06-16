@@ -21,6 +21,8 @@ class InferenceRewardModel(BaseRewardModel):
         if model_manager is None:
             raise ValueError("Model manager must be set")
 
+        logger.info(f"model_id: {model_id}")
+
         if model_id or task.organic:
             logger.info("Using logits reward model")
             logits_reward_model = LogitsRewardModel()

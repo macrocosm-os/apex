@@ -1,9 +1,12 @@
-from fastapi import FastAPI
 from contextlib import asynccontextmanager
-from gpu_container.embeddings.router import router as embeddings_router
+
+from fastapi import FastAPI
+
 from gpu_container.embeddings.lifespan import lifespan as embeddings_lifespan
-from gpu_container.vllm.router import router as vllm_router
+from gpu_container.embeddings.router import router as embeddings_router
 from gpu_container.vllm.lifespan import lifespan as vllm_lifespan
+from gpu_container.vllm.router import router as vllm_router
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,6 +17,7 @@ async def lifespan(app: FastAPI):
     async with embeddings_lifespan(app):
         async with vllm_lifespan(app):
             yield
+
 
 app = FastAPI(lifespan=lifespan)
 

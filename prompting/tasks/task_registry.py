@@ -29,16 +29,16 @@ class TaskConfig(BaseModel):
 
 class TaskRegistry(BaseModel):
     task_configs: ClassVar[list[TaskConfig]] = [
-        TaskConfig(task=MSRv2Task, probability=0.10, datasets=[DDGDataset], reward_model=MSRv2RewardConfig),
+        TaskConfig(task=MSRv2Task, probability=0.00, datasets=[DDGDataset], reward_model=MSRv2RewardConfig),
         TaskConfig(
             task=InferenceTask,
-            probability=0.55,
+            probability=0.95,
             datasets=[SN13Dataset],
             reward_model=InferenceRewardConfig,
         ),
         TaskConfig(
             task=WebRetrievalTask,
-            probability=0.35,
+            probability=0.05,
             datasets=[DDGDataset],
             reward_model=WebRetrievalRewardConfig,
         ),

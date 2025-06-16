@@ -93,6 +93,7 @@ class TaskScorer(AsyncLoopRunner):
                 dataset_entry=scoring_config.dataset_entry,
                 model_manager=self.model_scheduler.llm_model_manager,
             )
+            logger.info(f"Reference: {scoring_config.task.reference}")
 
         # and there we then calculate the reward
         reward_pipeline = TaskRegistry.get_task_reward(scoring_config.task)
@@ -103,7 +104,7 @@ class TaskScorer(AsyncLoopRunner):
                 response_event=scoring_config.response,
                 challenge=scoring_config.task.query,
                 reference=scoring_config.task.reference,
-                model_id=scoring_config.task.llm_model,
+                model_id=scoring_config.task.llm_model_id,
                 task=scoring_config.task,
                 model_manager=self.model_scheduler.llm_model_manager,
                 task_queue=self.task_queue,

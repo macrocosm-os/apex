@@ -46,4 +46,4 @@ docker run --gpus all -v /path/to/your/project:/app my-gpu-app
 ```
 
 Remember to replace `/path/to/your/project` with the actual path to your project on your host machine.
-You might also need to adjust the `CMD` in the `Dockerfile` to run your specific application entry point. 
+You might also need to adjust the `CMD` in the `Dockerfile` to run your specific application entry point.

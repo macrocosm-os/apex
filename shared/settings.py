@@ -159,7 +159,7 @@ class SharedSettings(BaseSettings):
         "temperature": 0.7,
         "top_p": 0.95,
         "top_k": 50,
-        "max_tokens": 512,
+        "max_tokens": 2048,
     }
     MINER_LLM_MODEL: Optional[str] = Field(None, env="MINER_LLM_MODEL")
     LLM_MODEL_RAM: float = Field(70, env="LLM_MODEL_RAM")
