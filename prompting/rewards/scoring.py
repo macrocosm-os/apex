@@ -6,7 +6,6 @@ from multiprocessing.managers import AcquirerProxy
 from loguru import logger
 from pydantic import ConfigDict
 
-from prompting.llms.model_manager import AsyncModelScheduler
 from prompting.rewards.scoring_config import ScoringConfig
 from prompting.tasks.base_task import BaseTextTask
 from prompting.tasks.MSRv2_task import MSRv2Task
@@ -26,7 +25,6 @@ class TaskScorer(AsyncLoopRunner):
 
     mp_lock: AcquirerProxy | None = None
     is_running: bool = False
-    model_scheduler: AsyncModelScheduler | None = None
     thread: threading.Thread = None
     interval: int = 1
     scoring_queue: list | None = None
@@ -36,7 +34,6 @@ class TaskScorer(AsyncLoopRunner):
 
     async def start(
         self,
-        model_scheduler: AsyncModelScheduler,
         scoring_queue,
         reward_events,
         mp_lock: AcquirerProxy,
@@ -46,7 +43,6 @@ class TaskScorer(AsyncLoopRunner):
     ):
         self.scoring_queue = scoring_queue
         self.reward_events = reward_events
-        self.model_scheduler = model_scheduler
         self.mp_lock = mp_lock
         self.task_queue = task_queue
         return await super().start(name=name, **kwargs)

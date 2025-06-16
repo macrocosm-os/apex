@@ -6,7 +6,6 @@ from loguru import logger
 from pydantic import Field, model_validator
 
 from prompting.datasets.sn13 import ChatEntry
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.inference_reward_model import InferenceRewardModel
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.tasks.base_task import BaseTextTask

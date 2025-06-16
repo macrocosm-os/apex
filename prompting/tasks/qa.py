@@ -1,7 +1,6 @@
 from typing import ClassVar
 
 from prompting.datasets.random_website import DDGDatasetEntry
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.relevance import RelevanceRewardModel
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.rewards.rouge import RougeRewardModel
@@ -65,11 +64,7 @@ class WebQuestionAnsweringTask(BaseTextTask):
         self.query = await self.generate_query(messages=[query_prompt])
         return self.query
 
-    async def make_reference(self, dataset_entry: DDGDatasetEntry, model_manager: ModelManager | None = None):
-        assert model_manager is not None, f"Model manager must be provided for {self.__class__.__name__}"
+    async def make_reference(self, dataset_entry: DDGDatasetEntry):
         reference_prompt = REFERENCE_PROMPT_TEMPLATE.format(context=dataset_entry.website_content, question=self.query)
-        self.reference = await self.generate_reference(
-            messages=[{"role": "user", "content": reference_prompt}],
-            model_manager=model_manager,
-        )
+        self.reference = await self.generate_reference(messages=[{"role": "user", "content": reference_prompt}])
         return self.reference

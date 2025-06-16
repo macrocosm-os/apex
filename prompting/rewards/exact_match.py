@@ -8,7 +8,6 @@ import torch.nn.functional as F
 from loguru import logger
 from openai.types.chat import ChatCompletionChunk
 
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
 from shared import constants, settings
@@ -64,7 +63,6 @@ class LogitsRewardModel(BaseRewardModel):
         reference: str,
         response_event: DendriteResponseEvent,
         task: BaseTextTask,
-        model_manager: ModelManager | None = None,
         **kwargs,
     ) -> BatchRewardOutput:
         """Calculate rewards based on the logits of the response and verifies them."""

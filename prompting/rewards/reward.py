@@ -4,8 +4,6 @@ from typing import ClassVar, Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, model_validator
-
-from prompting.llms.model_manager import ModelManager
 from prompting.tasks.base_task import BaseTextTask
 from shared.dendrite import DendriteResponseEvent
 
@@ -75,7 +73,6 @@ class BaseRewardModel(ABC, BaseModel):
         self,
         reference: str,
         response_event: DendriteResponseEvent,
-        model_manager: ModelManager = None,
         task_queue: list[BaseTextTask] | None = None,
         **kwargs,
     ) -> BatchRewardOutput:
@@ -88,7 +85,6 @@ class BaseRewardModel(ABC, BaseModel):
         challenge: str | None = None,
         reward_type: Literal["reward", "penalty"] = "reward",
         task: BaseTextTask | None = None,
-        model_manager: ModelManager | None = None,
         task_queue: list[BaseTextTask] | None = None,
         **kwargs,
     ) -> WeightedRewardEvent:
@@ -97,7 +93,7 @@ class BaseRewardModel(ABC, BaseModel):
         t0 = time.time()
         comparator = reference if reward_type == "reward" else challenge
         batch_rewards_output: BatchRewardOutput = await self.reward(
-            comparator, response_event, task=task, model_manager=model_manager, task_queue=task_queue, **kwargs
+            comparator, response_event, task=task, task_queue=task_queue, **kwargs
         )
         batch_rewards_time = time.time() - t0
         uids = batch_rewards_output.uids if batch_rewards_output.uids is not None else response_event.uids
@@ -159,7 +155,6 @@ class BaseRewardConfig(ABC, BaseModel):
         challenge: str | None = None,
         model_id: str | None = None,
         task: BaseTextTask | None = None,
-        model_manager: ModelManager | None = None,
         task_queue: list[BaseTextTask] | None = None,
     ) -> list[WeightedRewardEvent]:
         if task_queue is None:
@@ -174,7 +169,6 @@ class BaseRewardConfig(ABC, BaseModel):
                     reward_type="reward",
                     model_id=model_id,
                     task=task,
-                    model_manager=model_manager,
                     task_queue=task_queue,
                 ),
             )

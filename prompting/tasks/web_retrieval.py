@@ -6,7 +6,6 @@ from typing import ClassVar, Optional
 from pydantic import Field
 
 from prompting.datasets.random_website import DDGDatasetEntry
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.rewards.web_retrieval import WebRetrievalRewardModel
 from prompting.tasks.base_task import BaseTextTask
@@ -48,7 +47,7 @@ class WebRetrievalTask(BaseTextTask):
         )
         return self.query
 
-    async def make_reference(self, dataset_entry: DDGDatasetEntry, model_manager: ModelManager | None = None) -> str:
+    async def make_reference(self, dataset_entry: DDGDatasetEntry) -> str:
         dataset_entry.query = self.query
         ref_dict = dataset_entry.model_dump_json()
         self.reference = json.dumps(ref_dict)
