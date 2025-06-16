@@ -69,12 +69,12 @@ class TaskScorer(AsyncLoopRunner):
 
     async def run_step(self) -> RewardLoggingEvent:
         await asyncio.sleep(0.1)
-        with self.mp_lock:
-            scorable = self.scoring_queue # TODO: Filter based on active
-            if len(scorable) == 0:
-                return
-            self.scoring_queue.remove(scorable[0])
-        scoring_config: ScoringConfig = scorable.pop(0)
+        
+        if not self.scoring_queue:
+            return
+        
+        # TODO: Filter based on active models before selecting an item to score.
+        scoring_config: ScoringConfig = self.scoring_queue.pop(0)
 
         # here we generate the actual reference
         with Timer(label=f"Generating reference for {scoring_config.task.__class__.__name__}"):
