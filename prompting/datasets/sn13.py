@@ -10,10 +10,8 @@ from shared.base import BaseDataset, ChatEntry
 class SN13Dataset(BaseDataset):
     _url: ClassVar[str] = "arrmlet/x_dataset_218"
     name: ClassVar[str] = "x_dataset_218"
-    _chance_word_synonym: ClassVar[float] = 0.10
-    _chance_char_typo: ClassVar[float] = 0.02
     exception: Exception | None = None
-    dataset: datasets.Dataset = None
+    dataset: datasets.Dataset | None = None
 
     class Config:
         arbitrary_types_allowed = True

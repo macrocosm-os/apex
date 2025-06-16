@@ -19,7 +19,8 @@ TOP_LOGPROBS = 10
 MIN_VERIFY_TOKENS = 10
 MAX_VERIFY_TOKENS = 51
 # Partial completion is much more harmful from API perspective, compared to no response.
-PARTIAL_PENALTY = -4.0
+# TODO: Experimental aggressive value, revisit once the network is clean.
+PARTIAL_PENALTY = -100.0
 INCORRECT_PENALTY = -2.0
 NOT_ENOUGH_TOKENS_PENALTY_SCALE = 0.1
 MIN_SMOOTH_PENALTY_SCALE = 0.3
@@ -109,6 +110,7 @@ class LogitsRewardModel(BaseRewardModel):
                     to_complete = "".join(chunks[:check_idx])
                     if to_complete:
                         messages.extend([{"role": "assistant", "content": to_complete}])
+
                     verification_logits, _ = await model_manager.generate_logits(
                         model=task.llm_model_id,
                         messages=messages,

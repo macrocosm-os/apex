@@ -39,24 +39,15 @@ class SharedSettings(BaseSettings):
 
     mode: Literal["api", "validator", "miner", "mock"] = Field("validator", env="MODE")
     MOCK: bool = False
-    NO_BACKGROUND_THREAD: bool = True
-    SAVE_PATH: Optional[str] = Field("./storage", env="SAVE_PATH")
-    GEMMA_API_KEY: Optional[str] = Field(None, env="GEMMA_API_KEY")
 
     # W&B.
     WANDB_ON: bool = Field(True, env="WANDB_ON")
     WANDB_ENTITY: Optional[str] = Field("macrocosmos", env="WANDB_ENTITY")
     WANDB_PROJECT_NAME: Optional[str] = Field("prompting-validators", env="WANDB_PROJECT_NAME")
-    WANDB_RUN_STEP_LENGTH: int = Field(100, env="WANDB_RUN_STEP_LENGTH")
     WANDB_API_KEY: Optional[str] = Field(None, env="WANDB_API_KEY")
     WANDB_OFFLINE: bool = Field(False, env="WANDB_OFFLINE")
     WANDB_NOTES: str = Field("", env="WANDB_NOTES")
     MAX_WANDB_DURATION: int = 24
-
-    # Neuron.
-    NEURON_EPOCH_LENGTH: int = Field(100, env="NEURON_EPOCH_LENGTH")
-    NEURON_DEVICE: str | None = Field("cuda", env="NEURON_DEVICE")
-    NEURON_GPUS: int = Field(1, env="NEURON_GPUS")
 
     # Logging.
     LOGGING_DONT_SAVE_EVENTS: bool = Field(True, env="LOGGING_DONT_SAVE_EVENTS")
@@ -65,36 +56,22 @@ class SharedSettings(BaseSettings):
     LOG_LEVEL: str = Field("INFO", env="LOG_LEVEL")
 
     # Neuron parameters.
+    NEURON_DEVICE: str | None = Field("cuda", env="NEURON_DEVICE")
     NEURON_TIMEOUT: int = Field(20, env="NEURON_TIMEOUT")
     INFERENCE_TIMEOUT: int = Field(30, env="INFERENCE_TIMEOUT")
     MAX_TIMEOUT: int = Field(300, env="INFERENCE_TIMEOUT")
     NEURON_DISABLE_SET_WEIGHTS: bool = Field(False, env="NEURON_DISABLE_SET_WEIGHTS")
-    NEURON_MOVING_AVERAGE_ALPHA: float = Field(0.1, env="NEURON_MOVING_AVERAGE_ALPHA")
-    NEURON_DECAY_ALPHA: float = Field(0.001, env="NEURON_DECAY_ALPHA")
-    NEURON_AXON_OFF: bool = Field(False, env="NEURON_AXON_OFF")
     NEURON_VPERMIT_TAO_LIMIT: int = Field(4096, env="NEURON_VPERMIT_TAO_LIMIT")
     NEURON_QUERY_UNIQUE_COLDKEYS: bool = Field(False, env="NEURON_QUERY_UNIQUE_COLDKEYS")
     NEURON_QUERY_UNIQUE_IPS: bool = Field(False, env="NEURON_QUERY_UNIQUE_IPS")
-    NEURON_FORWARD_MAX_TIME: int = Field(240, env="NEURON_FORWARD_MAX_TIME")
     NEURON_MAX_TOKENS: int = Field(512, env="NEURON_MAX_TOKENS")
     REWARD_STEEPNESS: float = Field(0.7, env="STEEPNESS")
 
-    # Organic.
-    ORGANIC_TIMEOUT: int = Field(30, env="ORGANIC_TIMEOUT")
-    ORGANIC_SAMPLE_SIZE: int = Field(5, env="ORGANIC_SAMPLE_SIZE")
-    ORGANIC_REUSE_RESPONSE_DISABLED: bool = Field(False, env="ORGANIC_REUSE_RESPONSE_DISABLED")
-    ORGANIC_REFERENCE_MAX_TOKENS: int = Field(1024, env="ORGANIC_REFERENCE_MAX_TOKENS")
-    ORGANIC_SYNTH_REWARD_SCALE: float = Field(1.0, env="ORGANIC_SYNTH_REWARD_SCALE")
-    ORGANIC_SET_WEIGHTS_ENABLED: bool = Field(True, env="ORGANIC_SET_WEIGHTS_ENABLED")
-    ORGANIC_DISABLED: bool = Field(False, env="ORGANIC_DISABLED")
-    ORGANIC_TRIGGER_FREQUENCY: int = Field(120, env="ORGANIC_TRIGGER_FREQUENCY")
-    ORGANIC_TRIGGER_FREQUENCY_MIN: int = Field(5, env="ORGANIC_TRIGGER_FREQUENCY_MIN")
-    ORGANIC_TRIGGER: str = Field("seconds", env="ORGANIC_TRIGGER")
-    ORGANIC_SCALING_FACTOR: int = Field(1, env="ORGANIC_SCALING_FACTOR")
     TASK_QUEUE_LENGTH_THRESHOLD: int = Field(50, env="TASK_QUEUE_LENGTH_THRESHOLD")
     SCORING_QUEUE_LENGTH_THRESHOLD: int = Field(50, env="SCORING_QUEUE_LENGTH_THRESHOLD")
+    GEMMA_API_KEY: Optional[str] = Field(None, env="GEMMA_API_KEY")
     HF_TOKEN: Optional[str] = Field(None, env="HF_TOKEN")
-    DEPLOY_VALIDATOR: bool = Field(True, env="DEPLOY_VALDITAOR")
+
     SCORING_API_PORT: int = Field(8095, env="SCORING_API_PORT")
     # Hard-code MC validator axon, since it might be overwritten in the metagraph.
     MC_VALIDATOR_HOTKEY: str = Field("5Cg5QgjMfRqBC6bh8X4PDbQi7UzVRn9eyWXsB8gkyfppFPPy", env="MC_VALIDATOR_HOTKEY")
@@ -115,7 +92,7 @@ class SharedSettings(BaseSettings):
     # Exploration ratio for UIDs to include into primary API stream besides top incentive.
     API_UIDS_EXPLORE: float = Field(0.0, env="API_UIDS_EXPLORE")
     # Minimum UIDs to query from API (not recommended to set anything lower than 30, since scoring will be slowed down).
-    API_EXTRA_UIDS_QUERY: int = Field(70, env="API_MIN_UIDS_QUERY")
+    API_EXTRA_UIDS_QUERY: int = Field(50, env="API_MIN_UIDS_QUERY")
     # If enabled, sends request to a random validator, otherwise sends to all available validators.
     API_ENABLE_BALANCE: bool = Field(True, env="API_ENABLE_BALANCE")
     OVERRIDE_AVAILABLE_AXONS: list[str] | None = Field(None, env="OVERRIDE_AVAILABLE_AXONS")
@@ -145,9 +122,6 @@ class SharedSettings(BaseSettings):
     WALLET_NAME: Optional[str] = Field(None, env="WALLET_NAME")
     HOTKEY: Optional[str] = Field(None, env="HOTKEY")
     AXON_PORT: Optional[int] = Field(None, env="AXON_PORT")
-    ORGANIC_WHITELIST_HOTKEY: Optional[str] = Field(
-        "5F4tQyWrhfGVcNhoqeiNsR6KjD4wMZ2kfhLj4oHYuyHbZAc3", env="ORGANIC_WHITELIST_HOTKEY"
-    )
     TEST_MINER_IDS: list[int] = Field([], env="TEST_MINER_IDS")
     SUBTENSOR_NETWORK: Optional[str] = Field(None, env="SUBTENSOR_NETWORK")
     MAX_ALLOWED_VRAM_GB: float = Field(62, env="MAX_ALLOWED_VRAM_GB")
@@ -161,7 +135,6 @@ class SharedSettings(BaseSettings):
         "top_k": 50,
         "max_tokens": 512,
     }
-    MINER_LLM_MODEL: Optional[str] = Field(None, env="MINER_LLM_MODEL")
     LLM_MODEL_RAM: float = Field(70, env="LLM_MODEL_RAM")
     OPENAI_API_KEY: str | None = Field(None, env="OPENAI_API_KEY")
     SN19_API_KEY: str | None = Field(None, env="SN19_API_KEY")

@@ -22,7 +22,7 @@ async def verify_weight_signature(request: Request):
         raise HTTPException(status_code=400, detail="Bad Request, message is not intended for self")
     validator_hotkeys = [shared_settings.METAGRAPH.hotkeys[uid] for uid in WHITELISTED_VALIDATORS_UIDS]
     if signed_by not in validator_hotkeys:
-        logger.error("Signer not the expected ss58 address")
+        logger.error(f"Signer not the expected ss58 address: {signed_by}")
         raise HTTPException(status_code=401, detail="Signer not the expected ss58 address")
     now = time.time()
     body = await request.body()
