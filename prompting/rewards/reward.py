@@ -4,6 +4,7 @@ from typing import ClassVar, Literal
 
 import numpy as np
 from pydantic import BaseModel, ConfigDict, model_validator
+
 from prompting.tasks.base_task import BaseTextTask
 from shared.dendrite import DendriteResponseEvent
 

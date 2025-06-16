@@ -28,7 +28,7 @@ async def get_generation(
     except requests.exceptions.JSONDecodeError:
         logger.error(f"Error generating response. Status: {response.status_code}, Body: {response.text}")
         return ""
-    
+
 
 # @async_lru_cache(maxsize=1000)
 async def get_logits(

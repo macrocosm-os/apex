@@ -87,7 +87,7 @@ class BaseTextTask(BaseTask):
 
     async def generate_reference(self, messages: list[str]) -> str:
         """Generate reference answer to be used for scoring miner completions"""
-        self.reference = await get_generation(messages=messages, model = settings.shared_settings.LLM_MODEL[0])
+        self.reference = await get_generation(messages=messages, model=settings.shared_settings.LLM_MODEL[0])
         if not self.reference:
             raise Exception("Reference generation failed")
 
