@@ -1,8 +1,10 @@
 import random
+from typing import Dict, List, Optional, Union
+
 import numpy as np
 import torch
 from vllm import LLM, SamplingParams
-from typing import Union, Optional, List, Dict
+
 
 class ReproducibleVLLM:
     def __init__(
@@ -103,15 +105,7 @@ class ReproducibleVLLM:
             return ""
 
         result = outputs[0].outputs[0].text
-        return {
-            "choices": [
-                {
-                    "message": {
-                        "content": result
-                    }
-                }
-            ]
-        }
+        return {"choices": [{"message": {"content": result}}]}
 
     async def generate_logits(
         self,
@@ -169,5 +163,7 @@ class ReproducibleVLLM:
             torch.backends.cudnn.benchmark = False
 
     @staticmethod
-    def format_messages(messages: Union[List[str], List[Dict[str, str]]]) -> List[Dict[str, Union[str, List[Dict[str, str]]]]]:
+    def format_messages(
+        messages: Union[List[str], List[Dict[str, str]]],
+    ) -> List[Dict[str, Union[str, List[Dict[str, str]]]]]:
         return messages

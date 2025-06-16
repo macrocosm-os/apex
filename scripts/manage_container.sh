@@ -28,4 +28,4 @@ fi
 # Go back to the original directory
 cd - >/dev/null
 
-echo "Script finished." 
+echo "Script finished."

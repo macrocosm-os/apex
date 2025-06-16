@@ -69,10 +69,10 @@ class TaskScorer(AsyncLoopRunner):
 
     async def run_step(self) -> RewardLoggingEvent:
         await asyncio.sleep(0.1)
-        
+
         if not self.scoring_queue:
             return
-        
+
         # TODO: Filter based on active models before selecting an item to score.
         scoring_config: ScoringConfig = self.scoring_queue.pop(0)
 

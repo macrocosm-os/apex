@@ -2,7 +2,6 @@ import random
 from typing import Any
 
 import numpy as np
-import requests
 import torch
 import torch.nn.functional as F
 from loguru import logger
@@ -13,7 +12,6 @@ from prompting.tasks.base_task import BaseTextTask
 from shared import constants, settings
 from shared.dendrite import DendriteResponseEvent
 from shared.docker_utils import get_logits
-
 
 shared_settings = settings.shared_settings
 

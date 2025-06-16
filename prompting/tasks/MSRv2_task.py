@@ -59,7 +59,7 @@ class MSRv2Task(MultiStepReasoningTask):
         if self.stage == "generative":
             if random.random() < self.REAL_REFERENCE_PROBABILITY:
                 # Validator's turn to generate the reference
-                reference_attempt = await super().make_reference(dataset_entry, model_manager=model_manager)
+                reference_attempt = await super().make_reference(dataset_entry)
                 self.reference = reference_attempt if isinstance(reference_attempt, str) else None
                 self.validator_generated_reference = self.reference  # Store the validator's generated reference
                 return self.reference
