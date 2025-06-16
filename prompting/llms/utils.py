@@ -117,7 +117,7 @@ class GPUInfo:
         return cls.used_memory / cls.total_memory
 
 
-TEXT_MODELS = [None, "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"]
+TEXT_MODELS: set[str | None] = set([None, "mrfakename/mistral-small-3.1-24b-instruct-2503-hf"])
 
 
 def model_factory(model_name: str) -> type[ReproducibleHF]:
