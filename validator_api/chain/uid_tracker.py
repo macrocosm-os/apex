@@ -34,7 +34,7 @@ def connect_db(db_path: str = SQLITE_PATH):
             requests_per_task TEXT NOT NULL,
             success_per_task TEXT NOT NULL
         )
-    """
+        """
     )
     return con
 
