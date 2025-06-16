@@ -136,12 +136,9 @@ class TaskScorer(AsyncLoopRunner):
             response.completions = []
             response.stream_results_all_chunks = []
             response.stream_results_all_tokens_per_chunk = []
-            reward_events_organic = []
+            reward_events = copy.deepcopy(reward_events)
             for event in reward_events:
-                event_organic = copy.deepcopy(event)
-                event_organic.task = event_organic.task.__class__()
-                reward_events_organic.append(event_organic)
-                reward_events = reward_events_organic
+                event.task = event.task.__class__()
 
             reference = None
             challenge = ""
