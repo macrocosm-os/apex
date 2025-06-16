@@ -12,33 +12,7 @@ from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
 from shared import constants, settings
 from shared.dendrite import DendriteResponseEvent
-
-
-# @async_lru_cache(maxsize=1000)
-async def generate_logits(
-    messages: list[str],
-    model: None = None,
-    sampling_params: dict[str, float] = None,
-    seed: int = None,
-    continue_last_message: bool = False,
-    top_logprobs: int = 10,
-):
-    url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "messages": messages,
-        "seed": seed,
-        "sampling_params": sampling_params,
-        "top_logprobs": top_logprobs,
-        "continue_last_message": continue_last_message,
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    try:
-        json_response = response.json()
-        return json_response
-    except requests.exceptions.JSONDecodeError:
-        logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
-        return ""
+from shared.docker_utils import get_logits
 
 
 shared_settings = settings.shared_settings

@@ -1,6 +1,8 @@
 import requests
+from loguru import logger
+
 from shared import constants
-from shared.logging import logger
+
 
 async def get_generation(
     messages: list[str] | list[dict],
@@ -25,4 +27,31 @@ async def get_generation(
         return json_response["choices"][0]["message"]["content"]
     except requests.exceptions.JSONDecodeError:
         logger.error(f"Error generating response. Status: {response.status_code}, Body: {response.text}")
+        return ""
+    
+
+# @async_lru_cache(maxsize=1000)
+async def get_logits(
+    messages: list[str],
+    model: None = None,
+    sampling_params: dict[str, float] = None,
+    seed: int = None,
+    continue_last_message: bool = False,
+    top_logprobs: int = 10,
+):
+    url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
+    headers = {"Content-Type": "application/json"}
+    payload = {
+        "messages": messages,
+        "seed": seed,
+        "sampling_params": sampling_params,
+        "top_logprobs": top_logprobs,
+        "continue_last_message": continue_last_message,
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    try:
+        json_response = response.json()
+        return json_response
+    except requests.exceptions.JSONDecodeError:
+        logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
         return ""
