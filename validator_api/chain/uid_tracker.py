@@ -163,8 +163,8 @@ class UidTracker(BaseModel):
                 # logger.debug(f"Setting query attempt for task {task_name} and UID {uid}")
 
     async def set_query_success(
-            self, uids: list[int] | int, task_name: TaskType | str, values: dict[int, bool] | None = None
-        ):
+        self, uids: list[int] | int, task_name: TaskType | str, values: dict[int, bool] | None = None
+    ):
         if not isinstance(task_name, TaskType):
             task_name = TaskType(task_name)
 

@@ -14,7 +14,7 @@ from loguru import logger
 
 from shared import settings
 from shared.uids import get_uids
-from validator_api.chain.uid_tracker import SUCCESS_RATE_MIN, CompletionFormat, TaskType, UidTracker
+from validator_api.chain.uid_tracker import CompletionFormat, TaskType, UidTracker
 
 shared_settings = settings.shared_settings
 
