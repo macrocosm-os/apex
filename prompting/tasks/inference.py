@@ -57,11 +57,7 @@ class InferenceTask(BaseTextTask):
             return self
         # self.sampling_params["temperature"] = random.randint(1, 10) / 10
         # self.sampling_params["max_new_tokens"] = random.choice([256, 512, 1024, 2048])
-
-        if np.random.rand() < 0.1:
-            self.llm_model_id = None
-        else:
-            self.llm_model = ModelZoo.get_model_by_id(self.llm_model_id)
+        self.llm_model = ModelZoo.get_model_by_id(self.llm_model_id)
         return self
 
     async def make_query(self, dataset_entry: ChatEntry) -> str:
