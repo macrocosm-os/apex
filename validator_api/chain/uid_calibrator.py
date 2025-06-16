@@ -151,14 +151,14 @@ async def _run_single_calibration(uid_tracker: UidTracker) -> None:
     ]
 
     # Sample single uid from each coldkey.
-    tracked_uids = []
-    tracked_coldkeys = []
+    tracked_uids: list[int] = []
+    tracked_coldkeys: set[str] = set()
     for uid in all_uids:
         ckey = shared_settings.METAGRAPH.coldkeys[uid]
         if ckey in tracked_coldkeys:
             continue
 
-        tracked_coldkeys.append(ckey)
+        tracked_coldkeys.add(ckey)
         tracked_uids.append(uid)
 
     logger.debug(f"Starting network calibration for {len(tracked_uids)} UIDs.")
