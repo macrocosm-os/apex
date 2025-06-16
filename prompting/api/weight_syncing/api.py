@@ -17,6 +17,7 @@ def get_weight_dict(request: Request):
 def get_uid_from_hotkey(hotkey: str):
     return shared_settings.METAGRAPH.hotkeys.index(hotkey)
 
+
 async def verify_weight_signature(request: Request):
     signed_by = request.headers.get("Epistula-Signed-By")
     signed_for = request.headers.get("Epistula-Signed-For")
