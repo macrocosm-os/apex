@@ -67,7 +67,7 @@ class SharedSettings(BaseSettings):
     # Neuron parameters.
     NEURON_TIMEOUT: int = Field(20, env="NEURON_TIMEOUT")
     INFERENCE_TIMEOUT: int = Field(30, env="INFERENCE_TIMEOUT")
-    MAX_TIMEOUT: int = Field(240, env="INFERENCE_TIMEOUT")
+    MAX_TIMEOUT: int = Field(300, env="INFERENCE_TIMEOUT")
     NEURON_DISABLE_SET_WEIGHTS: bool = Field(False, env="NEURON_DISABLE_SET_WEIGHTS")
     NEURON_MOVING_AVERAGE_ALPHA: float = Field(0.1, env="NEURON_MOVING_AVERAGE_ALPHA")
     NEURON_DECAY_ALPHA: float = Field(0.001, env="NEURON_DECAY_ALPHA")
@@ -108,12 +108,17 @@ class SharedSettings(BaseSettings):
     # Scoring queue threshold when rate-limit start to kick in, used to query validator API with scoring requests.
     SCORING_QUEUE_API_THRESHOLD: int = Field(1, env="SCORING_QUEUE_API_THRESHOLD")
     API_TEST_MODE: bool = Field(False, env="API_TEST_MODE")
-    API_UIDS_EXPLORE: float = Field(0.2, env="API_UIDS_EXPLORE")
-    API_TOP_MINERS_SAMPLE: int = Field(400, env="API_TOP_MINERS_SAMPLE")
-    API_TOP_MINERS_TO_STREAM: int = Field(10, env="API_TOP_MINERS_TO_STREAM")
-    API_MIN_MINERS_TO_SAMPLE: int = Field(50, env="API_MIN_UIDS_TO_SAMPLE")
-    OVERRIDE_AVAILABLE_AXONS: list[str] | None = Field(None, env="OVERRIDE_AVAILABLE_AXONS")
+    # Top UIDs used for the primary API stream.
+    API_TOP_UIDS_TO_STREAM: int = Field(10, env="API_TOP_UIDS_TO_STREAM")
+    # Top UIDs to sample from to use for the primary API stream.
+    API_TOP_UIDS_SAMPLE: int = Field(300, env="API_TOP_UIDS_SAMPLE")
+    # Exploration ratio for UIDs to include into primary API stream besides top incentive.
+    API_UIDS_EXPLORE: float = Field(0.0, env="API_UIDS_EXPLORE")
+    # Minimum UIDs to query from API (not recommended to set anything lower than 30, since scoring will be slowed down).
+    API_EXTRA_UIDS_QUERY: int = Field(70, env="API_MIN_UIDS_QUERY")
+    # If enabled, sends request to a random validator, otherwise sends to all available validators.
     API_ENABLE_BALANCE: bool = Field(True, env="API_ENABLE_BALANCE")
+    OVERRIDE_AVAILABLE_AXONS: list[str] | None = Field(None, env="OVERRIDE_AVAILABLE_AXONS")
 
     # Validator scoring API (.env.validator).
     SCORE_ORGANICS: bool = Field(False, env="SCORE_ORGANICS")
