@@ -107,7 +107,7 @@ class LogitsRewardModel(BaseRewardModel):
                     to_complete = "".join(chunks[:check_idx])
                     if to_complete:
                         messages.extend([{"role": "assistant", "content": to_complete}])
-                    response = await generate_logits(
+                    response = await get_logits(
                         model=task.llm_model_id,
                         messages=messages,
                         top_logprobs=TOP_LOGPROBS,
