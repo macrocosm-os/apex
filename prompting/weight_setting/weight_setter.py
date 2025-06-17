@@ -1,5 +1,6 @@
 import asyncio
 import os
+import json
 
 import bittensor as bt
 import numpy as np
@@ -18,9 +19,9 @@ from shared.misc import ttl_get_block
 
 shared_settings = settings.shared_settings
 
-FILENAME = "validator_weights.npz"
-WEIGHTS_HISTORY_LENGTH = 24
-PAST_WEIGHTS: list[np.ndarray] = []
+PAST_REWARDS_FILENAME = "past_rewards.json"
+PAST_REWARDS_LENGTH = 24
+PAST_REWARDS: list[dict[TaskConfig, np.ndarray]] = []
 
 
 def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
@@ -28,20 +29,14 @@ def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
     the rewards unchanged, p < 0.5 makes the function more linear (at p=0 all miners with positives reward values get the same reward),
     p > 0.5 makes the function more exponential (winner takes all).
     """
-    exponent = (p**6.64385619) * 100  # 6.64385619 = ln(100)/ln(2) -> this way if p=0.5, the exponent is exatly 1
+    exponent = (p**6.64385619) * 100  # 6.64385619 = ln(100)/ln(2) -> this way if p=0.5, the exponent is exactly 1
     raw_rewards = np.array(raw_rewards) / max(1, (np.sum(raw_rewards[raw_rewards > 0]) + 1e-10))
     positive_rewards = np.clip(raw_rewards, 1e-10, np.inf)
-    normalised_rewards = positive_rewards / np.max(positive_rewards)
-    post_func_rewards = normalised_rewards**exponent
+    normalized_rewards = positive_rewards / np.max(positive_rewards)
+    post_func_rewards = normalized_rewards**exponent
     all_rewards = post_func_rewards / (np.sum(post_func_rewards) + 1e-10)
     all_rewards[raw_rewards <= 0] = raw_rewards[raw_rewards <= 0]
     return all_rewards
-
-
-def save_weights(weights: list[np.ndarray]):
-    """Saves the list of numpy arrays to a file."""
-    # Save all arrays into a single .npz file
-    np.savez_compressed(FILENAME, *weights)
 
 
 async def set_weights(
@@ -63,24 +58,18 @@ async def set_weights(
 
         # Replace any NaN values with 0
         weights = np.nan_to_num(weights, nan=0.0)
-        # Calculate the average reward for each uid across non-zero values.
-        PAST_WEIGHTS.append(weights)
-        if len(PAST_WEIGHTS) > WEIGHTS_HISTORY_LENGTH:
-            PAST_WEIGHTS.pop(0)
-        averaged_weights = np.average(np.array(PAST_WEIGHTS), axis=0)
-        save_weights(PAST_WEIGHTS)
         try:
             if (
                 shared_settings.NEURON_DISABLE_SET_WEIGHTS
             ):  # If weights will not be set on chain, we should not synchronize
-                augmented_weights = averaged_weights
+                augmented_weights = weights
             else:
                 augmented_weights = await weight_syncer.get_augmented_weights(
-                    weights=averaged_weights, uid=shared_settings.UID
+                    weights=weights, uid=shared_settings.UID
                 )
         except Exception as ex:
             logger.exception(f"Issue with setting weights: {ex}")
-            augmented_weights = averaged_weights
+            augmented_weights = weights
         # Process the raw weights to final_weights via subtensor limitations.
         (
             processed_weight_uids,
@@ -112,7 +101,7 @@ async def set_weights(
                     "uids": uint_uids,
                     "weights": processed_weights.flatten(),
                     "raw_weights": str(list(weights.flatten())),
-                    "averaged_weights": str(list(averaged_weights.flatten())),
+                    "averaged_weights": str(list(weights.flatten())),
                     "block": ttl_get_block(subtensor=subtensor),
                 }
             )
@@ -154,6 +143,7 @@ class WeightSetter(AsyncLoopRunner):
     metagraph: bt.Metagraph | None = None
     weight_dict: dict[int, list[float]] | None = None
     weight_syncer: WeightSynchronizer | None = None
+    past_rewards: list[dict[TaskConfig, np.ndarray]] = []
     # interval: int = 60
 
     class Config:
@@ -166,14 +156,16 @@ class WeightSetter(AsyncLoopRunner):
         self.weight_syncer = WeightSynchronizer(
             metagraph=shared_settings.METAGRAPH, wallet=shared_settings.WALLET, weight_dict=weight_dict
         )
+
         try:
-            with np.load(FILENAME) as data:
-                PAST_WEIGHTS = [data[key] for key in data.files]
+            with open(PAST_REWARDS_FILENAME, "r") as f:
+                self.past_rewards = json.load(f)
+                logger.info(f"Loaded {len(self.past_rewards)} past rewards from file")
         except FileNotFoundError:
-            logger.info("No weights file found - this is expected on a new validator, starting with empty weights")
-            PAST_WEIGHTS = []
+            logger.info("No past rewards file found - this is expected on a new validator, starting with empty past rewards")
+            self.past_rewards = []
         except Exception as ex:
-            logger.error(f"Couldn't load weights from file: {ex}")
+            logger.error(f"Couldn't load past rewards from file: {ex}")
         return await super().start(name=name, **kwargs)
 
     async def run_step(self):
@@ -225,7 +217,12 @@ class WeightSetter(AsyncLoopRunner):
                         reward * model_specific_reward
                     )  # for inference 2x responses should mean 2x the reward
 
+            epoch_rewards = {}
+
             for task_config, rewards in miner_rewards.items():
+                epoch_rewards[task_config] = np.zeros(len(shared_settings.METAGRAPH.uids))
+
+                
                 r = np.array([x["reward"] / max(1, x["count"]) for x in list(rewards.values())])
                 u = np.array(list(rewards.keys()))
                 if task_config.task == InferenceTask:
@@ -234,11 +231,25 @@ class WeightSetter(AsyncLoopRunner):
                     processed_rewards = apply_reward_func(raw_rewards=r, p=shared_settings.REWARD_STEEPNESS)
                 processed_rewards *= task_config.probability
                 # update reward dict
+
                 for uid, reward in zip(u, processed_rewards):
-                    reward_dict[uid] += reward
-            final_rewards = np.array(list(reward_dict.values())).astype(float)
+                    epoch_rewards[task_config][uid] += reward
+
+            # Now we should add the epoch rewards to the PAST_REWARDS queue.
+            self.past_rewards.append(epoch_rewards)
+            if len(self.past_rewards) > PAST_REWARDS_LENGTH:
+                self.past_rewards.pop(0)
+            with open(PAST_REWARDS_FILENAME, "w") as f:
+                json.dump(self.past_rewards, f)
+
+            final_rewards = np.zeros(len(shared_settings.METAGRAPH.uids))
+            for epoch_rewards in self.past_rewards:
+                for task_config, rewards in epoch_rewards.items():
+                    final_rewards += rewards
+
             final_rewards[final_rewards < 0] = 0
             final_rewards /= np.sum(final_rewards) + 1e-10
+            
         except Exception as ex:
             logger.exception(f"{ex}")
 
