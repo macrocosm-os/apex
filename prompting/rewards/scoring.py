@@ -151,6 +151,7 @@ class TaskScorer(AsyncLoopRunner):
                 task_dict=task_dict,
                 source=source,
             )
+        )
 
         await asyncio.sleep(0.01)
 
