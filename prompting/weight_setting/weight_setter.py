@@ -17,11 +17,25 @@ from shared import settings
 from shared.loop_runner import AsyncLoopRunner
 from shared.misc import ttl_get_block
 
+
+class NumpyEncoder(json.JSONEncoder):
+    """Special json encoder for numpy types"""
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
+
 shared_settings = settings.shared_settings
 
 PAST_REWARDS_FILENAME = "past_rewards.json"
 PAST_REWARDS_LENGTH = 24
-PAST_REWARDS: list[dict[TaskConfig, np.ndarray]] = []
+PAST_REWARDS: list[dict[str, np.ndarray]] = []
 
 
 def apply_reward_func(raw_rewards: np.ndarray, p=0.5):
@@ -143,7 +157,7 @@ class WeightSetter(AsyncLoopRunner):
     metagraph: bt.Metagraph | None = None
     weight_dict: dict[int, list[float]] | None = None
     weight_syncer: WeightSynchronizer | None = None
-    past_rewards: list[dict[TaskConfig, np.ndarray]] = []
+    past_rewards: list[dict[str, np.ndarray]] = []
     # interval: int = 60
 
     class Config:
@@ -159,10 +173,19 @@ class WeightSetter(AsyncLoopRunner):
 
         try:
             with open(PAST_REWARDS_FILENAME, "r") as f:
-                self.past_rewards = json.load(f)
+                past_rewards_from_file = json.load(f)
+                # Convert lists back to numpy arrays
+                self.past_rewards = [
+                    {k: np.array(v) for k, v in epoch.items()} for epoch in past_rewards_from_file
+                ]
                 logger.info(f"Loaded {len(self.past_rewards)} past rewards from file")
         except FileNotFoundError:
             logger.info("No past rewards file found - this is expected on a new validator, starting with empty past rewards")
+            self.past_rewards = []
+        except json.JSONDecodeError:
+            logger.warning(
+                f"Could not decode {PAST_REWARDS_FILENAME}, starting with empty past rewards. This is likely due to a past crash during saving."
+            )
             self.past_rewards = []
         except Exception as ex:
             logger.error(f"Couldn't load past rewards from file: {ex}")
@@ -220,7 +243,7 @@ class WeightSetter(AsyncLoopRunner):
             epoch_rewards = {}
 
             for task_config, rewards in miner_rewards.items():
-                epoch_rewards[task_config] = np.zeros(len(shared_settings.METAGRAPH.uids))
+                epoch_rewards[task_config.name] = np.zeros(len(shared_settings.METAGRAPH.uids))
 
                 
                 r = np.array([x["reward"] / max(1, x["count"]) for x in list(rewards.values())])
@@ -233,18 +256,24 @@ class WeightSetter(AsyncLoopRunner):
                 # update reward dict
 
                 for uid, reward in zip(u, processed_rewards):
-                    epoch_rewards[task_config][uid] += reward
+                    epoch_rewards[task_config.name][uid] += reward
 
             # Now we should add the epoch rewards to the PAST_REWARDS queue.
             self.past_rewards.append(epoch_rewards)
             if len(self.past_rewards) > PAST_REWARDS_LENGTH:
                 self.past_rewards.pop(0)
-            with open(PAST_REWARDS_FILENAME, "w") as f:
-                json.dump(self.past_rewards, f)
+
+            # Save past rewards to a temporary file first to avoid data corruption
+            tmp_filename = f"{PAST_REWARDS_FILENAME}.tmp"
+            with open(tmp_filename, "w") as f:
+                json.dump(self.past_rewards, f, cls=NumpyEncoder)
+
+            # Rename the temporary file to the actual file. This is an atomic operation on most systems.
+            os.replace(tmp_filename, PAST_REWARDS_FILENAME)
 
             final_rewards = np.zeros(len(shared_settings.METAGRAPH.uids))
             for epoch_rewards in self.past_rewards:
-                for task_config, rewards in epoch_rewards.items():
+                for task_name, rewards in epoch_rewards.items():
                     final_rewards += rewards
 
             final_rewards[final_rewards < 0] = 0

@@ -23,6 +23,10 @@ class TaskConfig(BaseModel):
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
+    @property
+    def name(self) -> str:
+        return self.task.__name__
+
     def __hash__(self):
         return hash(self.task)
 
