@@ -28,20 +28,6 @@ class ReproducibleVLLM:
         self.tokenizer = self.model.get_tokenizer()
 
     @classmethod
-    async def get_max_tokens(
-        cls,
-        sampling_params: Dict[str, Union[str, float, int, bool]],
-        default_value: int = 512,
-    ) -> int:
-        # Process max tokens with backward compatibility.
-        max_tokens = sampling_params.get("max_tokens")
-        if max_tokens is None:
-            max_tokens = sampling_params.get("max_new_tokens")
-        if max_tokens is None:
-            max_tokens = sampling_params.get("max_completion_tokens", default_value)
-        return max_tokens
-
-    @classmethod
     async def prepare_sampling_params(
         cls, sampling_params: Optional[Dict[str, Union[str, float, int, bool]]] = None
     ) -> SamplingParams:

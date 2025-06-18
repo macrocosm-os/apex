@@ -1,4 +1,7 @@
 import requests
+import json
+
+from async_lru import alru_cache
 from loguru import logger
 
 from shared import constants
@@ -30,28 +33,48 @@ async def get_generation(
         return ""
 
 
-# @async_lru_cache(maxsize=1000)
 async def get_logits(
-    messages: list[str],
+    messages: list[dict[str, str]],
     model: None = None,
     sampling_params: dict[str, float] = None,
     seed: int = None,
     continue_last_message: bool = False,
     top_logprobs: int = 10,
 ):
-    url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "messages": messages,
-        "seed": seed,
-        "sampling_params": sampling_params,
-        "top_logprobs": top_logprobs,
-        "continue_last_message": continue_last_message,
-    }
-    response = requests.post(url, headers=headers, json=payload)
-    try:
-        json_response = response.json()
-        return json_response
-    except requests.exceptions.JSONDecodeError:
-        logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
-        return ""
+    @alru_cache(maxsize=1000)
+    async def _get_logits_cachable(
+        messages_tuple: tuple[str],
+        sampling_params_str: str | None,
+        model: None,
+        seed: int | None,
+        continue_last_message: bool,
+        top_logprobs: int,
+    ):
+        url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "messages": [json.loads(m) for m in messages_tuple],
+            "seed": seed,
+            "sampling_params": json.loads(sampling_params_str) if sampling_params_str else None,
+            "top_logprobs": top_logprobs,
+            "continue_last_message": continue_last_message,
+        }
+        response = requests.post(url, headers=headers, json=payload)
+        try:
+            json_response = response.json()
+            return json_response
+        except requests.exceptions.JSONDecodeError:
+            logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
+            return ""
+
+    messages_tuple = tuple(json.dumps(m, sort_keys=True) for m in messages)
+    sampling_params_str = json.dumps(sampling_params, sort_keys=True) if sampling_params is not None else None
+
+    return await _get_logits_cachable(
+        messages_tuple=messages_tuple,
+        sampling_params_str=sampling_params_str,
+        model=model,
+        seed=seed,
+        continue_last_message=continue_last_message,
+        top_logprobs=top_logprobs,
+    )

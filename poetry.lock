@@ -262,6 +262,21 @@ astroid = ["astroid (>=2,<4)"]
 test = ["astroid (>=2,<4)", "pytest", "pytest-cov", "pytest-xdist"]
 
 [[package]]
+name = "async-lru"
+version = "2.0.5"
+description = "Simple LRU cache for asyncio"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "async_lru-2.0.5-py3-none-any.whl", hash = "sha256:ab95404d8d2605310d345932697371a5f40def0487c03d6d0ad9138de52c9943"},
+    {file = "async_lru-2.0.5.tar.gz", hash = "sha256:481d52ccdd27275f42c43a928b4a50c3bfb2d67af4e78b170e3e0bb39c66e5bb"},
+]
+
+[package.dependencies]
+typing_extensions = {version = ">=4.0.0", markers = "python_version < \"3.11\""}
+
+[[package]]
 name = "async-property"
 version = "0.2.2"
 description = "Python decorator for async properties."
@@ -6785,4 +6800,4 @@ validator = ["accelerate", "angle-emb", "bs4", "datasets", "duckduckgo-search", 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10 <3.11"
-content-hash = "bab43e80d6ae9c0c2f3c71cf1f439139f916c709973e4eeecfdef4de40d3329c"
+content-hash = "5a0162cf448b5265f5bb91323770e0bb844b8ab1b3fb86de5bfe10e991b2664e"

@@ -128,6 +128,7 @@ max-complexity = 14
 bittensor = "9.0.0"
 requests = "^2.32.3"
 python = ">=3.10 <3.11"
+async-lru = "^2.0.4"
 openai = "^1.35.13"
 starlette = "^0.37.2"
 python-dotenv = "^1.0.1"
