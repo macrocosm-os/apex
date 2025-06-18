@@ -13,7 +13,6 @@ from shared.docker_utils import get_embeddings
 shared_settings = settings.shared_settings
 
 
-
 class RelevanceRewardModel(BaseRewardModel):
     threshold: Optional[float] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)

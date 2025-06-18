@@ -19,9 +19,8 @@ from prompting.rewards.relevance import RelevanceRewardModel
 from prompting.rewards.reward import BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
 from shared.dendrite import DendriteResponseEvent
-from shared.misc import async_lru_cache
 from shared.docker_utils import get_embeddings
-
+from shared.misc import async_lru_cache
 
 MIN_RELEVANT_CHARS = 300
 MIN_MATCH_THRESHOLD = 98

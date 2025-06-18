@@ -56,6 +56,7 @@ async def get_logits(
         logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
         return ""
 
+
 def get_embeddings(inputs):
     """
     Sends a POST request to the local embeddings endpoint and returns the response.
@@ -79,6 +80,7 @@ def get_embeddings(inputs):
         return response.json()
     except requests.RequestException as e:
         return {"error": str(e)}
-    
+
+
 if __name__ == "__main__":
     print(get_embeddings("Hello, world!"))
