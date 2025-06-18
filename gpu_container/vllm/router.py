@@ -3,9 +3,6 @@ from fastapi import APIRouter, Request
 router = APIRouter()
 
 
-# Add your vLLM endpoints here.
-# For example:
-#
 @router.post("/v1/chat/generate_logits")
 async def generate_logits(request: Request):
     json_request = await request.json()
