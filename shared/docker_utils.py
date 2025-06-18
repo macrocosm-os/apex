@@ -79,6 +79,7 @@ async def get_logits(
         top_logprobs=top_logprobs,
     )
 
+
 def get_embeddings(inputs):
     """
     Sends a POST request to the local embeddings endpoint and returns the response.
