@@ -1,6 +1,6 @@
-import requests
 import json
 
+import requests
 from async_lru import alru_cache
 from loguru import logger
 
