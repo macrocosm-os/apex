@@ -185,3 +185,5 @@ wandb
 weights.csv
 past_websites.csv
 timer_logs*
+
+past_rewards.json
