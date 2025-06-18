@@ -162,15 +162,15 @@ class ScoringQueue(AsyncLoopRunner):
             return
 
         try:
-            # with open("api.jsonl", "a+", encoding="utf-8") as f:
-            #     f.write(json.dumps(payload) + "\n")
-            tps = {}
-            response_len = {}
+            total_time: dict[int, float] = {}
+            tps: dict[int, float] = {}
+            response_len: dict[int, int] = {}
             for u in uids:
                 uid = str(u)
                 response_len[uid] = len(chunk_dict_raw.get(uid, []))
                 timings_u = timing_dict.get(uid, [])
                 if timings_u:
+                    total_time[u] = timings_u[-1]
                     dur = timings_u[-1] or 1e-6
                     tps[u] = len(chunk_dict_raw.get(uid, [])) / dur
             sorted_tps = dict(sorted(tps.items(), key=lambda x: x[1], reverse=True))

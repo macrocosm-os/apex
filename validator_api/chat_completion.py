@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import itertools
 import json
 import random
@@ -13,7 +14,7 @@ from loguru import logger
 
 from shared import settings
 from shared.uids import get_uids
-from validator_api.chain.uid_tracker import SUCCESS_RATE_MIN, CompletionFormat, TaskType, UidTracker
+from validator_api.chain.uid_tracker import CompletionFormat, TaskType, UidTracker
 
 shared_settings = settings.shared_settings
 
@@ -22,12 +23,12 @@ from validator_api import scoring_queue
 from validator_api.utils import filter_available_uids
 
 TOKENS_MIN_STREAM = 21
-TIMEOUT_ALL_UIDS_FALLBACK = 5
+TIMEOUT_ALL_UIDS_FALLBACK = 7
 _END_OF_STREAM: object = object()
 
 
 async def _prepare_chunk(chunk, body: dict[str, Any]):
-    chunk_dict = chunk.model_dump(mode="python")
+    chunk_dict = chunk.model_dump()
     if not body.get("logprobs"):
         chunk_dict["choices"][0].pop("logprobs", None)
     return f"data: {json.dumps(chunk_dict)}\n\n"
@@ -79,6 +80,7 @@ async def collect_streams(  # noqa: C901
     async def _collector(idx: int, resp_task: asyncio.Task, reliable_uid: bool, top_incentive: bool) -> None:
         """Miner stream collector with enhanced N-token buffering for reliable miners."""
         nonlocal producer_idx
+        nonlocal response_start_time
         try:
             resp_gen = await resp_task
             if not resp_gen or isinstance(resp_gen, Exception):
@@ -89,13 +91,14 @@ async def collect_streams(  # noqa: C901
                     continue
 
                 if not producer_found.is_set():
-                    if reliable_uid and top_incentive and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM:
+                    # if reliable_uid and top_incentive and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM:
+                    if reliable_uid and len(collected_chunks_raw_list[idx]) >= TOKENS_MIN_STREAM:
                         # Set UID as a primary stream if it's in reliable list and top incentive.
                         producer_idx = idx
                         producer_found.set()
                         # Flush buffered chunks collected so far.
-                        for chunk in collected_chunks_raw_list[idx]:
-                            await producer_chunks.put(chunk)
+                        for cached_chunk in collected_chunks_raw_list[idx]:
+                            await producer_chunks.put(cached_chunk)
                     elif (
                         time.monotonic() - response_start_time
                     ) > TIMEOUT_ALL_UIDS_FALLBACK and collected_chunks_raw_list:
@@ -105,8 +108,11 @@ async def collect_streams(  # noqa: C901
                             enumerate(collected_chunks_raw_list), key=lambda response: len(response[1])
                         )
                         producer_found.set()
-                        for chunk in collected_chunks_raw_list[idx]:
-                            await producer_chunks.put(chunk)
+                        for cached_chunk in collected_chunks_raw_list[idx]:
+                            await producer_chunks.put(cached_chunk)
+                        if stream_finished[idx]:
+                            # Fallback stream might be already finished.
+                            await producer_chunks.put(_END_OF_STREAM)
 
                 if idx == producer_idx:
                     await producer_chunks.put(chunk)
@@ -125,18 +131,40 @@ async def collect_streams(  # noqa: C901
 
             if idx == producer_idx:
                 await producer_chunks.put(_END_OF_STREAM)
+            elif all(stream_finished) and not producer_found.is_set():
+                # All streams ended before finding primary uid and streaming back to client, select longest response.
+                producer_idx, _ = max(enumerate(collected_chunks_raw_list), key=lambda response: len(response[1]))
+                producer_found.set()
+                for cached_chunk in collected_chunks_raw_list[idx]:
+                    await producer_chunks.put(cached_chunk)
+                await producer_chunks.put(_END_OF_STREAM)
 
     # Trigger primary (client stream) candidates first to reduce latency.
     streams = itertools.chain(
         zip(primary_streams, primary_uids),
         zip(extra_streams, extra_uids),
     )
+
+    reliable_top = {}
+    with contextlib.suppress():
+        reliable_all = {
+            uid: (await uid_tracker.uids[uid].success_rate(TaskType.Inference))
+            for uid in itertools.chain(primary_uids, extra_uids)
+        }
+        top_amount = 3
+        reliable_top = dict(sorted(reliable_all.items(), key=lambda kv: kv[1], reverse=True)[:top_amount])
+        logger.debug(f"Primary stream candidates (success rate): {reliable_top}")
+
+    if not reliable_top:
+        reliable_top = {uid: 1.0 for uid in primary_uids}
+        logger.debug(f"No reliable found, fallback to all uids: {reliable_top}")
+
     collectors: list[asyncio.Task] = []
     all_uids: list[int] = []
     for idx, (stream, uid) in enumerate(streams):
         try:
             top_incentive = uid in primary_uids
-            reliable = await uid_tracker.uids[idx].success_rate(TaskType.Inference) > SUCCESS_RATE_MIN
+            reliable = uid in reliable_top
             collectors.append(asyncio.create_task(_collector(idx, stream, reliable, top_incentive)))
             all_uids.append(uid)
         except BaseException as exc:
@@ -170,9 +198,9 @@ async def collect_streams(  # noqa: C901
         chunks=collected_chunks_list,
         task_name=TaskType.Inference,
         format=CompletionFormat.STR,
-        # UIDs response 2 times lower than average is probably not complete.
+        # If UIDs response is lower than average, it's probably not complete.
         # Might have FP, althrough reliability tracker used only to choose primary stream.
-        min_chunks=int(np.mean([len(chunks) for chunks in collected_chunks_list]) * 0.5),
+        min_chunks=int(np.mean([len(chunks) for chunks in collected_chunks_list]) * 0.7),
     )
 
     # Push everything to the scoring queue.
@@ -209,6 +237,7 @@ async def chat_completion(
     uids: Optional[list[int]] = None,
     num_miners: int = 5,
     uid_tracker: UidTracker | None = None,
+    add_reliable_miners: int = 1,
 ) -> tuple | StreamingResponse:
     # TODO: Add docstring.
     """Handle chat completion with multiple miners in parallel."""
@@ -223,8 +252,21 @@ async def chat_completion(
     primary_uids = filter_available_uids(
         task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=num_miners
     )
+    if uid_tracker is not None:
+        # Add reliable uids, or ones with highest success rate to guarantee completed stream.
+        reliable_uids = await uid_tracker.sample_reliable(
+            task=TaskType.Inference, amount=add_reliable_miners, success_rate=0.99, add_random_extra=False
+        )
+        primary_uids.extend(list(reliable_uids.keys()))
+        primary_uids = list(set(primary_uids))
+        logger.debug(
+            f"Added reliable miners: {list(reliable_uids.keys())} to the request, "
+            f"total primary uids: {len(primary_uids)}"
+        )
+
     if not primary_uids:
         raise HTTPException(status_code=500, detail="No available miners")
+
     primary_uids: list[int] = random.sample(primary_uids, min(len(primary_uids), num_miners))
 
     # TODO: Revisit why returned uids types are not unified for different modes.
