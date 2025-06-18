@@ -1,24 +1,46 @@
 import time
-from typing import ClassVar, Optional
+from typing import Optional
 
 import numpy as np
-from angle_emb import AnglE
+import requests
 from pydantic import ConfigDict
 from scipy import spatial
 
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
-from shared import settings
+from shared import constants, settings
 from shared.dendrite import DendriteResponseEvent
 
 shared_settings = settings.shared_settings
 
 
+def get_embeddings(inputs):
+    """
+    Sends a POST request to the local embeddings endpoint and returns the response.
+
+    Args:
+        inputs (str or list of str): A single input string or a list of input strings to embed.
+
+    Returns:
+        dict: JSON response from the embeddings server.
+    """
+    if isinstance(inputs, str):
+        inputs = [inputs]  # convert single string to list
+
+    url = f"{constants.DOCKER_BASE_URL}/v1/embeddings"
+    headers = {"Content-Type": "application/json"}
+    payload = {"input": inputs}
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        return {"error": str(e)}
+
+
 class RelevanceRewardModel(BaseRewardModel):
     threshold: Optional[float] = None
     model_config = ConfigDict(arbitrary_types_allowed=True)
-    embedding_model: ClassVar[AnglE] = AnglE.from_pretrained(
-        "WhereIsAI/UAE-Large-V1", pooling_strategy="cls", device=shared_settings.NEURON_DEVICE
-    ).to(shared_settings.NEURON_DEVICE)
 
     async def reward(
         self, reference: str, response_event: DendriteResponseEvent, model_manager=None, **kwargs
@@ -31,15 +53,13 @@ class RelevanceRewardModel(BaseRewardModel):
         """
         if not reference:
             raise Exception("Reference is empty - something went wrong during the reference generation")
-        reference_embedding = self.embedding_model.encode(reference, to_numpy=True)
-        reference_emb_flatten = reference_embedding.flatten()
+        reference_embedding = np.array(get_embeddings(reference)["data"][0]["embedding"])
         rewards: list[float] = []
         timings: list[float] = []
         completions: list[str] = response_event.completions
         # baseline is the cosine similarity between the reference and an empty string
-        baseline = 1 - float(
-            spatial.distance.cosine(reference_emb_flatten, self.embedding_model.encode("", to_numpy=True).flatten())
-        )
+        baseline_embedding = np.array(get_embeddings("")["data"][0]["embedding"])
+        baseline = 1 - float(spatial.distance.cosine(reference_embedding, baseline_embedding))
 
         for comp in completions:
             if len(comp) == 0:
@@ -47,9 +67,9 @@ class RelevanceRewardModel(BaseRewardModel):
                 timings.append(0)
                 continue
             t0 = time.time()
-            emb = self.embedding_model.encode(comp, to_numpy=True)
+            emb = np.array(get_embeddings(comp)["data"][0]["embedding"])
             # Calculate cosine similarity between reference and completion embeddings, and subtract baseline
-            score = 1 - float(spatial.distance.cosine(reference_emb_flatten, emb.flatten() - baseline))
+            score = 1 - float(spatial.distance.cosine(reference_embedding, emb) - baseline)
 
             rewards.append(score)
             timings.append(time.time() - t0)

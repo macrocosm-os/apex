@@ -1,0 +1,6 @@
+angle-emb
+torch
+fastapi
+uvicorn
+pydantic
+vllm==0.8.5

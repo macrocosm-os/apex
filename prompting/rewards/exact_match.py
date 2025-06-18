@@ -7,11 +7,11 @@ import torch.nn.functional as F
 from loguru import logger
 from openai.types.chat import ChatCompletionChunk
 
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
-from shared import settings
+from shared import constants, settings
 from shared.dendrite import DendriteResponseEvent
+from shared.docker_utils import get_logits
 
 shared_settings = settings.shared_settings
 
@@ -36,13 +36,9 @@ class LogitsRewardModel(BaseRewardModel):
         reference: str,
         response_event: DendriteResponseEvent,
         task: BaseTextTask,
-        model_manager: ModelManager,
         **kwargs,
     ) -> BatchRewardOutput:
         """Calculate rewards based on the logits of the response and verifies them."""
-        if model_manager is None:
-            raise ValueError("Model manager must be set")
-
         all_chunks: list[list[str]] = response_event.stream_results_all_chunks
         all_chunk_dicts_raw: list[list[ChatCompletionChunk | dict]] = response_event.stream_results_all_chunk_dicts_raw
         uids: np.ndarray | list[float] = response_event.uids
@@ -64,10 +60,10 @@ class LogitsRewardModel(BaseRewardModel):
             raise ValueError("Timeout must be greater than 0.")
 
         # If max_tokens are not provided, always check for eos.
-        model = await model_manager.get_model(task.llm_model_id)
-        max_tokens = await model.get_max_tokens(sampling_parameters, default_value=2048)
-        eos_token = model.tokenizer.eos_token
-        bos_token = model.tokenizer.bos_token
+        model = task.llm_model_id
+        max_tokens = sampling_parameters.get("max_tokens", 2048)
+        eos_token = constants.SPECIAL_TOKENS.get(model, {}).get("eos_token")
+        bos_token = constants.SPECIAL_TOKENS.get(model, {}).get("bos_token")
         special_tokens = set([bos_token, eos_token])
         timing_verified: list[list[float]] = []
         rewards: list[float] = []
@@ -110,14 +106,14 @@ class LogitsRewardModel(BaseRewardModel):
                     to_complete = "".join(chunks[:check_idx])
                     if to_complete:
                         messages.extend([{"role": "assistant", "content": to_complete}])
-
-                    verification_logits, _ = await model_manager.generate_logits(
+                    response = await get_logits(
                         model=task.llm_model_id,
                         messages=messages,
                         top_logprobs=TOP_LOGPROBS,
                         sampling_params=sampling_parameters,
                         continue_last_message=len(to_complete) > 0,
                     )
+                    verification_logits = response[0]
                     if check_idx < eos_idx:
                         if chunks[check_idx] in special_tokens:
                             raise ValueError("Special tokens mid-completion")

@@ -4,7 +4,6 @@ from typing import ClassVar, Literal
 from loguru import logger
 
 from prompting.datasets.random_website import DDGDatasetEntry
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.MSRv2_reward import MSRv2RewardModel
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.tasks.multi_step_reasoning import MultiStepReasoningTask
@@ -56,11 +55,11 @@ class MSRv2Task(MultiStepReasoningTask):
         else:
             return self.reference or self.generative_miner_answer
 
-    async def make_reference(self, dataset_entry: Context, model_manager: ModelManager):
+    async def make_reference(self, dataset_entry: Context):
         if self.stage == "generative":
             if random.random() < self.REAL_REFERENCE_PROBABILITY:
                 # Validator's turn to generate the reference
-                reference_attempt = await super().make_reference(dataset_entry, model_manager=model_manager)
+                reference_attempt = await super().make_reference(dataset_entry)
                 self.reference = reference_attempt if isinstance(reference_attempt, str) else None
                 self.validator_generated_reference = self.reference  # Store the validator's generated reference
                 return self.reference

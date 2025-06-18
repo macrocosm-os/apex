@@ -169,7 +169,7 @@ async def query_miners(
                 )
             else:
                 responses_error += 1
-                logger.error(f"Unknown response type: {response}")
+                # logger.error(f"Unknown response type: {response}")
                 results.append(SynapseStreamResult(uid=uid, exception=f"Unknown response type: {response}"))
 
         logger.info(
@@ -262,8 +262,8 @@ async def make_openai_query(
             stream=True,
             extra_body=extra_body,
         )
-    except BaseException as e:
-        logger.warning(f"Error while querying UID {uid}: {e}")
+    except BaseException:
+        # logger.warning(f"Error while querying UID {uid}: {e}")
         return
 
     if stream:

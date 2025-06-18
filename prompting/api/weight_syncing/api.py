@@ -14,6 +14,10 @@ def get_weight_dict(request: Request):
     return request.app.state.weight_dict
 
 
+def get_uid_from_hotkey(hotkey: str):
+    return shared_settings.METAGRAPH.hotkeys.index(hotkey)
+
+
 async def verify_weight_signature(request: Request):
     signed_by = request.headers.get("Epistula-Signed-By")
     signed_for = request.headers.get("Epistula-Signed-For")
@@ -26,6 +30,9 @@ async def verify_weight_signature(request: Request):
         raise HTTPException(status_code=401, detail="Signer not the expected ss58 address")
     now = time.time()
     body = await request.body()
+    if body["uid"] != get_uid_from_hotkey(signed_by):
+        logger.error("Invalid uid")
+        raise HTTPException(status_code=400, detail="Invalid uid in body")
     err = verify_signature(
         request.headers.get("Epistula-Request-Signature"),
         body,
