@@ -2,40 +2,16 @@ import time
 from typing import Optional
 
 import numpy as np
-import requests
 from pydantic import ConfigDict
 from scipy import spatial
 
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
-from shared import constants, settings
+from shared import settings
 from shared.dendrite import DendriteResponseEvent
+from shared.docker_utils import get_embeddings
 
 shared_settings = settings.shared_settings
 
-
-def get_embeddings(inputs):
-    """
-    Sends a POST request to the local embeddings endpoint and returns the response.
-
-    Args:
-        inputs (str or list of str): A single input string or a list of input strings to embed.
-
-    Returns:
-        dict: JSON response from the embeddings server.
-    """
-    if isinstance(inputs, str):
-        inputs = [inputs]  # convert single string to list
-
-    url = f"{constants.DOCKER_BASE_URL}/v1/embeddings"
-    headers = {"Content-Type": "application/json"}
-    payload = {"input": inputs}
-
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        return {"error": str(e)}
 
 
 class RelevanceRewardModel(BaseRewardModel):

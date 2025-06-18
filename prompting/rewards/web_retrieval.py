@@ -8,7 +8,6 @@ from datetime import datetime
 
 import numpy as np
 import pandas as pd
-import requests
 import whois
 from loguru import logger
 from pydantic import BaseModel
@@ -19,34 +18,9 @@ from prompting.datasets.random_website import DDGDataset, DDGDatasetEntry
 from prompting.rewards.relevance import RelevanceRewardModel
 from prompting.rewards.reward import BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
-from shared import constants
 from shared.dendrite import DendriteResponseEvent
 from shared.misc import async_lru_cache
-
-
-def get_embeddings(inputs):
-    """
-    Sends a POST request to the local embeddings endpoint and returns the response.
-
-    Args:
-        inputs (str or list of str): A single input string or a list of input strings to embed.
-
-    Returns:
-        dict: JSON response from the embeddings server.
-    """
-    if isinstance(inputs, str):
-        inputs = [inputs]  # convert single string to list
-
-    url = f"{constants.DOCKER_BASE_URL}/v1/embeddings"
-    headers = {"Content-Type": "application/json"}
-    payload = {"input": inputs}
-
-    try:
-        response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as e:
-        return {"error": str(e)}
+from shared.docker_utils import get_embeddings
 
 
 MIN_RELEVANT_CHARS = 300

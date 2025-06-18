@@ -55,3 +55,30 @@ async def get_logits(
     except requests.exceptions.JSONDecodeError:
         logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
         return ""
+
+def get_embeddings(inputs):
+    """
+    Sends a POST request to the local embeddings endpoint and returns the response.
+
+    Args:
+        inputs (str or list of str): A single input string or a list of input strings to embed.
+
+    Returns:
+        dict: JSON response from the embeddings server.
+    """
+    if isinstance(inputs, str):
+        inputs = [inputs]  # convert single string to list
+
+    url = f"{constants.DOCKER_BASE_URL}/v1/embeddings"
+    headers = {"Content-Type": "application/json"}
+    payload = {"input": inputs}
+
+    try:
+        response = requests.post(url, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException as e:
+        return {"error": str(e)}
+    
+if __name__ == "__main__":
+    print(get_embeddings("Hello, world!"))
