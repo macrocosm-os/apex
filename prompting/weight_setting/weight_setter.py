@@ -7,7 +7,6 @@ import pandas as pd
 from loguru import logger
 
 from prompting import __spec_version__
-from prompting.llms.model_zoo import ModelZoo
 from prompting.rewards.reward import WeightedRewardEvent
 from prompting.tasks.inference import InferenceTask
 from prompting.tasks.task_registry import TaskConfig, TaskRegistry
@@ -218,12 +217,9 @@ class WeightSetter(AsyncLoopRunner):
 
             for inference_event in inference_events:
                 for uid, reward in zip(inference_event.uids, inference_event.rewards):
-                    llm_model = inference_event.task.llm_model_id
-
-                    model_specific_reward = ModelZoo.get_model_by_id(llm_model).reward if llm_model else 1
                     miner_rewards[TaskRegistry.get_task_config(InferenceTask)][uid]["reward"] += (
-                        reward * model_specific_reward
-                    )  # for inference 2x responses should mean 2x the reward
+                        reward  # for inference 2x responses should mean 2x the reward
+                    )
 
             for task_config, rewards in miner_rewards.items():
                 r = np.array([x["reward"] / max(1, x["count"]) for x in list(rewards.values())])
