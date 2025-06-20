@@ -13,6 +13,8 @@ old_args=$@
 
 bash scripts/install.sh
 
+bash scripts/manage_container.sh
+
 # Loop through all command line arguments
 while [[ $# -gt 0 ]]; do
   arg="$1"

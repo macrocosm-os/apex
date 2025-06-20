@@ -4,7 +4,6 @@ from typing import ClassVar
 from loguru import logger
 
 from prompting.datasets.random_website import DDGDatasetEntry
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.relevance import RelevanceRewardModel
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.tasks.qa import WebQuestionAnsweringTask
@@ -99,7 +98,7 @@ class MultiStepReasoningTask(WebQuestionAnsweringTask):
                 logger.debug(f"**Total thinking time: {total_thinking_time:.2f} seconds**")
         return steps[-1][1]
 
-    async def make_reference(self, dataset_entry: Context, model_manager: ModelManager | None = None):
+    async def make_reference(self, dataset_entry: Context):
         try:
             logger.debug(f"Generating reference for MSR: {self.messages}")
             # Run the async function in a new event loop

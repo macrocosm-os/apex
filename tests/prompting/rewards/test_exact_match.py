@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import numpy as np
 import pytest
 
-from prompting.llms.model_manager import ModelManager
 from prompting.rewards.exact_match import (
     INCORRECT_PENALTY,
     MAX_VERIFY_TOKENS,
@@ -23,7 +22,7 @@ from shared.dendrite import DendriteResponseEvent
 @pytest.fixture
 def model_manager():
     """Mock ModelManager for testing."""
-    manager = MagicMock(spec=ModelManager)
+    manager = MagicMock()
     model = MagicMock()
     tokenizer = MagicMock()
     tokenizer.eos_token = "<|endoftext|>"

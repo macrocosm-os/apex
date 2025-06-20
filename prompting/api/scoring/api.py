@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from loguru import logger
 
 from prompting.datasets.random_website import DDGDatasetEntry
-from prompting.llms.model_zoo import ModelZoo
 from prompting.tasks.inference import InferenceTask
 from prompting.tasks.web_retrieval import WebRetrievalTask
 from shared import settings
@@ -73,12 +72,11 @@ async def score_response(
     if model and model not in shared_settings.LLM_MODEL:
         logger.error(f"Model {model} not available for scoring on this validator.")
         return
-    llm_model = ModelZoo.get_model_by_id(model)
     task_name = body.get("task")
     if task_name == "InferenceTask":
         organic_task = InferenceTask(
             messages=body.get("messages"),
-            llm_model=llm_model,
+            llm_model=model,
             llm_model_id=model,
             seed=int(body.get("seed", 0)),
             sampling_params=body.get("sampling_parameters", shared_settings.SAMPLING_PARAMS),

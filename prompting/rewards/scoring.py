@@ -6,10 +6,9 @@ from multiprocessing.managers import AcquirerProxy
 from loguru import logger
 from pydantic import ConfigDict
 
-from prompting.llms.model_manager import AsyncModelScheduler
 from prompting.rewards.scoring_config import ScoringConfig
 from prompting.tasks.base_task import BaseTextTask
-from prompting.tasks.MSRv2_task import MSRv2Task
+from prompting.tasks.msrv2_task import MSRv2Task
 from prompting.tasks.task_registry import TaskRegistry
 from shared.base import DatasetEntry
 from shared.dendrite import DendriteResponseEvent
@@ -26,7 +25,6 @@ class TaskScorer(AsyncLoopRunner):
 
     mp_lock: AcquirerProxy | None = None
     is_running: bool = False
-    model_scheduler: AsyncModelScheduler | None = None
     thread: threading.Thread = None
     interval: int = 1
     scoring_queue: list | None = None
@@ -36,7 +34,6 @@ class TaskScorer(AsyncLoopRunner):
 
     async def start(
         self,
-        model_scheduler: AsyncModelScheduler,
         scoring_queue,
         reward_events,
         mp_lock: AcquirerProxy,
@@ -46,7 +43,6 @@ class TaskScorer(AsyncLoopRunner):
     ):
         self.scoring_queue = scoring_queue
         self.reward_events = reward_events
-        self.model_scheduler = model_scheduler
         self.mp_lock = mp_lock
         self.task_queue = task_queue
         return await super().start(name=name, **kwargs)
@@ -73,25 +69,17 @@ class TaskScorer(AsyncLoopRunner):
 
     async def run_step(self) -> RewardLoggingEvent:
         await asyncio.sleep(0.1)
-        # Only score responses for which the model is loaded
-        await self.model_scheduler.llm_model_manager.lock.acquire()
-        with self.mp_lock:
-            scorable = [
-                scoring_config
-                for scoring_config in self.scoring_queue
-                if (scoring_config.task.llm_model in self.model_scheduler.llm_model_manager.active_models.keys())
-                or (scoring_config.task.llm_model is None)
-            ]
-            if len(scorable) == 0:
-                return
-            self.scoring_queue.remove(scorable[0])
-        scoring_config: ScoringConfig = scorable.pop(0)
+
+        if not self.scoring_queue:
+            return
+
+        # TODO: Filter based on active models before selecting an item to score.
+        scoring_config: ScoringConfig = self.scoring_queue.pop(0)
 
         # here we generate the actual reference
         with Timer(label=f"Generating reference for {scoring_config.task.__class__.__name__}"):
             await scoring_config.task.make_reference(
                 dataset_entry=scoring_config.dataset_entry,
-                model_manager=self.model_scheduler.llm_model_manager,
             )
 
         # and there we then calculate the reward
@@ -103,9 +91,8 @@ class TaskScorer(AsyncLoopRunner):
                 response_event=scoring_config.response,
                 challenge=scoring_config.task.query,
                 reference=scoring_config.task.reference,
-                model_id=scoring_config.task.llm_model,
+                model_id=scoring_config.task.llm_model_id,
                 task=scoring_config.task,
-                model_manager=self.model_scheduler.llm_model_manager,
                 task_queue=self.task_queue,
             )
 
@@ -164,7 +151,6 @@ class TaskScorer(AsyncLoopRunner):
                 source=source,
             )
         )
-        self.model_scheduler.llm_model_manager.lock.release()
         await asyncio.sleep(0.01)
 
 

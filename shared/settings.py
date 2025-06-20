@@ -133,7 +133,7 @@ class SharedSettings(BaseSettings):
         "temperature": 0.7,
         "top_p": 0.95,
         "top_k": 50,
-        "max_tokens": 512,
+        "max_tokens": 2048,
     }
     LLM_MODEL_RAM: float = Field(70, env="LLM_MODEL_RAM")
     OPENAI_API_KEY: str | None = Field(None, env="OPENAI_API_KEY")

@@ -19,6 +19,7 @@ from prompting.rewards.relevance import RelevanceRewardModel
 from prompting.rewards.reward import BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
 from shared.dendrite import DendriteResponseEvent
+from shared.docker_utils import get_embeddings
 from shared.misc import async_lru_cache
 
 MIN_RELEVANT_CHARS = 300
@@ -140,8 +141,8 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
     @async_lru_cache(maxsize=1000)
     async def _cosine_similarity(self, content1: str, content2: str) -> float:
         """Calculate the cosine similarity between sentence embeddings of the reference and completions."""
-        reference_emb_flatten = self.embedding_model.encode(content1, to_numpy=True).flatten()
-        response_emb_flatten = self.embedding_model.encode(content2, to_numpy=True).flatten()
+        reference_emb_flatten = get_embeddings(content1)["data"][0]["embedding"]
+        response_emb_flatten = get_embeddings(content2)["data"][0]["embedding"]
         return 1.0 - float(spatial.distance.cosine(reference_emb_flatten, response_emb_flatten))
 
     async def score_website_result(
@@ -152,7 +153,6 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
 
         # Extract domain from URL.
         netloc = extract_main_domain(response_url)
-        logger.debug(f"Scoring url: {response_url}")
 
         if any(term in response_url for term in BLACKLISTED_TERMS):
             logger.debug(f"Domain {response_url} contains blacklisted term, scoring 0")
@@ -192,18 +192,18 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
             # Content scraped from the URL provided in the completion.
             reference_website_content = DDGDataset.extract_website_content(response_url)
             if not reference_website_content or len(reference_website_content) == 0:
-                logger.debug(f"Failed to extract miner {uid} content from website: {response_url}")
+                # logger.debug(f"Failed to extract miner {uid} content from website: {response_url}")
                 return 0
 
             if fuzz.ratio(response_content, reference_website_content) < MIN_MATCH_THRESHOLD:
-                logger.debug(f"Miner {uid} returned text that doesn't match the website, scoring 0")
+                # logger.debug(f"Miner {uid} returned text that doesn't match the website, scoring 0")
                 return 0
 
             if len(response_relevant) > len(response_content) or len(response_relevant) < MIN_RELEVANT_CHARS:
-                logger.debug(
-                    f"Miner {uid} relevant section is too short (<{MIN_RELEVANT_CHARS} chars) or longer than the whole "
-                    f"website content {len(response_relevant)} > {len(response_content)}"
-                )
+                # logger.debug(
+                #     f"Miner {uid} relevant section is too short (<{MIN_RELEVANT_CHARS} chars) or longer than the whole "
+                #     f"website content {len(response_relevant)} > {len(response_content)}"
+                # )
                 return 0
 
             if response_relevant not in response_content:
@@ -212,10 +212,10 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
             similarity = await self._cosine_similarity(content1=dataset_entry.query, content2=response_relevant)
             if similarity < PENALIZE_SIM_THRESHOLD:
                 # Penalise if similarity is too low.
-                logger.debug(f"Miner {uid} returned text that doesn't match the query")
+                # logger.debug(f"Miner {uid} returned text that doesn't match the query")
                 return PENALTY
             elif similarity < MIN_SIM_THRESHOLD:
-                logger.debug(f"Miner {uid} returned text has low similarity")
+                # logger.debug(f"Miner {uid} returned text has low similarity")
                 return 0
             return similarity * discount_factor
 

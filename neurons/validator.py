@@ -21,7 +21,6 @@ from shared import settings
 
 settings.shared_settings = settings.SharedSettings.load(mode="validator")
 
-from prompting.llms.model_manager import AsyncModelScheduler, ModelManager
 from prompting.rewards.scoring import task_scorer
 from shared.logging import init_wandb
 
@@ -32,15 +31,13 @@ def init_process_logging(name: str):
     try:
         # Add process-specific handlers
         logger.add(
-            f"{name}_{os.getpid()}.log",
+            f"{name}.log",
             rotation="100 MB",
             retention="10 days",
             level="DEBUG",
             enqueue=True,  # Use queue for thread-safe logging
         )
-        logger.add(
-            f"{name}_err_{os.getpid()}.log", rotation="100 MB", retention="10 days", level="WARNING", enqueue=True
-        )
+        logger.add(f"{name}_err.log", rotation="100 MB", retention="10 days", level="WARNING", enqueue=True)
         logger.add(sys.stderr, level=settings.shared_settings.LOG_LEVEL, enqueue=True)
     except Exception as e:
         print(f"Failed to initialize logging for process {os.getpid()}: {e}")
@@ -57,7 +54,6 @@ torch.multiprocessing.set_start_method("spawn", force=True)
 
 
 async def create_loop_process(
-    model_scheduler: AsyncModelScheduler,
     task_queue: list,
     scoring_queue: list,
     reward_events: list,
@@ -71,10 +67,9 @@ async def create_loop_process(
 
     all_tasks: list[asyncio.Task] = []
 
-    async def cleanup(model_scheduler):
+    async def cleanup():
         logger.info("Cleaning up resources...")
         torch.distributed.destroy_process_group()
-        await model_scheduler.llm_model.cleanup()
         for t in all_tasks:
             t.cancel()
         await asyncio.gather(*all_tasks, return_exceptions=True)
@@ -92,10 +87,8 @@ async def create_loop_process(
         task_loop_task = asyncio.create_task(
             task_loop.start(task_queue, scoring_queue, miners_dict, simultaneous_loops=1), name="TaskLoop"
         )
-        model_scheduler_task = asyncio.create_task(model_scheduler.start(scoring_queue), name="ModelScheduler")
         task_scorer_task = asyncio.create_task(
             task_scorer.start(
-                model_scheduler,
                 scoring_queue,
                 reward_events,
                 mp_lock=mp_lock,
@@ -104,7 +97,7 @@ async def create_loop_process(
             ),
             name="TaskScorer",
         )
-        all_tasks.extend([profile, task_loop_task, model_scheduler_task, task_scorer_task])
+        all_tasks.extend([profile, task_loop_task, task_scorer_task])
 
         try:
             while True:
@@ -112,8 +105,6 @@ async def create_loop_process(
                 logger.debug(
                     f"Task Queue {len(task_queue)}. Scoring Queue {len(scoring_queue)}. Reward Events {len(reward_events)}"
                 )
-                if model_scheduler.memory_error is not None:
-                    raise model_scheduler.memory_error
         except asyncio.CancelledError:
             logger.info("spawn_loops received cancellation signal.")
             raise
@@ -122,12 +113,12 @@ async def create_loop_process(
         await spawn_loops(task_queue, scoring_queue, reward_events, miners_dict)
     except MemoryError as e:
         logger.error(f"MemoryError encountered. Terminating program: {e}")
-        await cleanup(model_scheduler)
+        await cleanup()
         sys.exit(1)
     except Exception as e:
         logger.exception(f"Terminating loop process: {e}")
     finally:
-        await cleanup(model_scheduler)
+        await cleanup()
 
 
 def start_api(
@@ -289,8 +280,6 @@ async def main(
         tasks: list[asyncio.Task] = []
         event_stop = mp.Event()
 
-        model_scheduler = AsyncModelScheduler(llm_model_manager=ModelManager(), mp_lock=mp_lock, sync=True)
-
         try:
             # Start checking the availability of miners at regular intervals
             if not settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
@@ -315,7 +304,6 @@ async def main(
 
             loop_task = asyncio.create_task(
                 create_loop_process(
-                    model_scheduler=model_scheduler,
                     task_queue=task_queue,
                     scoring_queue=scoring_queue,
                     reward_events=reward_events,
