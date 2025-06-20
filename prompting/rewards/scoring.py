@@ -8,7 +8,7 @@ from pydantic import ConfigDict
 
 from prompting.rewards.scoring_config import ScoringConfig
 from prompting.tasks.base_task import BaseTextTask
-from prompting.tasks.MSRv2_task import MSRv2Task
+from prompting.tasks.msrv2_task import MSRv2Task
 from prompting.tasks.task_registry import TaskRegistry
 from shared.base import DatasetEntry
 from shared.dendrite import DendriteResponseEvent
