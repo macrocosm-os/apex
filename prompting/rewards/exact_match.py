@@ -218,7 +218,7 @@ class LogitsRewardModel(BaseRewardModel):
         )
         logger.debug(f"Logits rewards: {reward_output.model_dump()}")
         return reward_output
-    
+
     @classmethod
     async def get_max_tokens(cls, sampling_params: dict[str, Any], default: int = 2048) -> int:
         # vLLM / HF request.

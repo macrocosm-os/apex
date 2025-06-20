@@ -37,9 +37,7 @@ def init_process_logging(name: str):
             level="DEBUG",
             enqueue=True,  # Use queue for thread-safe logging
         )
-        logger.add(
-            f"{name}_err.log", rotation="100 MB", retention="10 days", level="WARNING", enqueue=True
-        )
+        logger.add(f"{name}_err.log", rotation="100 MB", retention="10 days", level="WARNING", enqueue=True)
         logger.add(sys.stderr, level=settings.shared_settings.LOG_LEVEL, enqueue=True)
     except Exception as e:
         print(f"Failed to initialize logging for process {os.getpid()}: {e}")
