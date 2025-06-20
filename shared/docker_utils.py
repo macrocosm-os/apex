@@ -1,3 +1,4 @@
+from typing import Any
 import requests
 from loguru import logger
 
@@ -38,7 +39,7 @@ async def get_logits(
     seed: int = None,
     continue_last_message: bool = False,
     top_logprobs: int = 10,
-):
+) -> dict[str, Any] | None:
     url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
     headers = {"Content-Type": "application/json"}
     payload = {
@@ -54,7 +55,7 @@ async def get_logits(
         return json_response
     except requests.exceptions.JSONDecodeError:
         logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
-        return ""
+        return None
 
 
 def get_embeddings(inputs):

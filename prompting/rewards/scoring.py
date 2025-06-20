@@ -81,7 +81,6 @@ class TaskScorer(AsyncLoopRunner):
             await scoring_config.task.make_reference(
                 dataset_entry=scoring_config.dataset_entry,
             )
-            logger.info(f"Reference: {scoring_config.task.reference}")
 
         # and there we then calculate the reward
         reward_pipeline = TaskRegistry.get_task_reward(scoring_config.task)

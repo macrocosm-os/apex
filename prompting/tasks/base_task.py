@@ -76,7 +76,7 @@ class BaseTextTask(BaseTask):
     @model_validator(mode="after")
     def get_model_id_and_seed(self) -> "BaseTextTask":
         if self.llm_model:
-            self.llm_model_id = self.llm_model.llm_model_id if self.llm_model else None
+            self.llm_model_id = self.llm_model
         return self
 
     async def make_query(self, dataset_entry: DatasetEntry, **kwargs) -> str:

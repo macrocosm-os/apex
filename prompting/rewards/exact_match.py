@@ -6,10 +6,11 @@ import torch
 import torch.nn.functional as F
 from loguru import logger
 from openai.types.chat import ChatCompletionChunk
+from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from prompting.rewards.reward import BaseRewardModel, BatchRewardOutput
 from prompting.tasks.base_task import BaseTextTask
-from shared import constants, settings
+from shared import settings
 from shared.dendrite import DendriteResponseEvent
 from shared.docker_utils import get_logits
 
@@ -61,9 +62,17 @@ class LogitsRewardModel(BaseRewardModel):
 
         # If max_tokens are not provided, always check for eos.
         model = task.llm_model_id
-        max_tokens = sampling_parameters.get("max_tokens", 2048)
-        eos_token = constants.SPECIAL_TOKENS.get(model, {}).get("eos_token")
-        bos_token = constants.SPECIAL_TOKENS.get(model, {}).get("bos_token")
+        max_tokens = await self.get_max_tokens(sampling_parameters, default=2048)
+
+        try:
+            tokenizer: PreTrainedTokenizerBase = AutoTokenizer.from_pretrained(model, use_fast=True)
+            eos_token = tokenizer.eos_token
+            bos_token = tokenizer.bos_token
+        except BaseException as exc:
+            logger.error(f"Cannot get {model} tokenizer: {exc}. EOS token check is disabled")
+            eos_token = None
+            bos_token = None
+
         special_tokens = set([bos_token, eos_token])
         timing_verified: list[list[float]] = []
         rewards: list[float] = []
@@ -106,13 +115,19 @@ class LogitsRewardModel(BaseRewardModel):
                     to_complete = "".join(chunks[:check_idx])
                     if to_complete:
                         messages.extend([{"role": "assistant", "content": to_complete}])
-                    response = await get_logits(
+                    response: dict[str, Any] | None = await get_logits(
                         model=task.llm_model_id,
                         messages=messages,
                         top_logprobs=TOP_LOGPROBS,
                         sampling_params=sampling_parameters,
                         continue_last_message=len(to_complete) > 0,
                     )
+                    if response is None:
+                        # Unexpected error on validator side, do no set penalty.
+                        penalty = 0.0
+                        logger.error(f"Cannot get logprobs for model {task.llm_model_id}")
+                        raise ValueError(f"Cannot get logprobs for model {task.llm_model_id} and {messages}")
+
                     verification_logits = response[0]
                     if check_idx < eos_idx:
                         if chunks[check_idx] in special_tokens:
@@ -203,6 +218,18 @@ class LogitsRewardModel(BaseRewardModel):
         )
         logger.debug(f"Logits rewards: {reward_output.model_dump()}")
         return reward_output
+    
+    @classmethod
+    async def get_max_tokens(cls, sampling_params: dict[str, Any], default: int = 2048) -> int:
+        # vLLM / HF request.
+        max_tokens = sampling_params.get("max_tokens")
+        if max_tokens is None:
+            # Deprecated request.
+            max_tokens = sampling_params.get("max_new_tokens")
+        if max_tokens is None:
+            # OpenAI request.
+            max_tokens = sampling_params.get("max_completion_tokens", default)
+        return max_tokens
 
     @staticmethod
     def sample_verification_indices(completion_length: int) -> list[int]:

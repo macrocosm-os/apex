@@ -31,14 +31,14 @@ def init_process_logging(name: str):
     try:
         # Add process-specific handlers
         logger.add(
-            f"{name}_{os.getpid()}.log",
+            f"{name}.log",
             rotation="100 MB",
             retention="10 days",
             level="DEBUG",
             enqueue=True,  # Use queue for thread-safe logging
         )
         logger.add(
-            f"{name}_err_{os.getpid()}.log", rotation="100 MB", retention="10 days", level="WARNING", enqueue=True
+            f"{name}_err.log", rotation="100 MB", retention="10 days", level="WARNING", enqueue=True
         )
         logger.add(sys.stderr, level=settings.shared_settings.LOG_LEVEL, enqueue=True)
     except Exception as e:
