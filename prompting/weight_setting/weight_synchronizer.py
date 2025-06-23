@@ -83,13 +83,5 @@ class WeightSynchronizer:
 
     async def process_weight_dict(self):
         for uid, weights in self.weight_dict.items():
-            # Verify uid is in whitelist
-            validator_indices = np.where(self.validator_uids == uid)[0]
-            if len(validator_indices) == 0:
-                logger.error(f"Invalid validator UID {uid}, not in whitelist")
-                continue
-
-            # Update the weight matrix for this validator
-            validator_idx = validator_indices[0]
-            self.weight_matrix[validator_idx] = weights
-            self.request_tracker[validator_idx] = 1
+            self.weight_matrix[uid] = weights
+            self.request_tracker[uid] = 1
