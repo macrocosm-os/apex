@@ -4,7 +4,7 @@ from typing import ClassVar, Literal
 from loguru import logger
 
 from prompting.datasets.random_website import DDGDatasetEntry
-from prompting.rewards.MSRv2_reward import MSRv2RewardModel
+from prompting.rewards.msrv2_reward import MSRv2RewardModel
 from prompting.rewards.reward import BaseRewardConfig, BaseRewardModel
 from prompting.tasks.multi_step_reasoning import MultiStepReasoningTask
 from shared.base import Context

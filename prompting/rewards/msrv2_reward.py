@@ -10,7 +10,7 @@ from shared.dendrite import DendriteResponseEvent
 from shared.uids import get_uids
 
 if TYPE_CHECKING:
-    from prompting.tasks.MSRv2_task import MSRv2Task
+    from prompting.tasks.msrv2_task import MSRv2Task
 
 shared_settings = settings.shared_settings
 

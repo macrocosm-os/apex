@@ -10,7 +10,7 @@ from prompting.datasets.sn13 import SN13Dataset
 from prompting.rewards.reward import BaseRewardConfig
 from prompting.tasks.base_task import BaseTextTask
 from prompting.tasks.inference import InferenceRewardConfig, InferenceTask
-from prompting.tasks.MSRv2_task import MSRv2RewardConfig, MSRv2Task
+from prompting.tasks.msrv2_task import MSRv2RewardConfig, MSRv2Task
 from prompting.tasks.web_retrieval import WebRetrievalRewardConfig, WebRetrievalTask
 from shared.base import BaseDataset
 

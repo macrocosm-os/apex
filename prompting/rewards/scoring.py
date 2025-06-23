@@ -8,7 +8,7 @@ from pydantic import ConfigDict
 
 from prompting.rewards.scoring_config import ScoringConfig
 from prompting.tasks.base_task import BaseTextTask
-from prompting.tasks.MSRv2_task import MSRv2Task
+from prompting.tasks.msrv2_task import MSRv2Task
 from prompting.tasks.task_registry import TaskRegistry
 from shared.base import DatasetEntry
 from shared.dendrite import DendriteResponseEvent
@@ -81,7 +81,6 @@ class TaskScorer(AsyncLoopRunner):
             await scoring_config.task.make_reference(
                 dataset_entry=scoring_config.dataset_entry,
             )
-            logger.info(f"Reference: {scoring_config.task.reference}")
 
         # and there we then calculate the reward
         reward_pipeline = TaskRegistry.get_task_reward(scoring_config.task)
