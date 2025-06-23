@@ -5,7 +5,6 @@ import httpx
 import numpy as np
 from loguru import logger
 
-from shared.constants import WHITELISTED_VALIDATORS_UIDS
 from shared.epistula import create_header_hook
 
 
@@ -80,7 +79,6 @@ class WeightSynchronizer:
         await asyncio.gather(*tasks)
 
     async def process_weight_dict(self):
-
         for uid, weights in self.weight_dict.items():
             if uid in self.validator_uids:
                 validator_index = self.validator_uids.index(uid)
