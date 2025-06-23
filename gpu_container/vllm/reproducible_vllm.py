@@ -3,10 +3,7 @@ from typing import Dict, List, Optional, Union
 
 import numpy as np
 import torch
-from tqdm import tqdm
 from vllm import LLM, SamplingParams
-
-tqdm.disable = True
 
 
 class ReproducibleVLLM:
