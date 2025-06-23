@@ -68,7 +68,7 @@ async def score_response(
         logger.error(f"Either uids: {uids} or chunks: {chunks} is not valid, skipping scoring")
         return
     uids = [int(uid) for uid in uids]
-    model = body.get("model")
+    model = body.get("model", "mrfakename/mistral-small-3.1-24b-instruct-2503-hf")
     if model and model not in shared_settings.LLM_MODEL:
         logger.error(f"Model {model} not available for scoring on this validator.")
         return

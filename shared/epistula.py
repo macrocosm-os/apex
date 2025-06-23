@@ -175,7 +175,7 @@ async def query_miners(
         logger.info(
             f"Responses success: {responses_valid}/{len(uids)}. "
             f"Responses exception: {responses_exception}/{len(uids)}. "
-            f"Reponses invalid: {responses_error}/{len(uids)}"
+            f"Responses invalid: {responses_error}/{len(uids)}"
         )
         return results
     except Exception as e:
