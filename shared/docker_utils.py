@@ -32,7 +32,6 @@ async def get_generation(
         return ""
 
 
-# @async_lru_cache(maxsize=1000)
 async def get_logits(
     messages: list[str],
     model: None = None,
@@ -41,21 +40,21 @@ async def get_logits(
     continue_last_message: bool = False,
     top_logprobs: int = 10,
 ) -> dict[str, Any] | None:
-    url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
-    headers = {"Content-Type": "application/json"}
-    payload = {
-        "messages": messages,
-        "seed": seed,
-        "sampling_params": sampling_params,
-        "top_logprobs": top_logprobs,
-        "continue_last_message": continue_last_message,
-    }
-    response = requests.post(url, headers=headers, json=payload)
     try:
+        url = f"{constants.DOCKER_BASE_URL}/v1/chat/generate_logits"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "messages": messages,
+            "seed": seed,
+            "sampling_params": sampling_params,
+            "top_logprobs": top_logprobs,
+            "continue_last_message": continue_last_message,
+        }
+        response = requests.post(url, headers=headers, json=payload)
         json_response = response.json()
         return json_response
-    except requests.exceptions.JSONDecodeError:
-        logger.error(f"Error generating logits. Status: {response.status_code}, Body: {response.text}")
+    except BaseException as exc:
+        logger.error(f"Error generating logits: {exc}")
         return None
 
 
