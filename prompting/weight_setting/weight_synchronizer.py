@@ -16,7 +16,7 @@ class WeightSynchronizer:
         self.wallet = wallet
         self.current_hotkey = wallet.hotkey.ss58_address
         self.uid = metagraph.hotkeys.index(self.current_hotkey)
-        self.validator_uids = np.where(np.array(metagraph.v_permit))[0].tolist()
+        self.validator_uids = np.where(np.array(metagraph.validator_permit))[0].tolist()
 
         self.weight_matrix = np.zeros((len(self.validator_uids), metagraph.n.item()))
         self.stake_matrix = np.array([metagraph.S[uid] for uid in self.validator_uids])
