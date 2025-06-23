@@ -20,18 +20,12 @@ class ReproducibleVLLM:
         self.model_id = model_id
         self.sampling_params = {} if sampling_params else sampling_params
 
-        # VLLM specific initialization
-        # gpu_memory_utilization = 0.9  # Default high utilization since VLLM is memory efficient
         self.model = LLM(
             model=model_id,
-            # tensor_parallel_size=1,  # Single GPU by default
-            # dtype="float16",
             trust_remote_code=True,
             gpu_memory_utilization=0.9,
-            max_model_len=8192,
         )
 
-        # Store tokenizer from VLLM for consistency
         self.tokenizer = self.model.get_tokenizer()
 
     @classmethod
