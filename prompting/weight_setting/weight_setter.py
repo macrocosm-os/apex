@@ -100,7 +100,8 @@ async def set_weights(
             uids=processed_weight_uids, weights=processed_weights
         )
     except Exception as ex:
-        logger.exception(f"Issue with setting weights: {ex}")
+        logger.exception(f"Skipping weight setting: {ex}")
+        return
 
     # Create a dataframe from weights and uids and save it as a csv file, with the current step as the filename.
     if shared_settings.LOG_WEIGHTS:
