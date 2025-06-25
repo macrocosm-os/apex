@@ -263,6 +263,10 @@ class SharedSettings(BaseSettings):
         self._subtensor = Subtensor(network=subtensor_network)
         return self._subtensor
 
+    def metagraph_force_sync(self) -> Metagraph:
+        self._last_update_time = 0
+        return self.METAGRAPH
+
     @property
     def METAGRAPH(self) -> Metagraph:
         if time.time() - self._last_update_time > 1200:
