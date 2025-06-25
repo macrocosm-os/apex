@@ -88,8 +88,7 @@ class WeightSetter(AsyncLoopRunner):
     """The weight setter looks at RewardEvents in the reward_events queue and sets the weights of the miners accordingly."""
 
     sync: bool = True
-    # interval: int = 60 * 21
-    interval: int = 60 * 3
+    interval: int = 60 * 21
     reward_events: list[list[WeightedRewardEvent]] | None = None
     weight_dict: dict[int, list[float]] | None = None
     weight_syncer: WeightSynchronizer | None = None
