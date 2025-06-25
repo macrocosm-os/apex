@@ -1,26 +1,23 @@
 # ruff: noqa: E402
 import asyncio
 from pathlib import Path
-from unittest.mock import MagicMock, patch
-from unittest.mock import AsyncMock, patch
-import pytest
-from pytest import MonkeyPatch
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import numpy as np
-
-from prompting.weight_setting.weight_setter import set_weights
+import pytest
+from pytest import MonkeyPatch
 
 from shared import settings
+
 settings.shared_settings = settings.SharedSettings(mode="mock")
 
-from prompting.weight_setting import weight_setter
+from prompting.rewards.reward import WeightedRewardEvent
 from prompting.tasks.inference import InferenceTask
 from prompting.tasks.msrv2_task import MSRv2Task
 from prompting.tasks.web_retrieval import WebRetrievalTask
+from prompting.weight_setting import weight_setter
 from prompting.weight_setting.weight_setter import WeightSetter
-from prompting.rewards.reward import WeightedRewardEvent
-
 
 UIDS: list[int] = list(range(256))
 
@@ -46,9 +43,7 @@ def _make_event(task_cls: type, rewards: list[float]) -> WeightedRewardEvent:
 @pytest.mark.asyncio
 async def test_merge_task_rewards() -> None:
     negative_uids: set[int] = {0, 1, 2}
-    inference_rewards: list[float] = [
-        -2.0 if uid in negative_uids else 1.0 for uid in UIDS
-    ]
+    inference_rewards: list[float] = [-2.0 if uid in negative_uids else 1.0 for uid in UIDS]
     msrv2_rewards: list[float] = [1.0] * len(UIDS)
     web_rewards: list[float] = [1.0] * len(UIDS)
 
@@ -102,6 +97,7 @@ def test_run_step_with_reward_events():
         patch("prompting.weight_setting.weight_setter.set_weights") as mock_set_weights,
         patch("prompting.weight_setting.weight_setter.logger") as mock_logger,
     ):
+
         class MockTask:
             pass
 
