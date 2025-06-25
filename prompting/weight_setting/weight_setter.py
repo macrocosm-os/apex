@@ -223,17 +223,6 @@ class WeightSetter(AsyncLoopRunner):
             for uid, reward in zip(task_uids, processed_rewards):
                 reward_dict[uid] += reward
 
-        if shared_settings.LOG_WEIGHTS:
-            try:
-                with open("rewards.jsonl", "a+") as f:
-                    for config, rewards in miner_rewards.items():
-                        task_name = config.task.__name__ if hasattr(config.task, "__name__") else str(config.task)
-                        rewards_str = {str(uid): reward_info["reward"] for uid, reward_info in rewards.items()}
-                        record = {"task_config": task_name, "rewards": rewards_str}
-                        f.write(json.dumps(record) + "\n")
-            except Exception as e:
-                logger.exception(f"Failed to save miner_rewards to miner_rewards.jsonl: {e}")
-
         final_rewards = np.array(list(reward_dict.values())).astype(np.float32)
         return final_rewards
 
