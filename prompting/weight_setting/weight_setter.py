@@ -1,7 +1,7 @@
 import asyncio
+from collections import deque
 import datetime
 import json
-from collections import deque
 from pathlib import Path
 from typing import Any
 
@@ -42,7 +42,9 @@ async def set_weights(
                 # If weights will not be set on chain, we should not synchronize.
                 augmented_weights = weights
             else:
-                augmented_weights = await weight_syncer.get_augmented_weights(weights=weights, uid=shared_settings.UID)
+                augmented_weights = await weight_syncer.get_augmented_weights(
+                    weights=weights, uid=shared_settings.UID
+                )
         except BaseException as ex:
             logger.exception(f"Issue with setting weights: {ex}")
             augmented_weights = weights
@@ -58,7 +60,8 @@ async def set_weights(
 
         # Convert to uint16 weights and uids.
         uint_uids, uint_weights = bt.utils.weight_utils.convert_weights_and_uids_for_emit(
-            uids=processed_weight_uids, weights=processed_weights
+            uids=processed_weight_uids,
+            weights=processed_weights
         )
     except Exception as ex:
         logger.exception(f"Issue with setting weights: {ex}")
@@ -123,24 +126,27 @@ class WeightSetter(AsyncLoopRunner):
         Args:
             rewards: A one-dimensional array where the index is the uid and the value is its reward.
         """
-        epoch_rewards = {int(uid): {"reward": float(r)} for uid, r in enumerate(rewards)}
-
         if not isinstance(self.reward_history, deque):
             self.reward_history = deque(maxlen=self.reward_history_len)
-        self.reward_history.append(epoch_rewards)
+
+        snapshot = {int(uid): {"reward": float(r)} for uid, r in enumerate(rewards)}
+        self.reward_history.append(snapshot)
+
+        tmp_path = self.reward_history_path.with_suffix(".jsonl.tmp")
+        block = getattr(shared_settings, "block", 0)
 
         try:
-            block = shared_settings.block
-            with self.reward_history_path.open("w", encoding="utf-8") as file:
-                for snapshot in self.reward_history:
+            with tmp_path.open("w", encoding="utf-8") as file:
+                for snap in self.reward_history:
                     row: dict[str, Any] = {
                         "ts": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds") + "Z",
                         "block": block,
-                        "rewards": {str(uid): v["reward"] for uid, v in snapshot.items()},
+                        "rewards": {str(k): v["reward"] for k, v in snap.items()},
                     }
                     file.write(json.dumps(row, separators=(",", ":")) + "\n")
-        except BaseException as exc:
-            logger.error(f"Couldn't write rewards history: {exc}")
+            tmp_path.replace(self.reward_history_path)
+        except Exception as exc:
+            logger.error(f"Couldn't persist rewards history: {exc}")
 
     async def _load_rewards(self):
         """Load reward snapshots from disk into `reward_history`.
@@ -160,7 +166,9 @@ class WeightSetter(AsyncLoopRunner):
                     if payload is None:
                         raise ValueError(f"Malformed weight history file: {data}")
 
-                    self.reward_history.append({int(uid): {"reward": float(reward)} for uid, reward in payload.items()})
+                    self.reward_history.append(
+                        {int(uid): {"reward": float(reward)} for uid, reward in payload.items()}
+                    )
         except BaseException as exc:
             self.reward_history: deque[dict[int, dict[str, Any]]] | None = deque(maxlen=self.reward_history_len)
             logger.error(f"Couldn't load rewards from file, resetting weight history: {exc}")
@@ -183,7 +191,6 @@ class WeightSetter(AsyncLoopRunner):
         linear_reward_tasks = set([InferenceTask, MSRv2Task])
         linear_events: list[WeightedRewardEvent] = []
         for reward_sub_events in reward_events:
-            await asyncio.sleep(0.01)
             for reward_event in reward_sub_events:
                 task_config = TaskRegistry.get_task_config(reward_event.task)
 
@@ -209,7 +216,8 @@ class WeightSetter(AsyncLoopRunner):
                 processed_rewards = task_rewards / max(1, (np.sum(task_rewards[task_rewards > 0]) + 1e-10))
             else:
                 processed_rewards = cls.apply_steepness(
-                    raw_rewards=task_rewards, steepness=shared_settings.REWARD_STEEPNESS
+                    raw_rewards=task_rewards,
+                    steepness=shared_settings.REWARD_STEEPNESS
                 )
             processed_rewards *= task_config.probability
 
@@ -229,11 +237,11 @@ class WeightSetter(AsyncLoopRunner):
             p > 0.5 makes the function more exponential (winner takes all).
         """
         # 6.64385619 = ln(100)/ln(2) -> this way if p = 0.5, the exponent is exactly 1.
-        exponent = (steepness**6.64385619) * 100
+        exponent = (steepness ** 6.64385619) * 100
         raw_rewards = np.array(raw_rewards) / max(1, (np.sum(raw_rewards[raw_rewards > 0]) + 1e-10))
         positive_rewards = np.clip(raw_rewards, 1e-10, np.inf)
         normalised_rewards = positive_rewards / np.max(positive_rewards)
-        post_func_rewards = normalised_rewards**exponent
+        post_func_rewards = normalised_rewards ** exponent
         all_rewards = post_func_rewards / (np.sum(post_func_rewards) + 1e-10)
         all_rewards[raw_rewards <= 0] = raw_rewards[raw_rewards <= 0]
         return all_rewards
@@ -242,13 +250,13 @@ class WeightSetter(AsyncLoopRunner):
         await asyncio.sleep(0.01)
         try:
             if self.reward_events is None:
-                logger.error("No rewards evants were found, skipping weight setting")
+                logger.error(f"No rewards events were found, skipping weight setting")
                 return
 
             final_rewards = await self.merge_task_rewards(self.reward_events)
 
             if final_rewards is None:
-                logger.error("No rewards were found, skipping weight setting")
+                logger.error(f"No rewards were found, skipping weight setting")
                 return
 
             await self._save_rewards(final_rewards)
