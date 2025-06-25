@@ -18,7 +18,7 @@ RETRIES = 3
 class TaskLoop(AsyncLoopRunner):
     is_running: bool = False
     thread: threading.Thread = None
-    interval: int = 20
+    interval: int = 2
     task_queue: list | None = []
     scoring_queue: list | None = []
     miners_dict: dict | None = None
