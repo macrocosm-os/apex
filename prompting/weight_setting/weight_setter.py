@@ -115,6 +115,20 @@ class WeightSetter(AsyncLoopRunner):
         await self._load_rewards()
         return await super().start(name=name)
 
+    async def _compute_avg_reward(self) -> npt.NDArray[np.float32]:
+        """Compute reward average based on the `reward_history` and `reward_average_len` window."""
+        num_uids = int(shared_settings.METAGRAPH.n.item())
+        accum = np.zeros(num_uids, dtype=np.float32)
+        if not isinstance(self.reward_history, deque) or len(self.reward_history) == 0:
+            return accum
+
+        for snapshot in self.reward_history:
+            for uid_str, info in snapshot.items():
+                accum[int(uid_str)] += float(info["reward"])
+
+        avg = accum / len(self.reward_history)
+        return avg
+
     async def _save_rewards(self, rewards: npt.NDArray[np.float32]):
         """Persist the latest epoch rewards.
 
@@ -259,6 +273,7 @@ class WeightSetter(AsyncLoopRunner):
             final_rewards /= np.sum(final_rewards) + 1e-10
         except BaseException as ex:
             logger.exception(f"{ex}")
+            return
 
         # Set weights on chain.
         await set_weights(
