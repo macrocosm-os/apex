@@ -237,7 +237,7 @@ async def chat_completion(
     uids: Optional[list[int]] = None,
     num_miners: int = 5,
     uid_tracker: UidTracker | None = None,
-    add_reliable_miners: int = 1,
+    add_reliable_miners: int = 3,
 ) -> tuple | StreamingResponse:
     # TODO: Add docstring.
     """Handle chat completion with multiple miners in parallel."""
