@@ -31,6 +31,7 @@ class TaskScorer(AsyncLoopRunner):
     scoring_queue: list | None = None
     reward_events: list | None = None
     task_queue: list | None = None
+    expiry_time: int = 60 * 60 * 20
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     async def start(
@@ -76,11 +77,14 @@ class TaskScorer(AsyncLoopRunner):
             # Pop the oldest item from the queue.
             config = self.scoring_queue.pop(0)
             # Check if the config is recent enough to be processed.
-            if config.created_at >= time.time() - 60 * 60 * 20:
+            if config.created_at >= time.time() - self.expiry_time:
                 scoring_config = config
                 break
             # Otherwise, the old config is discarded and we continue to the next one.
-
+            else:
+                logger.debug(
+                    f"Discarding old scoring config for {config.task.__class__.__name__} created at {config.created_at}"
+                )
         if not scoring_config:
             return
 
