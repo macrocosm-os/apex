@@ -23,7 +23,7 @@ shared_settings = settings.shared_settings
 
 
 async def set_weights(
-    weights: np.ndarray,
+    weights: npt.NDArray[np.float32],
     subtensor: bt.Subtensor | None = None,
     metagraph: bt.Metagraph | None = None,
     weight_syncer: WeightSynchronizer | None = None,
@@ -114,6 +114,21 @@ class WeightSetter(AsyncLoopRunner):
         )
         await self._load_rewards()
         return await super().start(name=name)
+
+    async def _compute_avg_reward(self) -> npt.NDArray[np.float32]:
+        """Compute reward average based on the `reward_history` and `reward_average_len` window."""
+        num_uids = int(shared_settings.METAGRAPH.n.item())
+        accum = np.zeros(num_uids, dtype=np.float32)
+        if not isinstance(self.reward_history, deque) or len(self.reward_history) == 0:
+            logger.warning(f"Empty rewards history, setting zero weights: {self.reward_history}")
+            return accum
+
+        for snapshot in self.reward_history:
+            for uid_str, info in snapshot.items():
+                accum[int(uid_str)] += float(info["reward"])
+
+        avg = accum / len(self.reward_history)
+        return avg
 
     async def _save_rewards(self, rewards: npt.NDArray[np.float32]):
         """Persist the latest epoch rewards.
@@ -255,14 +270,16 @@ class WeightSetter(AsyncLoopRunner):
                 return
 
             await self._save_rewards(final_rewards)
-            final_rewards[final_rewards < 0] = 0
-            final_rewards /= np.sum(final_rewards) + 1e-10
+            averaged_rewards = await self._compute_avg_reward()
+            averaged_rewards[averaged_rewards < 0] = 0
+            averaged_rewards /= np.sum(averaged_rewards) + 1e-10
         except BaseException as ex:
             logger.exception(f"{ex}")
+            return
 
         # Set weights on chain.
         await set_weights(
-            final_rewards,
+            averaged_rewards,
             subtensor=shared_settings.SUBTENSOR,
             metagraph=shared_settings.metagraph_force_sync(),
             weight_syncer=self.weight_syncer,
