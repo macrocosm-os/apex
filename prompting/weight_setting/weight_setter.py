@@ -23,7 +23,7 @@ shared_settings = settings.shared_settings
 
 
 async def set_weights(
-    weights: np.ndarray,
+    weights: npt.NDArray[np.float32],
     subtensor: bt.Subtensor | None = None,
     metagraph: bt.Metagraph | None = None,
     weight_syncer: WeightSynchronizer | None = None,
@@ -120,6 +120,7 @@ class WeightSetter(AsyncLoopRunner):
         num_uids = int(shared_settings.METAGRAPH.n.item())
         accum = np.zeros(num_uids, dtype=np.float32)
         if not isinstance(self.reward_history, deque) or len(self.reward_history) == 0:
+            logger.warning(f"Empty rewards history, setting zero weights: {self.reward_history}")
             return accum
 
         for snapshot in self.reward_history:
