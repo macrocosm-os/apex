@@ -76,7 +76,7 @@ class TaskScorer(AsyncLoopRunner):
             # Pop the oldest item from the queue.
             config = self.scoring_queue.pop(0)
             # Check if the config is recent enough to be processed.
-            if config.created_at >= time.time() - 60 * 60 * 24:
+            if config.created_at >= time.time() - 60 * 60 * 20:
                 scoring_config = config
                 break
             # Otherwise, the old config is discarded and we continue to the next one.
