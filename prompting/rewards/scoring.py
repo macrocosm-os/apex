@@ -71,14 +71,17 @@ class TaskScorer(AsyncLoopRunner):
     async def run_step(self) -> RewardLoggingEvent:
         await asyncio.sleep(0.1)
 
-        # TODO: Filter based on active models before selecting an item to score.
+        scoring_config: ScoringConfig | None = None
         while self.scoring_queue:
-            scoring_config: ScoringConfig = self.scoring_queue.pop(0)
-            if scoring_config.created_at < time.time() - 60 * 60 * 24:
-                continue
-            break
+            # Pop the oldest item from the queue.
+            config = self.scoring_queue.pop(0)
+            # Check if the config is recent enough to be processed.
+            if config.created_at >= time.time() - 60 * 60 * 24:
+                scoring_config = config
+                break
+            # Otherwise, the old config is discarded and we continue to the next one.
 
-        if not self.scoring_queue:
+        if not scoring_config:
             return
 
         # here we generate the actual reference
