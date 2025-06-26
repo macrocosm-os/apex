@@ -269,15 +269,16 @@ class WeightSetter(AsyncLoopRunner):
                 return
 
             await self._save_rewards(final_rewards)
-            final_rewards[final_rewards < 0] = 0
-            final_rewards /= np.sum(final_rewards) + 1e-10
+            averaged_rewards = await self._compute_avg_reward()
+            averaged_rewards[averaged_rewards < 0] = 0
+            averaged_rewards /= np.sum(averaged_rewards) + 1e-10
         except BaseException as ex:
             logger.exception(f"{ex}")
             return
 
         # Set weights on chain.
         await set_weights(
-            final_rewards,
+            averaged_rewards,
             subtensor=shared_settings.SUBTENSOR,
             metagraph=shared_settings.metagraph_force_sync(),
             weight_syncer=self.weight_syncer,
