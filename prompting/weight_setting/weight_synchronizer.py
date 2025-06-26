@@ -5,7 +5,6 @@ import httpx
 import numpy as np
 from loguru import logger
 
-from shared.constants import WHITELISTED_VALIDATORS_UIDS
 from shared.epistula import create_header_hook
 
 
@@ -16,25 +15,23 @@ class WeightSynchronizer:
         self.wallet = wallet
         self.current_hotkey = wallet.hotkey.ss58_address
         self.uid = metagraph.hotkeys.index(self.current_hotkey)
-        # Handle testnet case.
-        validator_uids = set([uid for uid in WHITELISTED_VALIDATORS_UIDS if uid < metagraph.n.item()])
+        self.validator_uids = np.where(np.array(metagraph.validator_permit))[0].tolist()
 
-        self.weight_matrix = np.zeros((len(validator_uids), metagraph.n.item()))
-        self.stake_matrix = np.array([metagraph.S[uid] for uid in validator_uids])
+        self.weight_matrix = np.zeros((len(self.validator_uids), metagraph.n.item()))
+        self.stake_matrix = np.array([metagraph.S[uid] for uid in self.validator_uids])
 
-        self.validator_uids = np.array(validator_uids)
-        self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in validator_uids])
+        self.validator_hotkeys = np.array([metagraph.hotkeys[uid] for uid in self.validator_uids])
         self.validator_addresses = np.array(
             [
                 f"{metagraph.axons[uid].ip}:{metagraph.axons[uid].port}"
-                for uid in validator_uids
+                for uid in self.validator_uids
                 if uid < metagraph.n.item()
             ]
         )
 
         self.weight_dict = weight_dict
 
-        self.request_tracker = np.zeros(len(validator_uids))
+        self.request_tracker = np.zeros(len(self.validator_uids))
 
     async def make_epistula_request(self, weight_matrix: np.ndarray, validator_address: str, validator_hotkey: str):
         """Make an epistula request to the validator at the given address."""
@@ -83,13 +80,9 @@ class WeightSynchronizer:
 
     async def process_weight_dict(self):
         for uid, weights in self.weight_dict.items():
-            # Verify uid is in whitelist
-            validator_indices = np.where(self.validator_uids == uid)[0]
-            if len(validator_indices) == 0:
-                logger.error(f"Invalid validator UID {uid}, not in whitelist")
-                continue
-
-            # Update the weight matrix for this validator
-            validator_idx = validator_indices[0]
-            self.weight_matrix[validator_idx] = weights
-            self.request_tracker[validator_idx] = 1
+            if uid in self.validator_uids:
+                validator_index = self.validator_uids.index(uid)
+                self.weight_matrix[validator_index] = weights
+                self.request_tracker[validator_index] = 1
+            else:
+                logger.warning(f"UID {uid} is not a validator, skipping")

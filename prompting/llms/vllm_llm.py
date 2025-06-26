@@ -143,7 +143,7 @@ class ReproducibleVLLM:
             continue_final_message=continue_last_message,
         )
 
-        outputs = self.model.generate(prompt, vllm_params)
+        outputs = self.model.generate(prompt, vllm_params, use_tqdm=False)
 
         if not outputs or not outputs[0].outputs[0].logprobs:
             return {}
