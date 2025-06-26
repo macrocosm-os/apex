@@ -15,6 +15,9 @@ from shared.dendrite import DendriteResponseEvent
 from shared.logging import RewardLoggingEvent, log_event
 from shared.loop_runner import AsyncLoopRunner
 from shared.timer import Timer
+from shared import settings
+
+shared_settings = settings.shared_settings
 
 
 class TaskScorer(AsyncLoopRunner):
@@ -56,6 +59,8 @@ class TaskScorer(AsyncLoopRunner):
         step: int,
         task_id: str,
     ) -> None:
+        if len(self.scoring_queue) > shared_settings.SCORING_QUEUE_LENGTH_THRESHOLD:
+            self.scoring_queue.pop(0)
         self.scoring_queue.append(
             ScoringConfig(
                 task=task,
