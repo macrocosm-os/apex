@@ -166,14 +166,6 @@ def test_run_step_with_reward_events(tmp_path: Path):
         mock_logger.warning.assert_not_called()
 
 
-# @pytest.fixture(autouse=True)
-# def patched_shared_settings(monkeypatch: pytest.MonkeyPatch) -> None:
-#     """Stub shared_settings with a 5-uid metagraph."""
-#     metagraph = SimpleNamespace(n=np.array([5]), uids=np.arange(5))
-#     stub = SimpleNamespace(METAGRAPH=metagraph)
-#     monkeypatch.setattr(weight_setter, "shared_settings", stub)
-
-
 def _make_snapshot(values: list[float]) -> dict[int, dict[str, float]]:
     return {uid: {"reward": v} for uid, v in enumerate(values)}
 
