@@ -1,6 +1,7 @@
 import asyncio
 import copy
 import threading
+import time
 from multiprocessing.managers import AcquirerProxy
 
 from loguru import logger
@@ -70,11 +71,14 @@ class TaskScorer(AsyncLoopRunner):
     async def run_step(self) -> RewardLoggingEvent:
         await asyncio.sleep(0.1)
 
+        # TODO: Filter based on active models before selecting an item to score.
+        while self.scoring_queue:
+            scoring_config: ScoringConfig = self.scoring_queue.pop(0)
+            if scoring_config.created_at < time.time() - 60 * 60 * 24:
+                continue
+
         if not self.scoring_queue:
             return
-
-        # TODO: Filter based on active models before selecting an item to score.
-        scoring_config: ScoringConfig = self.scoring_queue.pop(0)
 
         # here we generate the actual reference
         with Timer(label=f"Generating reference for {scoring_config.task.__class__.__name__}"):
