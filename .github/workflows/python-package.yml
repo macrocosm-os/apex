@@ -59,8 +59,15 @@ jobs:
 
     - name: Check diff coverage
       run: |
+        # Dynamically determine comparison branch based on PR target
+        if [ "${{ github.base_ref }}" != "" ]; then
+          COMPARE_BRANCH="origin/${{ github.base_ref }}"
+        else
+          COMPARE_BRANCH="origin/staging"
+        fi
+        echo "Comparing against: $COMPARE_BRANCH"
         # Check coverage on changed code (80% minimum)
-        poetry run diff-cover coverage.xml --compare-branch=origin/main --fail-under=80
+        poetry run diff-cover coverage.xml --compare-branch=$COMPARE_BRANCH --fail-under=80
 
     - name: Upload coverage to Codecov (optional)
       uses: codecov/codecov-action@v3

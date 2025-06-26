@@ -5,8 +5,8 @@
 
 set -e
 
-# Get the comparison branch (default to main)
-COMPARE_BRANCH=${1:-main}
+# Get the comparison branch (default to staging)
+COMPARE_BRANCH=${1:-staging}
 
 echo "🔍 Checking diff coverage against branch: $COMPARE_BRANCH"
 

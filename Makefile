@@ -62,7 +62,7 @@ help:
 	@echo "Available commands:"
 	@echo "  test              - Run tests"
 	@echo "  test-cov          - Run tests with coverage"
-	@echo "  test-diff-cov     - Run diff coverage check"
+	@echo "  test-diff-cov     - Run diff coverage check (default: staging)"
 	@echo "  test-fast         - Run tests with fail-fast"
 	@echo "  coverage-report   - Generate coverage report"
 	@echo "  coverage-html     - Generate HTML coverage report"

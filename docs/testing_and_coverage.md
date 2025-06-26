@@ -104,8 +104,8 @@ poetry run coverage xml
 
 #### Diff Coverage (Changed Code Only)
 ```bash
-# Check coverage on changes since main branch
-poetry run diff-cover coverage.xml --compare-branch=main --fail-under=80
+# Check coverage on changes since staging branch
+poetry run diff-cover coverage.xml --compare-branch=staging --fail-under=80
 
 # Using the script
 bash scripts/check_diff_coverage.sh
@@ -216,7 +216,7 @@ poetry run pytest -m integration
 
 ### Diff Coverage
 - **New/Modified Code**: Must have ≥80% coverage
-- **Comparison**: Against `main` branch
+- **Comparison**: Against `staging` branch
 - **Enforcement**: CI fails if requirement not met
 
 ### Full Coverage
@@ -240,10 +240,10 @@ make coverage-html
 #### 2. Diff Coverage Failing
 ```bash
 # Check what changed files need more tests
-poetry run diff-cover coverage.xml --compare-branch=main
+poetry run diff-cover coverage.xml --compare-branch=staging
 
 # See specific line coverage
-poetry run diff-cover coverage.xml --compare-branch=main --html-report diff-cover.html
+poetry run diff-cover coverage.xml --compare-branch=staging --html-report diff-cover.html
 ```
 
 #### 3. Tests Not Found
