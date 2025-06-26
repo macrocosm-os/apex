@@ -1,4 +1,5 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+import time
 
 from prompting.tasks.base_task import BaseTextTask
 from shared.base import DatasetEntry
@@ -13,3 +14,4 @@ class ScoringConfig:
     block: int
     step: int
     task_id: str
+    created_at: float = field(default_factory=time.time)
