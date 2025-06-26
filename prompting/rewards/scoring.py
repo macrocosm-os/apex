@@ -76,6 +76,7 @@ class TaskScorer(AsyncLoopRunner):
             scoring_config: ScoringConfig = self.scoring_queue.pop(0)
             if scoring_config.created_at < time.time() - 60 * 60 * 24:
                 continue
+            break
 
         if not self.scoring_queue:
             return
