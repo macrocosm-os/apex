@@ -26,7 +26,7 @@ exclude_lines =
 
 show_missing = True
 skip_covered = False
-fail_under = 80
+# fail_under = 80  # Disabled - using diff-cover for new changes only
 
 [xml]
 output = coverage.xml
