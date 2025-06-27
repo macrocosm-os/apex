@@ -13,21 +13,21 @@ from prompting.rewards.web_retrieval import WebRetrievalRewardModel
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
-    "creation_date, expected_age",
+    "creation_date, expected_age, domain",
     [
         # Domain created 100 days ago.
-        (datetime.now() - timedelta(days=100), 100),
+        (datetime.now() - timedelta(days=100), 100, "testdomain100.com"),
         # Domain created 10 days ago.
-        (datetime.now() - timedelta(days=10), 10),
+        (datetime.now() - timedelta(days=10), 10, "testdomain10.com"),
         # Domain has no valid creation_date => fallback_age.
-        (None, 1_000_000),
+        (None, 1_000_000, "testdomainnone.com"),
     ],
 )
-async def test_domain_age(creation_date: datetime, expected_age: int):
+async def test_domain_age(creation_date: datetime, expected_age: int, domain: str):
     mock_whois = MagicMock()
     mock_whois.creation_date = creation_date
     with patch("prompting.rewards.web_retrieval.whois.whois", return_value=mock_whois):
-        age = await WebRetrievalRewardModel.domain_age_days("testdomain.com", fallback_age=1_000_000)
+        age = await WebRetrievalRewardModel.domain_age_days(domain, fallback_age=1_000_000)
         assert age == expected_age
 
 

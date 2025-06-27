@@ -200,18 +200,28 @@ async def test_mixed_completions(model_manager, task):
     ids=["eos_present", "eos_missing"],
 )
 async def test_eos_handling(eos_in_logits, expected_penalty, model_manager, task):
+    """Test that EOS token presence/absence is properly detected and penalized."""
     emitted = ["Hello", ", ", "world", "!"]
     timings = [[0.1] * len(emitted)]
     response_event = await create_response_event_mock([emitted], timings)
-    verify_logits = {"tokA": -0.1, "tokB": -0.5}
+
+    # Create logits that will be returned for EOS verification
+    eos_verification_logits = {"tokA": -0.1, "tokB": -0.5}
     if eos_in_logits:
-        verify_logits["<|endoftext|>"] = -1.0
-    model_manager.generate_logits = AsyncMock(return_value=(verify_logits, "prompt"))
+        eos_verification_logits["<|endoftext|>"] = -1.0
+
+    # Mock tokenizer to ensure EOS token is available
+    mock_tokenizer = MagicMock()
+    mock_tokenizer.eos_token = "<|endoftext|>"
+    mock_tokenizer.bos_token = "<|bos|>"
+
+    # Mock get_logits to always return our test logits
+    async def mock_get_logits(*args, **kwargs):
+        return [eos_verification_logits]
 
     with (
-        patch("prompting.rewards.exact_match.MIN_VERIFY_TOKENS", 2),
-        patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_similarity", return_value=1),
-        patch("prompting.rewards.exact_match.LogitsRewardModel.verify_logit_contains", return_value=1),
+        patch("prompting.rewards.exact_match.AutoTokenizer.from_pretrained", return_value=mock_tokenizer),
+        patch("prompting.rewards.exact_match.get_logits", side_effect=mock_get_logits),
     ):
         reward_model = LogitsRewardModel()
         result: BatchRewardOutput = await reward_model.reward(

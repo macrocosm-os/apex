@@ -21,3 +21,21 @@ repos:
     - id: ruff
       args: [--fix]
     - id: ruff-format
+
+- repo: local
+  hooks:
+    - id: pytest-check
+      name: pytest-check
+      entry: poetry run pytest
+      language: system
+      pass_filenames: false
+      always_run: false
+      stages: [commit]
+
+    - id: coverage-check
+      name: coverage-check
+      entry: bash scripts/check_diff_coverage.sh
+      language: system
+      pass_filenames: false
+      always_run: false
+      stages: [commit]

@@ -1,3 +1,51 @@
+# Completion
+## POST https://sn1.api.macrocosmos.ai/v1/chat/completions
+{
+  "messages": [
+    {"role": "user", "content": "Tell me about neural networks"}
+  ],
+  "model": "Default",
+  "temperature": 0.7,
+  "max_new_tokens": 1024
+}
+
+# CoT
+## POST https://sn1.api.macrocosmos.ai/v1/chat/completions
+{
+  "messages": [
+    {"role": "user", "content": "Solve the equation: 3x + 5 = 14"}
+  ],
+  "model": "Default",
+  "test_time_inference": true,
+  "inference_mode": "Chain-of-Thought"
+}
+
+# MoM
+## POST https://sn1.api.macrocosmos.ai/v1/chat/completions
+{
+  "messages": [
+    {"role": "user", "content": "What are the latest developments in AI?"}
+  ],
+  "model": "Default",
+  "mixture": true,
+  "inference_mode": "Mixture-of-Agents"
+}
+
+
+##  POST /web_retrieval
+## POST https://sn1.api.macrocosmos.ai/v1/web_retrieval
+{
+  "search_query": "current weather in New York",
+  "n_miners": 1,
+  "n_results": 1,
+  "max_response_time": 5
+}
+
+
+
+
+
+
 # Subnet 1 API Documentation
 
 This document describes the API endpoints available for [Subnet 1](https://github.com/macrocosm-os/prompting)

@@ -56,7 +56,14 @@ async def test_merge_task_rewards() -> None:
         ]
     ]
 
-    final_rewards = await WeightSetter.merge_task_rewards(events)
+    # Mock the METAGRAPH to have the same number of UIDs as the test
+    with patch("prompting.weight_setting.weight_setter.shared_settings") as mock_settings:
+        mock_metagraph = MagicMock()
+        mock_metagraph.n.item.return_value = len(UIDS)
+        mock_settings.METAGRAPH = mock_metagraph
+        mock_settings.REWARD_STEEPNESS = 0.5  # Default value
+
+        final_rewards = await WeightSetter.merge_task_rewards(events)
 
     assert isinstance(final_rewards, np.ndarray)
     assert final_rewards.dtype == np.float32
@@ -180,7 +187,12 @@ async def test_avg_reward_non_empty(tmp_path: Path) -> None:
     ws.reward_history.append(_make_snapshot(rewards))
     ws.reward_history.append(_make_snapshot(rewards[::-1]))
 
-    result = await ws._compute_avg_reward()
+    with patch("prompting.weight_setting.weight_setter.shared_settings") as mock_settings:
+        mock_metagraph = MagicMock()
+        mock_metagraph.n.item.return_value = 256
+        mock_settings.METAGRAPH = mock_metagraph
+
+        result = await ws._compute_avg_reward()
 
     expected = np.full(256, 255 / 2, dtype=np.float32)
     assert result.dtype == np.float32
@@ -193,7 +205,14 @@ async def test_avg_reward_empty(monkeypatch: MonkeyPatch, tmp_path: Path) -> Non
     ws = WeightSetter(reward_history_path=tmp_path / "test_validator_rewards.jsonl")
     ws.reward_history_len = 10
     ws.reward_history = deque(maxlen=10)
-    result = await ws._compute_avg_reward()
+
+    with patch("prompting.weight_setting.weight_setter.shared_settings") as mock_settings:
+        mock_metagraph = MagicMock()
+        mock_metagraph.n.item.return_value = 256
+        mock_settings.METAGRAPH = mock_metagraph
+
+        result = await ws._compute_avg_reward()
+
     assert np.array_equal(result, np.zeros(256, dtype=np.float32))
 
 
