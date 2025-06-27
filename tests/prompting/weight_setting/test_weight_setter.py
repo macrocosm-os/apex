@@ -1,5 +1,6 @@
 # ruff: noqa: E402
 import asyncio
+from collections import deque
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -90,7 +91,7 @@ def test_steepness():
     assert result[0] < 0, "Negative reward should remain negative"
 
 
-def test_run_step_with_reward_events():
+def test_run_step_with_reward_events(tmp_path: Path):
     with (
         patch("shared.uids.get_uids") as mock_get_uids,
         patch("prompting.weight_setting.weight_setter.TaskRegistry") as MockTaskRegistry,
@@ -126,7 +127,7 @@ def test_run_step_with_reward_events():
 
         # Set up the mock mutable_globals.
 
-        weight_setter = WeightSetter(reward_history_path=Path("test_validator_rewards.jsonl"))
+        weight_setter = WeightSetter(reward_history_path=tmp_path / "test_validator_rewards.jsonl")
         reward_events = [
             [
                 WeightedRewardEvent(
@@ -163,6 +164,37 @@ def test_run_step_with_reward_events():
 
         # Check that the warning about empty reward events is not logged.
         mock_logger.warning.assert_not_called()
+
+
+def _make_snapshot(values: list[float]) -> dict[int, dict[str, float]]:
+    return {uid: {"reward": v} for uid, v in enumerate(values)}
+
+
+@pytest.mark.asyncio
+async def test_avg_reward_non_empty(tmp_path: Path) -> None:
+    """Mean over two snapshots equals manual average."""
+    ws = WeightSetter(reward_history_path=tmp_path / "test_validator_rewards.jsonl")
+    ws.reward_history_len = 10
+    ws.reward_history = deque(maxlen=10)
+    rewards = list(range(256))
+    ws.reward_history.append(_make_snapshot(rewards))
+    ws.reward_history.append(_make_snapshot(rewards[::-1]))
+
+    result = await ws._compute_avg_reward()
+
+    expected = np.full(256, 255 / 2, dtype=np.float32)
+    assert result.dtype == np.float32
+    assert np.allclose(result, expected, atol=1e-6)
+
+
+@pytest.mark.asyncio
+async def test_avg_reward_empty(monkeypatch: MonkeyPatch, tmp_path: Path) -> None:
+    """Empty history returns a zero vector."""
+    ws = WeightSetter(reward_history_path=tmp_path / "test_validator_rewards.jsonl")
+    ws.reward_history_len = 10
+    ws.reward_history = deque(maxlen=10)
+    result = await ws._compute_avg_reward()
+    assert np.array_equal(result, np.zeros(256, dtype=np.float32))
 
 
 @pytest.mark.asyncio
