@@ -120,7 +120,6 @@ class WebRetrievalRewardModel(RelevanceRewardModel):
         Returns:
             Domain age in days since creation.
         """
-        fallback_age = 1_000_000
         try:
             w = await asyncio.to_thread(whois.whois, domain)
             creation_date = w.creation_date
