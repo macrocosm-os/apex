@@ -1,9 +1,13 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, status
+from fastapi.responses import JSONResponse
+
+from gpu_container.decorators import require_resource
 
 router = APIRouter()
 
 
 @router.post("/v1/chat/generate_logits")
+@require_resource()
 async def generate_logits(request: Request):
     json_request = await request.json()
     return await request.app.state.vllm_engine.generate_logits(
@@ -16,6 +20,7 @@ async def generate_logits(request: Request):
 
 
 @router.post("/v1/chat/generate")
+@require_resource()
 async def generate(request: Request):
     json_request = await request.json()
     return await request.app.state.vllm_engine.generate(

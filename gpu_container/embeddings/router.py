@@ -1,8 +1,12 @@
 from typing import List
 
 import numpy as np
-from fastapi import APIRouter, Request
+import json
+from fastapi import APIRouter, Request, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
+
+from gpu_container.decorators import require_resource
 
 router = APIRouter()
 
@@ -24,13 +28,11 @@ class EmbeddingResponse(BaseModel):
 
 
 @router.post("/v1/embeddings", response_model=EmbeddingResponse)
+@require_resource()
 async def get_embeddings(request: Request, body: EmbeddingRequest):
     """Generate embeddings for a list of texts."""
     model = request.app.state.embeddings_model
     model_id = request.app.state.embeddings_model_id
-
-    if model is None:
-        return {"error": "Model not loaded"}, 503
 
     # Generate embeddings
     embeddings = model.encode(body.input, to_numpy=True)
