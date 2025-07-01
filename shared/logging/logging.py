@@ -7,7 +7,7 @@ from typing import Literal
 import wandb
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
-from wandb.wandb_run import Run
+import macrocosmos as mc
 
 import prompting
 from prompting.rewards.reward import WeightedRewardEvent
@@ -16,9 +16,7 @@ from shared import settings
 from shared.dendrite import DendriteResponseEvent
 from shared.logging.serializer_registry import recursive_model_dump
 
-# TODO: Get rid of global variables.
-WANDB: Run | None = None
-
+MC_LOGGER = None
 
 @dataclass
 class Log:
@@ -59,79 +57,23 @@ def export_logs(logs: list[Log]):
     return log_file
 
 
-def should_reinit_wandb():
-    """Checks if 24 hours have passed since the last wandb initialization."""
-    # Get the start time from the wandb config
-    if wandb.run is None:
-        return False
-    wandb_start_time = wandb.run.config.get("wandb_start_time", None)
-
-    if wandb_start_time:
-        # Convert the stored time (string) back to a datetime object
-        wandb_start_time = datetime.strptime(wandb_start_time, "%Y-%m-%d %H:%M:%S")
-        current_time = datetime.now()
-        elapsed_time = current_time - wandb_start_time
-        # Check if more than 24 hours have passed
-        if elapsed_time > timedelta(hours=settings.shared_settings.MAX_WANDB_DURATION):
-            return True
-    return False
-
-
-def init_wandb(reinit=False, neuron: Literal["validator", "miner", "api"] = "validator", custom_tags: list = []):
-    """Starts a new wandb run."""
-    # global WANDB
+def init_run():
+    mcl_client = mc.LoggerClient(app_name="my_app")
+    mc_logger = mcl_client.logger
+    # Start a new run
     tags = [
-        f"Wallet: {settings.shared_settings.WALLET.hotkey.ss58_address}",
         f"Version: {prompting.__version__}",
         f"Netuid: {settings.shared_settings.NETUID}",
     ]
-
-    if settings.shared_settings.MOCK:
-        tags.append("Mock")
     if settings.shared_settings.NEURON_DISABLE_SET_WEIGHTS:
         tags.append("Disable weights set")
+    if settings.shared_settings.MOCK:
+        tags.append("Mock")
 
-    tags += custom_tags
-
-    task_list = []
-    for task_config in TaskRegistry.task_configs:
-        task_list.append(task_config.task.__name__)
-
-    wandb_config = {
-        "HOTKEY_SS58": settings.shared_settings.WALLET.hotkey.ss58_address,
-        "NETUID": settings.shared_settings.NETUID,
-        "wandb_start_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "TASKS": task_list,
-    }
-    wandb.login(anonymous="allow", key=settings.shared_settings.WANDB_API_KEY, verify=True)
-    logger.info(
-        f"Logging in to wandb on entity: {settings.shared_settings.WANDB_ENTITY} and project: "
-        f"{settings.shared_settings.WANDB_PROJECT_NAME}"
-    )
-    wandb_run_name = f"{neuron}{settings.shared_settings.UID}-{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-
-    # Initialize the wandb run with the custom name.
-    wandb_obj = wandb.init(
-        reinit=reinit,
-        name=wandb_run_name,
-        project=settings.shared_settings.WANDB_PROJECT_NAME,
-        entity=settings.shared_settings.WANDB_ENTITY,
-        mode="offline" if settings.shared_settings.WANDB_OFFLINE else "online",
+    run = mc_logger.init(
+        project=settings.shared_settings.LOGGING_PROJECT,
         tags=tags,
-        notes=settings.shared_settings.WANDB_NOTES,
-        config=wandb_config,
     )
-    signature = settings.shared_settings.WALLET.hotkey.sign(wandb_obj.id.encode()).hex()
-    wandb_config["SIGNATURE"] = signature
-    wandb_obj.config.update(wandb_config)
-    logger.success(f"Started a new wandb run <blue> {wandb_obj.name} </blue>")
-
-
-def reinit_wandb():
-    """Reinitializes wandb, rolling over the run."""
-    wandb.finish()
-    init_wandb(reinit=True)
-
 
 class BaseEvent(BaseModel):
     forward_time: float | None = None
@@ -234,14 +176,21 @@ class MinerLoggingEvent(BaseEvent):
 
 
 def log_event(event: BaseEvent):
+    global MC_LOGGER
+
     if not settings.shared_settings.LOGGING_DONT_SAVE_EVENTS:
         logger.info(f"{event}")
+    
+    if settings.shared_settings.LOGGING_PROJECT == "":
+        return
+    
+    if MC_LOGGER is None:
+        init_run()
 
-    if settings.shared_settings.WANDB_ON:
-        if should_reinit_wandb():
-            reinit_wandb()
-        unpacked_event = recursive_model_dump(event)
-        try:
-            wandb.log(unpacked_event)
-        except BaseException as e:
-            logger.error(f"Error during wandb log {e}: {unpacked_event}")
+    slim_event = {
+        "task": event.task.__class__.__name__,
+        "block": event.block,
+        "reward_events": recursive_model_dump(event.reward_events[0]),
+    }
+
+    MC_LOGGER.log(slim_event)

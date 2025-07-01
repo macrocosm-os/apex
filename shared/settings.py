@@ -40,20 +40,12 @@ class SharedSettings(BaseSettings):
     mode: Literal["api", "validator", "miner", "mock"] = Field("validator", env="MODE")
     MOCK: bool = False
 
-    # W&B.
-    WANDB_ON: bool = Field(True, env="WANDB_ON")
-    WANDB_ENTITY: Optional[str] = Field("macrocosmos", env="WANDB_ENTITY")
-    WANDB_PROJECT_NAME: Optional[str] = Field("prompting-validators", env="WANDB_PROJECT_NAME")
-    WANDB_API_KEY: Optional[str] = Field(None, env="WANDB_API_KEY")
-    WANDB_OFFLINE: bool = Field(False, env="WANDB_OFFLINE")
-    WANDB_NOTES: str = Field("", env="WANDB_NOTES")
-    MAX_WANDB_DURATION: int = 24
-
     # Logging.
     LOGGING_DONT_SAVE_EVENTS: bool = Field(True, env="LOGGING_DONT_SAVE_EVENTS")
     LOG_WEIGHTS: bool = Field(False, env="LOG_WEIGHTS")
     LOG_TIMINGS: bool = Field(False, env="LOG_TIMINGS")
     LOG_LEVEL: str = Field("INFO", env="LOG_LEVEL")
+    LOGGING_PROJECT: str = Field("", env="LOGGING_PROJECT")
 
     # Neuron parameters.
     NEURON_DEVICE: str | None = Field("cuda", env="NEURON_DEVICE")
