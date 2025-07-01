@@ -8,7 +8,6 @@ poetry config virtualenvs.in-project true
 
 # Install the project dependencies
 poetry install --extras "validator" --no-cache
-poetry run pip install vllm==0.8.5
 
 # Check if jq is installed and install it if not
 if ! command -v jq &> /dev/null
