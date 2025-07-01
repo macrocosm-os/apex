@@ -13,21 +13,29 @@ _executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 def load_config_from_env():
     """Loads vLLM configuration from environment variables."""
     vllm_model_id = os.getenv("VLLM_MODEL_ID", "default_model_id")
+    hf_model_path = os.getenv("HF_MODEL_PATH", None)  # Use pre-downloaded model
     device = os.getenv("DEVICE", "cuda")
     # Whether to block app startup until the engine is loaded
     block_startup = os.getenv("BLOCK_STARTUP", "true").lower() == "true"
     # Add any other vLLM-specific environment variables here
     return {
-        "vllm_model_id": vllm_model_id, 
-        "device": device,
-        "block_startup": block_startup
-    }
+            "vllm_model_id": vllm_model_id,
+            "hf_model_path": hf_model_path,
+            "device": device,
+            "block_startup": block_startup,
+        }
 
 
-def initialize_engine(model_id, device):
+def initialize_engine(config):
     """Initialize the vLLM engine in a separate thread."""
+    model_id = config["vllm_model_id"]
+    device = config["device"]
     print(f"Initializing vLLM engine with model {model_id} on {device}...")
-    return ReproducibleVLLM(model_id=model_id, device=device)
+
+    # Use pre-downloaded model path or vllm_model_id
+    vllm_model_to_load = config["hf_model_path"] or config["vllm_model_id"]
+
+    return ReproducibleVLLM(model_id=vllm_model_to_load, device=device)
 
 
 @asynccontextmanager
@@ -42,7 +50,7 @@ async def lifespan(app: FastAPI):
     app.state.vllm_engine_loading = True
 
     # Submit the task to the global executor
-    engine_future = _executor.submit(initialize_engine, config["vllm_model_id"], config["device"])
+    engine_future = _executor.submit(initialize_engine, config)
 
     if config["block_startup"]:
         # Block until engine is loaded (original behavior)
