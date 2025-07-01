@@ -1,22 +1,20 @@
 import json
 import os
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta
-from typing import Literal
+from datetime import datetime
 
-import wandb
+import macrocosmos as mc
 from loguru import logger
 from pydantic import BaseModel, ConfigDict
-import macrocosmos as mc
 
 import prompting
 from prompting.rewards.reward import WeightedRewardEvent
-from prompting.tasks.task_registry import TaskRegistry
 from shared import settings
 from shared.dendrite import DendriteResponseEvent
 from shared.logging.serializer_registry import recursive_model_dump
 
 MC_LOGGER = None
+
 
 @dataclass
 class Log:
@@ -57,9 +55,10 @@ def export_logs(logs: list[Log]):
     return log_file
 
 
-def init_run():
-    mcl_client = mc.LoggerClient(app_name="my_app")
-    mc_logger = mcl_client.logger
+async def init_run():
+    global MC_LOGGER
+    mcl_client = mc.AsyncLoggerClient(app_name="my_app")
+    MC_LOGGER = mcl_client.logger
     # Start a new run
     tags = [
         f"Version: {prompting.__version__}",
@@ -70,10 +69,11 @@ def init_run():
     if settings.shared_settings.MOCK:
         tags.append("Mock")
 
-    run = mc_logger.init(
+    run = await MC_LOGGER.init(
         project=settings.shared_settings.LOGGING_PROJECT,
         tags=tags,
     )
+
 
 class BaseEvent(BaseModel):
     forward_time: float | None = None
@@ -175,17 +175,17 @@ class MinerLoggingEvent(BaseEvent):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
 
-def log_event(event: BaseEvent):
+async def log_event(event: BaseEvent):
     global MC_LOGGER
 
     if not settings.shared_settings.LOGGING_DONT_SAVE_EVENTS:
         logger.info(f"{event}")
-    
+
     if settings.shared_settings.LOGGING_PROJECT == "":
         return
-    
+
     if MC_LOGGER is None:
-        init_run()
+        await init_run()
 
     slim_event = {
         "task": event.task.__class__.__name__,
@@ -193,4 +193,4 @@ def log_event(event: BaseEvent):
         "reward_events": recursive_model_dump(event.reward_events[0]),
     }
 
-    MC_LOGGER.log(slim_event)
+    await MC_LOGGER.log(slim_event)

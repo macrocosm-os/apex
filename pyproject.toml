@@ -163,6 +163,7 @@ substrate-interface = "^1.7.11"
 tldextract = "^5.1.3"
 justext = "3.0.2"
 macrocosmos = "^1.1.0"
+protobuf = "6.31.0"
 
 [tool.poetry.extras]
 validator = [

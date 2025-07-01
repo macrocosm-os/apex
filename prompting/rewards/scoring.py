@@ -149,7 +149,7 @@ class TaskScorer(AsyncLoopRunner):
             task_dict = scoring_config.task.model_dump()
             source = scoring_config.dataset_entry.source
 
-        log_event(
+        await log_event(
             RewardLoggingEvent(
                 response_event=response,
                 reward_events=reward_events,
