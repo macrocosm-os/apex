@@ -1,9 +1,7 @@
 from typing import List
 
 import numpy as np
-import json
-from fastapi import APIRouter, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
 from gpu_container.decorators import require_resource

@@ -1,12 +1,14 @@
-from fastapi import APIRouter, Request, Response, status
+from fastapi import APIRouter, Request, status
 from fastapi.responses import JSONResponse
 
 router = APIRouter()
+
 
 @router.get("/health")
 async def health_check():
     """Basic health check that always returns 'ok'."""
     return {"status": "ok"}
+
 
 @router.get("/health/model")
 async def model_health_check(request: Request):
@@ -27,6 +29,5 @@ async def model_health_check(request: Request):
             message += "Embeddings model not ready."
 
         return JSONResponse(
-            content={"status": "not ready", "message": message.strip()}, 
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE
+            content={"status": "not ready", "message": message.strip()}, status_code=status.HTTP_503_SERVICE_UNAVAILABLE
         )

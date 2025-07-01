@@ -1,6 +1,6 @@
-import os
 import asyncio
 import concurrent.futures
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -9,6 +9,7 @@ from gpu_container.vllm.reproducible_vllm import ReproducibleVLLM
 
 # Global executor to avoid creating/destroying it with each lifespan
 _executor = concurrent.futures.ThreadPoolExecutor(max_workers=2)
+
 
 def load_config_from_env():
     """Loads vLLM configuration from environment variables."""
@@ -19,11 +20,11 @@ def load_config_from_env():
     block_startup = os.getenv("BLOCK_STARTUP", "true").lower() == "true"
     # Add any other vLLM-specific environment variables here
     return {
-            "vllm_model_id": vllm_model_id,
-            "hf_model_path": hf_model_path,
-            "device": device,
-            "block_startup": block_startup,
-        }
+        "vllm_model_id": vllm_model_id,
+        "hf_model_path": hf_model_path,
+        "device": device,
+        "block_startup": block_startup,
+    }
 
 
 def initialize_engine(config):

@@ -1,5 +1,4 @@
-from fastapi import APIRouter, Request, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Request
 
 from gpu_container.decorators import require_resource
 
