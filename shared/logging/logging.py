@@ -188,7 +188,6 @@ async def log_event(event: BaseEvent):
         await init_run()
 
     slim_event = {
-        "task": event.task.__class__.__name__,
         "block": event.block,
         "reward_events": recursive_model_dump(event.reward_events[0]),
     }
