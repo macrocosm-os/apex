@@ -237,7 +237,7 @@ async def chat_completion(
     uids: Optional[list[int]] = None,
     num_miners: int = 5,
     uid_tracker: UidTracker | None = None,
-    add_reliable_miners: int = 3,
+    add_reliable_miners: int = 0,
 ) -> tuple | StreamingResponse:
     # TODO: Add docstring.
     """Handle chat completion with multiple miners in parallel."""
@@ -252,7 +252,7 @@ async def chat_completion(
     primary_uids = filter_available_uids(
         task=body.get("task"), model=body.get("model"), test=shared_settings.API_TEST_MODE, n_miners=num_miners
     )
-    if uid_tracker is not None:
+    if uid_tracker is not None and add_reliable_miners > 0:
         # Add reliable uids, or ones with highest success rate to guarantee completed stream.
         reliable_uids = await uid_tracker.sample_reliable(
             task=TaskType.Inference, amount=add_reliable_miners, success_rate=0.99, add_random_extra=False
