@@ -132,7 +132,7 @@ class WeightSetter(AsyncLoopRunner):
         # Accumulate rewards for each epoch only if hotkey was not changed for the given UID.
         for epoch_info in self.reward_history:
             for uid_str, info in epoch_info.items():
-                if active_hotkeys[int(uid_str)] == info["hotkey"]:
+                if active_hotkeys[int(uid_str)] == info.get("hotkey"):
                     accum[int(uid_str)] += float(info["reward"])
 
         avg = accum / len(self.reward_history)
