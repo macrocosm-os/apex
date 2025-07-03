@@ -74,12 +74,12 @@ class SharedSettings(BaseSettings):
 
     SCORING_API_PORT: int = Field(8095, env="SCORING_API_PORT")
     # Hard-code MC validator axon, since it might be overwritten in the metagraph.
-    MC_VALIDATOR_HOTKEY: str = Field("5Cg5QgjMfRqBC6bh8X4PDbQi7UzVRn9eyWXsB8gkyfppFPPy", env="MC_VALIDATOR_HOTKEY")
-    MC_VALIDATOR_AXON: str = Field("184.105.5.17:42174", env="MC_VALIDATOR_AXON")
+    MC_VALIDATOR_HOTKEY: str = Field("5CGLCBndTR1BvQZzn429ckT8GyxduzyjMgt4K1UVTYa8gKfb", env="MC_VALIDATOR_HOTKEY")
+    MC_VALIDATOR_AXON: str = Field("184.105.215.196:42174", env="MC_VALIDATOR_AXON")
 
     # ==== API =====
     # Hotkey used to run api, defaults to Macrocosmos
-    API_HOTKEY: str = Field("5Cg5QgjMfRqBC6bh8X4PDbQi7UzVRn9eyWXsB8gkyfppFPPy", env="API_HOTKEY")
+    API_HOTKEY: str = Field("5CGLCBndTR1BvQZzn429ckT8GyxduzyjMgt4K1UVTYa8gKfb", env="API_HOTKEY")
     # Scoring request rate limit in seconds.
     SCORING_RATE_LIMIT_SEC: float = Field(5, env="SCORING_RATE_LIMIT_SEC")
     # Scoring queue threshold when rate-limit start to kick in, used to query validator API with scoring requests.
