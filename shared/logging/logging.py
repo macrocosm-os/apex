@@ -187,9 +187,4 @@ async def log_event(event: BaseEvent):
     if MC_LOGGER is None:
         await init_run()
 
-    slim_event = {
-        "block": event.block,
-        "reward_events": recursive_model_dump(event.reward_events[0]),
-    }
-
-    await MC_LOGGER.log(slim_event)
+    await MC_LOGGER.log(recursive_model_dump(event))
