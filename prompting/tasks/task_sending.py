@@ -16,7 +16,7 @@ from shared.timer import Timer
 
 shared_settings = settings.shared_settings
 
-NEURON_SAMPLE_SIZE = 100
+NEURON_SAMPLE_SIZE = 70
 
 
 def log_stream_results(stream_results):

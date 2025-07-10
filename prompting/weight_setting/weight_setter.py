@@ -95,8 +95,8 @@ class WeightSetter(AsyncLoopRunner):
 
     # Rewards moving average persistency.
     reward_history_path: Path = Path("validator_rewards.jsonl")
-    # Rewards moving average, 36 epochs = approx. 12 hours.
-    reward_history_len: int = 36
+    # Rewards moving average, 28 epochs = approx. 10 hours.
+    reward_history_len: int = 28
     # List of uids info per epoch, e.g.: [{1: {"reward": 1.0, "hotkey": "ABC"}, 2: {"reward": 3.0, "hotkey": "XYZ"}}].
     reward_history: deque[dict[int, dict[str, float | str]]] | None = None
 
@@ -248,6 +248,7 @@ class WeightSetter(AsyncLoopRunner):
                 reward_dict[uid] += reward
 
         final_rewards = np.array(list(reward_dict.values())).astype(np.float32)
+
         return final_rewards
 
     @classmethod
