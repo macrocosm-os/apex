@@ -12,7 +12,6 @@ import psutil
 import requests
 import torch
 import torch.multiprocessing as mp
-import wandb
 from bittensor.core.extrinsics.serving import serve_extrinsic
 from loguru import logger
 
@@ -22,7 +21,6 @@ from shared import settings
 settings.shared_settings = settings.SharedSettings.load(mode="validator")
 
 from prompting.rewards.scoring import task_scorer
-from shared.logging import init_wandb
 
 
 def init_process_logging(name: str):
@@ -62,8 +60,6 @@ async def create_loop_process(
 ):
     # Load settings and initialize external services.
     settings.shared_settings = settings.SharedSettings.load(mode="validator")
-    if settings.shared_settings.WANDB_ON:
-        init_wandb(neuron="validator")
 
     all_tasks: list[asyncio.Task] = []
 
@@ -73,9 +69,6 @@ async def create_loop_process(
         for t in all_tasks:
             t.cancel()
         await asyncio.gather(*all_tasks, return_exceptions=True)
-        if settings.shared_settings.WANDB_ON:
-            wandb.finish()
-            logger.info("WandB run finished.")
 
     async def spawn_loops(task_queue: list, scoring_queue: list, reward_events: list, miners_dict: dict):
         # Import modules that are local to this scope.
