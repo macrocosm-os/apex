@@ -128,7 +128,7 @@ class MinerSampler:
 
     async def query_miners(self, body: dict[str, Any], endpoint: str) -> str:
         """Query the miners for the query."""
-        body["signer"] = await self._chain.wallet.hotkey.ss58_address
+        body["signer"] = self._chain.wallet.hotkey.ss58_address
         body["signed_for"] = endpoint
         body["nonce"] = str(int(time.time()))
         try:
