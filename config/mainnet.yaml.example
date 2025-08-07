@@ -1,0 +1,30 @@
+chain:
+  kwargs:
+    netuid: 1
+    coldkey: "validator"
+    hotkey: "default"
+    network:
+      - finney
+      # - ws://LOCAL_SUBTENSOR_FALLBACK_1
+      # - ws://LOCAL_SUBTENSOR_FALLBACK_2
+
+websearch:
+  kwargs:
+    key: "TAVILY_API_KEY"
+
+llm:
+  kwargs:
+    key: "CHUTES_API_KEY"
+    base_url: "https://llm.chutes.ai/v1"
+    model: "deepseek-ai/DeepSeek-V3-0324"
+
+deep_research:
+  kwargs:
+    key: "CHUTES_API_KEY"
+    base_url: "https://llm.chutes.ai/v1"
+    emb_base_url: "https://chutes-baai-bge-large-en-v1-5.chutes.ai/embed"
+    summary_model: "Qwen/Qwen3-235B-A22B-Instruct-2507"
+    research_model: "Qwen/Qwen3-235B-A22B-Instruct-2507"
+    compression_model: "deepseek-ai/DeepSeek-V3-0324"
+    final_model: "deepseek-ai/DeepSeek-V3-0324"
+
