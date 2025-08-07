@@ -202,9 +202,11 @@ async def test_query_miners() -> None:
     mock_session.__aenter__.return_value = mock_session
     mock_session.__aexit__.return_value = None
 
-    with patch("aiohttp.ClientSession", return_value=mock_session) as mock_client_session, patch(
-        "apex.validator.miner_sampler.generate_header"
-    ) as mock_generate_header, patch("time.time", return_value=12345):
+    with (
+        patch("aiohttp.ClientSession", return_value=mock_session) as mock_client_session,
+        patch("apex.validator.miner_sampler.generate_header") as mock_generate_header,
+        patch("time.time", return_value=12345),
+    ):
         mock_generate_header.return_value = {"some": "header"}
         result = await sampler.query_miners(body, endpoint)
 
