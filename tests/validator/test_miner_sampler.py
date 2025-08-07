@@ -184,12 +184,14 @@ async def test_sample_miners_sequential(monkeypatch: MagicMock, miner_sampler: M
 @pytest.mark.asyncio
 async def test_query_miners() -> None:
     """Tests that a query to a miner is successful."""
-    sampler = MinerSampler(chain=MagicMock())  # type: ignore
+    mock_chain = MagicMock()
+    mock_chain.wallet.hotkey.ss58_address = "test_address"
+    sampler = MinerSampler(chain=mock_chain)  # type: ignore
     endpoint = "http://test.com"
     body = {"test": "data"}
 
     mock_resp = AsyncMock()
-    mock_resp.text.return_value = '{"response": "ok"}'
+    mock_resp.text = AsyncMock(return_value='{"response": "ok"}')
 
     mock_session_post = MagicMock()
     mock_session_post.__aenter__.return_value = mock_resp
@@ -200,11 +202,20 @@ async def test_query_miners() -> None:
     mock_session.__aenter__.return_value = mock_session
     mock_session.__aexit__.return_value = None
 
-    with patch("aiohttp.ClientSession", return_value=mock_session) as mock_client_session:
+    with (
+        patch("aiohttp.ClientSession", return_value=mock_session) as mock_client_session,
+        patch("apex.validator.miner_sampler.generate_header") as mock_generate_header,
+        patch("time.time", return_value=12345),
+    ):
+        mock_generate_header.return_value = {"some": "header"}
         result = await sampler.query_miners(body, endpoint)
 
         mock_client_session.assert_called_once()
-        mock_session.post.assert_called_with(endpoint + "/v1/chat/completions", json=body)
+        expected_body = {"test": "data", "signer": "test_address", "signed_for": "http://test.com", "nonce": "12345"}
+        mock_session.post.assert_called_with(
+            endpoint + "/v1/chat/completions", headers={"some": "header"}, json=expected_body
+        )
+        mock_generate_header.assert_called_with(mock_chain.wallet.hotkey, expected_body)
         assert result == '{"response": "ok"}'
 
 

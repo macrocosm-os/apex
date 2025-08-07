@@ -166,6 +166,12 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+[tool.ruff.lint.isort]
+# Sort by module, then by case-sensitive name.
+# See https://docs.astral.sh/ruff/settings/#lint-isort-order-by-type
+order-by-type = true
+
+
 [tool.ruff.format]
 # Like Black, use double quotes for strings.
 quote-style = "double"
@@ -183,7 +189,7 @@ apex-deep-research = { git = "https://github.com/macrocosm-os/apex_deep_research
 override-dependencies = [
     # Override artificial pins from bittensor ecosystem for production
     "starlette>=0.37.2",
-    "aiohttp>=3.8.3", 
+    "aiohttp>=3.8.3",
     "protobuf>=3.20.2",
     "cachetools>=2.0.0",
 ]

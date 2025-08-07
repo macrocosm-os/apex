@@ -20,9 +20,8 @@ async def read_args() -> argparse.Namespace:
     parser.add_argument(
         "-c",
         "--config",
-        # required=True,
-        # default="config/mainnet.yaml",
-        default="config/testnet.yaml",
+        # default="config/testnet.yaml",
+        default="config/mainnet.yaml",
         help="Config file path (e.g. config/mainnet.yaml).",
         type=Path,
     )

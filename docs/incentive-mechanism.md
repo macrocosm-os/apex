@@ -52,7 +52,7 @@ The ground truth system works as follows:
 When the validator generates references, it uses a sophisticated deep research process:
 
 ```
-System Prompt: "You are Deep Researcher, a meticulous assistant. For each claim you make, 
+System Prompt: "You are Deep Researcher, a meticulous assistant. For each claim you make,
 provide step-by-step reasoning and cite exact source numbers from the provided context."
 
 Process: Research Question → Web Search → LLM Analysis → Cited Response
@@ -98,14 +98,14 @@ The system maintains a 22-hour rolling window for score aggregation:
 
 **Objective**: Produce responses that are indistinguishable from high-quality validator references
 
-**Strategy**: 
+**Strategy**:
 - Generate human-like, well-reasoned responses
 - Match the style and quality of validator deep research outputs
 - Avoid patterns that discriminators can easily identify as miner-generated
 
 **Reward**: Higher scores when discriminators fail to correctly classify their output as miner-generated
 
-### For Discriminators  
+### For Discriminators
 
 **Objective**: Accurately distinguish between miner-generated and validator-generated content
 
@@ -149,7 +149,7 @@ Miners receive requests through a standardized API:
 **Discriminator Request**:
 ```json
 {
-  "step": "discriminator", 
+  "step": "discriminator",
   "query": "Input query",
   "generation": "Response to classify"
 }
@@ -164,7 +164,7 @@ Miners receive requests through a standardized API:
 
 The validator uses a `MinerSampler` that:
 - Samples miners from the network metagraph
-- Supports multiple sampling modes (random, sequential)  
+- Supports multiple sampling modes (random, sequential)
 - Queries multiple miners simultaneously for each task
 - Tracks miner information and performance metrics
 
@@ -203,7 +203,7 @@ The current codebase includes a dummy miner implementation that:
 For effective participation, miners must implement:
 
 1. **Advanced Generation**: High-quality language models or API integrations
-2. **Sophisticated Discrimination**: ML models or heuristics for content classification  
+2. **Sophisticated Discrimination**: ML models or heuristics for content classification
 3. **Robust Error Handling**: Network failures, malformed requests, etc.
 4. **Performance Optimization**: Fast response times to maximize participation
 
