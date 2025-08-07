@@ -365,9 +365,9 @@ class TestMinerScorer:
 
             assert mock_logger.error.called, "Expected logger.error to be called."
             error_calls = [call.args[0] for call in mock_logger.error.call_args_list]
-            assert any("Failed to set weights" in str(msg) for msg in error_calls), (
-                f"Expected log message not found. Found: {error_calls}"
-            )
+            assert any(
+                "Failed to set weights" in str(msg) for msg in error_calls
+            ), f"Expected log message not found. Found: {error_calls}"
 
     @pytest.mark.asyncio
     async def test_start_loop_respects_shutdown(self, miner_scorer: MinerScorer) -> None:
