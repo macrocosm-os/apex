@@ -40,7 +40,7 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
 
 3. **Install the project and its development dependencies:**
    ```bash
-   uv pip install -e '.[dev]'
+   uv venv && uv python install 3.11 && uv python pin 3.11 && uv venv --python=3.11 && uv pip install -e '.[dev]'
    ```
 
 4. **Activate python environment:**
@@ -96,14 +96,6 @@ Apex structure:
 ```
 
 ## Development
-
-### Setup python
-```
-export PYVER=3.11
-uv python install $PYVER
-uv python pin $PYVER
-uv venv --python=$PYVER
-```
 
 ### Add packages
 ```bash
