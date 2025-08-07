@@ -8,6 +8,13 @@ repos:
     pass_filenames: false
     always_run: true
 
+  - id: pytest-tests
+    name: Run Pytest on tests/
+    entry: pytest tests/
+    language: system
+    pass_filenames: false
+    always_run: true
+
 - repo: https://github.com/pre-commit/pre-commit-hooks
   rev: v2.3.0
   hooks:
