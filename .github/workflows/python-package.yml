@@ -59,16 +59,16 @@ jobs:
       run: |
         pytest tests/ --verbose --failed-first --exitfirst --disable-warnings
 
-    - name: Generate coverage report
-      run: |
-        pytest --cov=apex/ --cov-report=xml tests/
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage.xml
-        fail_ci_if_error: true
+    # - name: Generate coverage report
+    #   run: |
+    #     pytest --cov=apex/ --cov-report=xml tests/
+    #
+    # - name: Upload coverage to Codecov
+    #   uses: codecov/codecov-action@v3
+    #   with:
+    #     token: ${{ secrets.CODECOV_TOKEN }}
+    #     files: ./coverage.xml
+    #     fail_ci_if_error: true
 
     - name: Cache pip
       uses: actions/cache@v3
