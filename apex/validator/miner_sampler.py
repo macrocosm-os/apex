@@ -141,7 +141,6 @@ class MinerSampler:
                     result = await resp.text()
         except BaseException:
             # Error during miner query, return empty string.
-            logger.exception("Erro")
             return ""
         return str(result)
 
