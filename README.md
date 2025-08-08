@@ -99,9 +99,7 @@ Apex structure:
 
 ### Add packages
 ```bash
-uv pip install new-package
-uv pip compile pyproject.toml -o requirements.txt --all-extras
-uv pip sync requirements.txt
+uv add new-package
 uv lock
 ```
 

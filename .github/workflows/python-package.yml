@@ -55,7 +55,6 @@ jobs:
         mypy .
 
     - name: Test with pytest
-      continue-on-error: true
       run: |
         pytest tests/ --verbose --failed-first --exitfirst --disable-warnings
 
