@@ -126,21 +126,25 @@ class MinerSampler:
 
         return miners_sample
 
-    async def query_miners(self, body: dict[str, Any], endpoint: str) -> str:
+    async def query_miners(self, body: dict[str, Any], endpoint: str, hotkey: str | None = None) -> str:
         """Query the miners for the query."""
-        body["signer"] = self._chain.wallet.hotkey.ss58_address
-        body["signed_for"] = endpoint
-        body["nonce"] = str(int(time.time()))
+        # body["signer"] = self._chain.wallet.hotkey.ss58_address
+        # body["signed_for"] = endpoint
+        # body["nonce"] = str(int(time.time()))
         try:
             async with aiohttp.ClientSession() as session:
+                headers = generate_header(
+                    self._chain.wallet.hotkey, body=json.dumps(body).encode("utf-8"), signed_for=hotkey
+                )
                 async with session.post(
                     endpoint + "/v1/chat/completions",
-                    headers=generate_header(self._chain.wallet.hotkey, body),
+                    headers=headers,
                     json=body,
                 ) as resp:
                     result = await resp.text()
         except BaseException:
             # Error during miner query, return empty string.
+            logger.exception("Erro")
             return ""
         return str(result)
 
@@ -154,7 +158,7 @@ class MinerSampler:
         for miner_info in miner_information:
             hotkeys.append(miner_info.hotkey)
             logger.debug(f"Querying miner generator at {miner_info.address} with uid: {miner_info.uid}")
-            tasks.append(self.query_miners(body=body, endpoint=miner_info.address))
+            tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
         generator_results = await asyncio.gather(*tasks)
         return MinerGeneratorResults(query=query, generator_hotkeys=hotkeys, generator_results=generator_results)
 
@@ -193,7 +197,7 @@ class MinerSampler:
         tasks: list[Coroutine[str, str, Any]] = []
         for miner_info in miner_information:
             hotkeys.append(miner_info.hotkey)
-            tasks.append(self.query_miners(body=body, endpoint=miner_info.address))
+            tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
         discriminator_results = await asyncio.gather(*tasks)
 
         # Parse discriminator results and calculate scores
