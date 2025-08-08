@@ -44,7 +44,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",
     "pytest-cov>=5.0.0",
-    "pre-commit>=4.0.0",
+    "pre-commit==4.2.0",
 ]
 
 [tool.setuptools]
@@ -198,8 +198,8 @@ override-dependencies = [
 [dependency-groups]
 dev = [
     "loguru>=0.7.3",
-    "mypy>=1.17.0",
-    "pre-commit>=4.2.0",
+    "mypy==1.17.0",
+    "pre-commit==4.2.0",
     "pydantic>=2.11.7",
     "pytest>=8.4.1",
     "pytest-asyncio>=1.0.0",
