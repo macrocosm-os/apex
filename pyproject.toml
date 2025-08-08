@@ -95,7 +95,8 @@ module = [
     "nltk.*",
     "tavily.*",
     "rouge.*",
-    "requests.*"
+    "requests.*",
+    "substrateinterface.*"
 ]
 ignore_missing_imports = true
 
