@@ -26,8 +26,8 @@ class Pipeline:
         deep_research: DeepResearchBase,
         logger_apex: LoggerApex | None = None,
         num_consumers: int = 10,
-        timeout_consumer: float = 20,
-        timeout_producer: float = 2,
+        timeout_consumer: float = 60,
+        timeout_producer: float = 6,
         queue_size: int = 10_000,
         redundancy_rate: float = 0.1,  # The rate that references are generated in addition to generator steps
         reference_rate: float = 0.5,  # The rate that references are generated as opposed to generator steps
