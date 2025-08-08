@@ -130,7 +130,7 @@ class MinerSampler:
         """Query the miners for the query."""
         try:
             async with aiohttp.ClientSession() as session:
-                headers = generate_header(
+                headers = await generate_header(
                     self._chain.wallet.hotkey, body=json.dumps(body).encode("utf-8"), signed_for=hotkey
                 )
                 async with session.post(

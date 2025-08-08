@@ -1,4 +1,3 @@
-import json
 import time
 from hashlib import sha256
 from math import ceil
@@ -8,9 +7,9 @@ from uuid import uuid4
 from substrateinterface import Keypair
 
 
-def generate_header(
+async def generate_header(
     hotkey: Keypair,
-    body: dict[str, Any],
+    body: bytes,
     signed_for: str | None = None,
 ) -> dict[str, Any]:
     timestamp = round(time.time() * 1000)
@@ -33,5 +32,4 @@ def generate_header(
         headers["Epistula-Secret-Signature-2"] = (
             "0x" + hotkey.sign(str(timestamp_interval + 1) + "." + signed_for).hex()
         )
-        headers.update(json.loads(body))
     return headers
