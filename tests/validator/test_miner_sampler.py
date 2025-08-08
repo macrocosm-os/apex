@@ -1,3 +1,4 @@
+import json
 from collections.abc import Generator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -211,11 +212,13 @@ async def test_query_miners() -> None:
         result = await sampler.query_miners(body, endpoint)
 
         mock_client_session.assert_called_once()
-        expected_body = {"test": "data", "signer": "test_address", "signed_for": "http://test.com", "nonce": "12345"}
+        expected_body = {"test": "data"}
         mock_session.post.assert_called_with(
             endpoint + "/v1/chat/completions", headers={"some": "header"}, json=expected_body
         )
-        mock_generate_header.assert_called_with(mock_chain.wallet.hotkey, expected_body)
+        mock_generate_header.assert_called_with(
+            mock_chain.wallet.hotkey, body=json.dumps(body).encode("utf-8"), signed_for=None
+        )
         assert result == '{"response": "ok"}'
 
 
@@ -244,9 +247,11 @@ async def test_query_generators(monkeypatch: MonkeyPatch, miner_sampler: MinerSa
     assert results.generator_results == ["result1", "result2"]
 
     assert query_miners_mock.call_count == 2  # type: ignore
-    query_miners_mock.assert_any_call(body={"step": "generator", "query": query}, endpoint="http://1.1.1.1:8000")
+    query_miners_mock.assert_any_call(
+        body={"step": "generator", "query": query}, endpoint="http://1.1.1.1:8000", hotkey="key1"
+    )
     query_miners_mock.assert_any_call(  # type: ignore
-        body={"step": "generator", "query": query}, endpoint="http://3.3.3.3:8002"
+        body={"step": "generator", "query": query}, endpoint="http://3.3.3.3:8002", hotkey="key3"
     )
 
 
