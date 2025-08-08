@@ -38,7 +38,7 @@ class MinerSampler:
         self,
         chain: AsyncChain,
         sample_mode: Literal["random", "sequential"] = "sequential",
-        sample_size: int = 150,
+        sample_size: int = 50,
         logger_db: LoggerDB | None = None,
         available_uids: Sequence[int] | None = None,
         available_addresses: Sequence[str] | None = None,
