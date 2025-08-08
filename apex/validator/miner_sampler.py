@@ -128,9 +128,6 @@ class MinerSampler:
 
     async def query_miners(self, body: dict[str, Any], endpoint: str, hotkey: str | None = None) -> str:
         """Query the miners for the query."""
-        # body["signer"] = self._chain.wallet.hotkey.ss58_address
-        # body["signed_for"] = endpoint
-        # body["nonce"] = str(int(time.time()))
         try:
             async with aiohttp.ClientSession() as session:
                 headers = generate_header(
@@ -200,7 +197,7 @@ class MinerSampler:
             tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
         discriminator_results = await asyncio.gather(*tasks)
 
-        # Parse discriminator results and calculate scores
+        # Parse discriminator results and calculate scores.
         discriminator_results_float: list[float] = []
         parsed_discriminator_results: list[str] = []
         score_per_miner = 1.0 / len(miner_information)
