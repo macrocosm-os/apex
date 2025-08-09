@@ -27,7 +27,7 @@ class Pipeline:
         logger_apex: LoggerApex | None = None,
         num_consumers: int = 5,
         timeout_consumer: float = 180,
-        timeout_producer: float = 18,
+        timeout_producer: float = 36,
         queue_size: int = 10_000,
         redundancy_rate: float = 0.05,  # The rate that references are generated in addition to generator steps
         reference_rate: float = 0.5,  # The rate that references are generated as opposed to generator steps
