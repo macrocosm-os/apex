@@ -57,7 +57,7 @@ class DummySubtensor:
         version_key: int,
         wait_for_inclusion: bool,
         wait_for_finalization: bool,
-    ) -> bool:
+    ) -> tuple[bool, str | None]:
         self.last_set_weights = {
             "wallet": wallet,
             "netuid": netuid,
@@ -67,7 +67,7 @@ class DummySubtensor:
             "wait_for_inclusion": wait_for_inclusion,
             "wait_for_finalization": wait_for_finalization,
         }
-        return self.weights_result
+        return self.weights_result, ""
 
 
 def patch_wallet(monkeypatch: pytest.MonkeyPatch) -> None:

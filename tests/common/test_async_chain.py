@@ -2,6 +2,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from apex import __spec_version__
 from apex.common.async_chain import AsyncChain  # noqa: E402
 from tests.common.mock_async_chain import DummyMetagraph, DummySubtensor, patch_subtensor, patch_wallet
 
@@ -121,9 +122,6 @@ async def test_set_weights_happy_path(monkeypatch):
     assert stub.last_set_weights is not None
     assert stub.last_set_weights["uids"] == [2]
     assert stub.last_set_weights["weights"] == [0.7]
-    # ensure we pass spec version as version_key
-    from apex import __spec_version__
-
     assert stub.last_set_weights["version_key"] == __spec_version__
 
 

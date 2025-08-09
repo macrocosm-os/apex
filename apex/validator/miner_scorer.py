@@ -109,8 +109,11 @@ class MinerScorer:
                     record_str: str = json.dumps(record)
                     fh.write(f"{record_str}\n")
             # TODO: Flush the db only on set_weights_result is True.
-            rewards_array = np.array(list(hkey_agg_rewards.values()))
-            logger.debug(f"Setting weights, reward mean={rewards_array.mean():.4f} min={rewards_array.min():.4f}")
+            if hkey_agg_rewards:
+                rewards_array = np.array(list(hkey_agg_rewards.values()))
+                logger.debug(f"Setting weights, reward mean={rewards_array.mean():.4f} min={rewards_array.min():.4f}")
+            else:
+                logger.warning(f"Setting empty rewards: {hkey_agg_rewards}")
             set_weights_result = await self.chain.set_weights(hkey_agg_rewards)
 
             # 4. Flush all deletions in a single commit.
