@@ -111,7 +111,7 @@ class AsyncChain:
     def network(self) -> list[str]:
         return self._network
 
-    async def set_weights(self, rewards: dict[str, float]) -> bool:  # type: ignore
+    async def set_weights(self, rewards: dict[str, float]) -> bool:
         try:
             metagraph = await self.metagraph()
             subtensor = await self.subtensor()
@@ -138,7 +138,7 @@ class AsyncChain:
             )
             if not success:
                 logger.error(f"Error during weight set: {err}")
-            return success
+            return bool(success)
         except BaseException as exc:
             logger.exception(f"Error during weight set: {exc}")
             return False
