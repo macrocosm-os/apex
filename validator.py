@@ -53,7 +53,6 @@ async def main() -> None:
     deep_research = DeepResearchLangchain(websearch=websearch, **config.deep_research.kwargs)
 
     pipeline = Pipeline(
-        config=config,
         websearch=websearch,
         miner_sampler=miner_sampler,
         llm=llm,
