@@ -2,6 +2,7 @@ import asyncio
 import json
 import random
 import time
+from collections import deque
 from collections.abc import Coroutine, Sequence
 from typing import Any, Literal
 
@@ -69,7 +70,8 @@ class MinerSampler:
         if self._available_uids and self._available_addresses:
             equal_length = len(self._available_uids) == len(self._available_addresses)
             assert equal_length, "Test UIDs and addresses must be the same length."
-        self._remaining_epoch_miners: set[MinerInfo] = set()
+        self._epoch_deque: deque[MinerInfo] = deque()
+        self._sample_lock = asyncio.Lock()
 
     @async_cache(_TTL_UIDS_RESYNC)
     async def _get_all_miners(self) -> list[MinerInfo]:
@@ -114,12 +116,13 @@ class MinerSampler:
             miners_sample = random.sample(miners, self._sample_size)
 
         elif self._sample_mode == "sequential":
-            if len(self._remaining_epoch_miners) < self._sample_size:
-                self._remaining_epoch_miners = set(miners)
-                logger.debug(f"Starting new miner sampling epoch, miners amount: {len(self._remaining_epoch_miners)}")
-            indices_sample = sorted(random.sample(range(len(self._remaining_epoch_miners)), self._sample_size))
-            miners_sample = [miners[i] for i in indices_sample]
-            self._remaining_epoch_miners -= set(miners_sample)
+            async with self._sample_lock:
+                miners_sample: list[MinerInfo] = []
+                while len(miners_sample) < self._sample_size:
+                    if not self._epoch_deque:
+                        # Get shuffled deque of miners.
+                        self._epoch_deque: deque[MinerInfo] = deque(random.sample(miners, len(miners)))
+                    miners_sample.append(self._epoch_deque.popleft())
 
         else:
             raise ValueError(f"Unknown sampling mode: {self._sample_mode}")
