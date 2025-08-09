@@ -44,4 +44,4 @@ def setup_logger(log_file_path: str | Path | None = None, level: str = "INFO") -
     return logger
 
 
-setup_logger(level="DEBUG")
+setup_logger(log_file_path="logs.log", level="DEBUG")

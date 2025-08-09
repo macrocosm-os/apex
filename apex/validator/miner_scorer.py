@@ -31,7 +31,10 @@ class MinerScorer:
             await asyncio.sleep(self.interval)
             logger.debug("Attempting to set weights")
             success = await self.set_scores()
-            logger.log("INFO" if success else "ERROR", f"Set weights: {'success' if success else 'fail'}")
+            if success:
+                logger.info(f"Set weights: {success}")
+            else:
+                logger.error("Failed to set weights")
 
     async def shutdown(self) -> None:
         self._running = False
