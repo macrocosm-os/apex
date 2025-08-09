@@ -82,7 +82,7 @@ class Pipeline:
             query = await generate_query(llm=self.llm, websearch=self.websearch)
 
         reference = None
-        tool_history = []
+        tool_history: list[dict[str, str]] = []
         if random.random() < self.reference_rate:
             try:
                 generator_results = None

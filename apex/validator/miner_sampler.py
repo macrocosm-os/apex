@@ -112,16 +112,16 @@ class MinerSampler:
     async def _sample_miners(self) -> list[MinerInfo]:
         miners = await self._get_all_miners()
 
+        miners_sample: list[MinerInfo] = []
         if self._sample_mode == "random":
             miners_sample = random.sample(miners, self._sample_size)
 
         elif self._sample_mode == "sequential":
             async with self._sample_lock:
-                miners_sample: list[MinerInfo] = []
                 while len(miners_sample) < self._sample_size:
                     if not self._epoch_deque:
                         # Get shuffled deque of miners.
-                        self._epoch_deque: deque[MinerInfo] = deque(random.sample(miners, len(miners)))
+                        self._epoch_deque = deque(random.sample(miners, len(miners)))
                     miners_sample.append(self._epoch_deque.popleft())
 
         else:
@@ -224,7 +224,7 @@ class MinerSampler:
                 choice_content = "None"
             parsed_discriminator_results.append(choice_content)
 
-            # Apply scoring logic based on selected generator type
+            # Apply scoring logic based on selected generator type.
             if choice_content == str(ground_truth):
                 discriminator_score = score_per_miner
             else:
@@ -232,7 +232,7 @@ class MinerSampler:
 
             discriminator_results_float.append(discriminator_score)
 
-        # Generator result is 1 minus sum of discriminator results
+        # Generator result is 1 minus sum of discriminator results.
         generator_result_float = 1.0 - sum(discriminator_results_float)
         miner_discriminator_results = MinerDiscriminatorResults(
             query=query,

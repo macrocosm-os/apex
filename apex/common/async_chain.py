@@ -111,7 +111,7 @@ class AsyncChain:
     def network(self) -> list[str]:
         return self._network
 
-    async def set_weights(self, rewards: dict[str, float]) -> bool:
+    async def set_weights(self, rewards: dict[str, float]) -> bool:  # type: ignore
         try:
             metagraph = await self.metagraph()
             subtensor = await self.subtensor()
@@ -127,7 +127,6 @@ class AsyncChain:
                 uid = metagraph.uids[idx]
                 weights[uid] = reward
 
-            # Set the weights.
             success, err = await subtensor.set_weights(
                 wallet=self._wallet,
                 netuid=self._netuid,
@@ -138,10 +137,10 @@ class AsyncChain:
                 wait_for_finalization=True,
             )
             if not success:
-                logger.error(f"Error setting weights: {err}")
+                logger.error(f"Error during weight set: {err}")
             return success
         except BaseException as exc:
-            logger.exception(f"Error setting weights: {exc}")
+            logger.exception(f"Error during weight set: {exc}")
             return False
 
     async def mask_network(self) -> list[str]:
