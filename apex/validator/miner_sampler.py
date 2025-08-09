@@ -124,6 +124,9 @@ class MinerSampler:
         else:
             raise ValueError(f"Unknown sampling mode: {self._sample_mode}")
 
+        logger.debug(
+            f"Sampled uids (sample size = {self._sample_size}): {sorted([miner.uid for miner in miners_sample])}"
+        )
         return miners_sample
 
     async def query_miners(self, body: dict[str, Any], endpoint: str, hotkey: str | None = None) -> str:
@@ -134,7 +137,7 @@ class MinerSampler:
                     self._chain.wallet.hotkey, body=json.dumps(body).encode("utf-8"), signed_for=hotkey
                 )
                 async with session.post(
-                    endpoint + "/v1/chat/completions",
+                    f"{endpoint}/v1/chat/completions",
                     headers=headers,
                     json=body,
                 ) as resp:
