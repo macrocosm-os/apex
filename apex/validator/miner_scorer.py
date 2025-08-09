@@ -50,6 +50,7 @@ class MinerScorer:
         expose each one as plain python objects so that downstream code can work with them,
         and remove rows that are older than the time window.
         """
+        logger.debug("Retrieving miner's performance history")
         async with self._db() as conn:  # type: aiosqlite.Connection
             # Calculate the cutoff timestamp (current time - window hours).
             cutoff_timestamp = int(time.time() - SCORE_MA_WINDOW_HOURS * 3600)
@@ -70,6 +71,7 @@ class MinerScorer:
                 return False
 
             # 2. Iterate over the in-memory list so that the caller can process freely.
+            logger.debug("Pre-processing miner's rewards")
             hkey_agg_rewards: dict[str, float] = {}
             for generator_hotkey, generator_score, disc_hotkeys_json, disc_scores_json in rows:
                 # Deserialize JSON columns.
@@ -88,6 +90,7 @@ class MinerScorer:
                     hkey_agg_rewards[hotkey] = float(hkey_agg_rewards.get(hotkey, 0.0)) + float(reward)
 
             # 3. Delete rows that are older than the time window.
+            logger.debug("Cleaning up miner's outdated history")
             await conn.execute(
                 "DELETE FROM discriminator_results WHERE timestamp < ?",
                 (cutoff_timestamp,),
@@ -102,8 +105,10 @@ class MinerScorer:
                     record_str: str = json.dumps(record)
                     fh.write(f"{record_str}\n")
             # TODO: Flush the db only on set_weights_result is True.
+            logger.debug("Setting weights")
             set_weights_result = await self.chain.set_weights(hkey_agg_rewards)
 
             # 4. Flush all deletions in a single commit.
+            logger.debug("Updating rewards DB")
             await conn.commit()
             return set_weights_result
