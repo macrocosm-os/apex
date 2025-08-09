@@ -112,22 +112,22 @@ class AsyncChain:
         return self._network
 
     async def set_weights(self, rewards: dict[str, float]) -> bool:
-        metagraph = await self.metagraph()
-        subtensor = await self.subtensor()
-        weights: dict[int, float] = {}
-
-        for hotkey, reward in rewards.items():
-            try:
-                idx = metagraph.hotkeys.index(hotkey)
-            except ValueError:
-                # Hotkey not found in the metagraph (e.g., deregistered). Skip it.
-                continue
-
-            uid = metagraph.uids[idx]
-            weights[uid] = reward
-
-        # Set the weights.
         try:
+            metagraph = await self.metagraph()
+            subtensor = await self.subtensor()
+            weights: dict[int, float] = {}
+
+            for hotkey, reward in rewards.items():
+                try:
+                    idx = metagraph.hotkeys.index(hotkey)
+                except ValueError:
+                    # Hotkey not found in the metagraph (e.g., deregistered). Skip it.
+                    continue
+
+                uid = metagraph.uids[idx]
+                weights[uid] = reward
+
+            # Set the weights.
             result = await subtensor.set_weights(
                 wallet=self._wallet,
                 netuid=self._netuid,

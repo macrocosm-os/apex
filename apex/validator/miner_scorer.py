@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 import aiosqlite
+import numpy as np
 from loguru import logger
 
 from apex.common.async_chain import AsyncChain
@@ -32,7 +33,7 @@ class MinerScorer:
             logger.debug("Attempting to set weights")
             success = await self.set_scores()
             if success:
-                logger.info(f"Set weights: {success}")
+                logger.info("Successfully set weights")
             else:
                 logger.error("Failed to set weights")
 
@@ -108,7 +109,7 @@ class MinerScorer:
                     record_str: str = json.dumps(record)
                     fh.write(f"{record_str}\n")
             # TODO: Flush the db only on set_weights_result is True.
-            logger.debug("Setting weights")
+            logger.debug(f"Setting weights, mean reward={np.mean(list(hkey_agg_rewards.values())):.4f}")
             set_weights_result = await self.chain.set_weights(hkey_agg_rewards)
 
             # 4. Flush all deletions in a single commit.
