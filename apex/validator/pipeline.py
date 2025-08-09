@@ -25,7 +25,7 @@ class Pipeline:
         llm: LLMBase,
         deep_research: DeepResearchBase,
         logger_apex: LoggerApex | None = None,
-        num_consumers: int = 10,
+        num_consumers: int = 5,
         timeout_consumer: float = 180,
         timeout_producer: float = 18,
         queue_size: int = 10_000,

@@ -37,11 +37,11 @@ async def main() -> None:
 
     chain = AsyncChain(**config.chain.kwargs)
     await chain.start()
-    logger.debug(f"Connected to the chain with coldkey '{chain.coldkey[:3]}**', hotkey '{chain.hotkey[:3]}**'")
+    logger.debug(f"Connected to the chain with coldkey '{chain.coldkey[:3]}***', hotkey '{chain.hotkey[:3]}***'")
 
     logger_db = LoggerDB(**config.logger_db.kwargs)
     asyncio.create_task(logger_db.start_loop())
-    logger.debug(f"Started DB at: '{logger_db.db_path}")
+    logger.debug(f"Started DB at: '{logger_db.db_path}'")
 
     # logger_apex = LoggerApex(async_chain=chain)
 
