@@ -5,6 +5,7 @@ from bittensor.core.async_subtensor import AsyncSubtensor
 from bittensor.core.metagraph import AsyncMetagraph
 from loguru import logger
 
+from apex import __spec_version__
 from apex.common.utils import async_cache
 
 _METAGRAPH_TTL: int = 10 * 60
@@ -111,36 +112,35 @@ class AsyncChain:
         return self._network
 
     async def set_weights(self, rewards: dict[str, float]) -> bool:
-        metagraph = await self.metagraph()
-        subtensor = await self.subtensor()
-        weights: dict[int, float] = {}
-
-        for hotkey, reward in rewards.items():
-            try:
-                idx = metagraph.hotkeys.index(hotkey)
-            except ValueError:
-                # Hotkey not found in the metagraph (e.g., deregistered). Skip it.
-                continue
-
-            uid = metagraph.uids[idx]
-            weights[uid] = reward
-
-        # Set the weights.
         try:
-            result = await subtensor.set_weights(
+            metagraph = await self.metagraph()
+            subtensor = await self.subtensor()
+            weights: dict[int, float] = {}
+
+            for hotkey, reward in rewards.items():
+                try:
+                    idx = metagraph.hotkeys.index(hotkey)
+                except ValueError:
+                    # Hotkey not found in the metagraph (e.g., deregistered). Skip it.
+                    continue
+
+                uid = metagraph.uids[idx]
+                weights[uid] = reward
+
+            success, err = await subtensor.set_weights(
                 wallet=self._wallet,
                 netuid=self._netuid,
                 uids=list(weights.keys()),
                 weights=list(weights.values()),
+                version_key=__spec_version__,
                 wait_for_inclusion=True,
                 wait_for_finalization=True,
             )
-            if not result:
-                logger.error(f"Error setting weights: {result}")
-                return False
-            return True
+            if not success:
+                logger.error(f"Error during weight set: {err}")
+            return bool(success)
         except BaseException as exc:
-            logger.exception(f"Error setting weights: {exc}")
+            logger.exception(f"Error during weight set: {exc}")
             return False
 
     async def mask_network(self) -> list[str]:
