@@ -38,7 +38,7 @@ class MinerSampler:
         self,
         chain: AsyncChain,
         sample_mode: Literal["random", "sequential"] = "sequential",
-        sample_size: int = 50,
+        sample_size: int = 100,
         logger_db: LoggerDB | None = None,
         available_uids: Sequence[int] | None = None,
         available_addresses: Sequence[str] | None = None,
@@ -151,9 +151,10 @@ class MinerSampler:
 
         hotkeys: list[str] = []
         tasks: list[Coroutine[str, str, Any]] = []
+
+        logger.debug(f"Querying {len(miner_information)} miner generators")
         for miner_info in miner_information:
             hotkeys.append(miner_info.hotkey)
-            logger.debug(f"Querying miner generator at {miner_info.address} with uid: {miner_info.uid}")
             tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
         generator_results = await asyncio.gather(*tasks)
         return MinerGeneratorResults(query=query, generator_hotkeys=hotkeys, generator_results=generator_results)
