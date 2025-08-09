@@ -54,6 +54,7 @@ class DummySubtensor:
         netuid: int,
         uids: Iterable[int],
         weights: Iterable[float],
+        version_key: int,
         wait_for_inclusion: bool,
         wait_for_finalization: bool,
     ) -> bool:
@@ -62,6 +63,7 @@ class DummySubtensor:
             "netuid": netuid,
             "uids": list(uids),
             "weights": list(weights),
+            "version_key": version_key,
             "wait_for_inclusion": wait_for_inclusion,
             "wait_for_finalization": wait_for_finalization,
         }

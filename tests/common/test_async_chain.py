@@ -121,6 +121,10 @@ async def test_set_weights_happy_path(monkeypatch):
     assert stub.last_set_weights is not None
     assert stub.last_set_weights["uids"] == [2]
     assert stub.last_set_weights["weights"] == [0.7]
+    # ensure we pass spec version as version_key
+    from apex import __spec_version__
+
+    assert stub.last_set_weights["version_key"] == __spec_version__
 
 
 @pytest.mark.asyncio
