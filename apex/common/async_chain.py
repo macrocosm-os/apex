@@ -5,6 +5,7 @@ from bittensor.core.async_subtensor import AsyncSubtensor
 from bittensor.core.metagraph import AsyncMetagraph
 from loguru import logger
 
+from apex import __spec_version__
 from apex.common.utils import async_cache
 
 _METAGRAPH_TTL: int = 10 * 60
@@ -132,6 +133,7 @@ class AsyncChain:
                 netuid=self._netuid,
                 uids=list(weights.keys()),
                 weights=list(weights.values()),
+                version_key=__spec_version__,
                 wait_for_inclusion=True,
                 wait_for_finalization=True,
             )
