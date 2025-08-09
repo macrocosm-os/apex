@@ -39,7 +39,7 @@ def setup_logger(log_file_path: str | Path | None = None, level: str = "INFO") -
     # Add file handler if a path is provided.
     if log_file_path:
         file_log_format = "{time:YYYY-MM-DD HH:mm:ss} [{file}:{line}] {message}"
-        logger.add(str(log_file_path), level=level, format=file_log_format, rotation="10 MB", retention="7 days")
+        logger.add(str(log_file_path), level=level, format=file_log_format, rotation="5 MB", retention="3 days")
 
     return logger
 
