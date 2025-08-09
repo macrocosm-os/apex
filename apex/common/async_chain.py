@@ -128,7 +128,7 @@ class AsyncChain:
                 weights[uid] = reward
 
             # Set the weights.
-            result = await subtensor.set_weights(
+            success, err = await subtensor.set_weights(
                 wallet=self._wallet,
                 netuid=self._netuid,
                 uids=list(weights.keys()),
@@ -137,10 +137,9 @@ class AsyncChain:
                 wait_for_inclusion=True,
                 wait_for_finalization=True,
             )
-            if not result:
-                logger.error(f"Error setting weights: {result}")
-                return False
-            return True
+            if not success:
+                logger.error(f"Error setting weights: {err}")
+            return success
         except BaseException as exc:
             logger.exception(f"Error setting weights: {exc}")
             return False

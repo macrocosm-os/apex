@@ -37,7 +37,10 @@ async def main() -> None:
 
     chain = AsyncChain(**config.chain.kwargs)
     await chain.start()
-    logger.debug(f"Connected to the chain with coldkey '{chain.coldkey[:3]}***', hotkey '{chain.hotkey[:2]}***'")
+    logger.debug(
+        f"Connected to the chain netuid={chain.netuid} with coldkey '{chain.coldkey[:2]}***', "
+        f"hotkey '{chain.hotkey[:2]}***'"
+    )
 
     logger_db = LoggerDB(**config.logger_db.kwargs)
     asyncio.create_task(logger_db.start_loop())
