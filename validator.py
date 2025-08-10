@@ -14,6 +14,7 @@ from apex.validator.logger_db import LoggerDB
 from apex.validator.miner_sampler import MinerSampler
 from apex.validator.miner_scorer import MinerScorer
 from apex.validator.pipeline import Pipeline
+from apex.validator.weight_syncer import WeightSyncer
 
 
 async def read_args() -> argparse.Namespace:
@@ -54,7 +55,14 @@ async def main() -> None:
     miner_sampler = MinerSampler(chain=chain, logger_db=logger_db, **config.miner_sampler.kwargs)
     logger.debug("Started miner sampler")
 
-    miner_scorer = MinerScorer(chain=chain, **config.miner_scorer.kwargs)
+    weight_syncer = WeightSyncer(chain=chain, **config.weight_syncer.kwargs)
+    await weight_syncer.start()
+    logger.debug(
+        f"Started weight synchronizer, receive enabled: {weight_syncer.receive_enabled}, "
+        f"send enabled: {weight_syncer.send_enabled}, port: {weight_syncer.port}"
+    )
+
+    miner_scorer = MinerScorer(chain=chain, weight_syncer=weight_syncer, **config.miner_scorer.kwargs)
     asyncio.create_task(miner_scorer.start_loop())
     logger.debug(f"Started miner scorer with interval={miner_scorer.interval}")
 

@@ -15,6 +15,7 @@ class Config(BaseModel):
     chain: ConfigClass = Field(default_factory=ConfigClass)
     websearch: ConfigClass = Field(default_factory=ConfigClass)
     logger_db: ConfigClass = Field(default_factory=ConfigClass)
+    weight_syncer: ConfigClass = Field(default_factory=ConfigClass)
     miner_sampler: ConfigClass = Field(default_factory=ConfigClass)
     miner_scorer: ConfigClass = Field(default_factory=ConfigClass)
     llm: ConfigClass = Field(default_factory=ConfigClass)
