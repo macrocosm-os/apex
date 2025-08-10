@@ -101,7 +101,7 @@ def main() -> None:
             sys.exit(proc.returncode)
 
         if remote_has_updates():
-            print("Updates detected, restaring process")
+            print("Updates detected, restarting validator")
             stop_proc(proc)
             git_pull_ff_only()
             proc = start_proc(config=args.config)
