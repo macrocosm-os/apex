@@ -11,7 +11,8 @@ import numpy as np
 from loguru import logger
 
 from apex.common.async_chain import AsyncChain
-from apex.common.constants import VALIDATOR_REFERENCE_LABEL
+from apex.common.constants import VALIDATOR_REFERENCE_LABEL, VALIDATOR_VERIFIED_HOTKEYS
+from apex.validator.weight_syncer import WeightSyncer
 
 # Scoring moving average in hours. Set to be: immunity_period - post_reg_threshold.
 SCORE_MA_WINDOW_HOURS = 23.75
@@ -19,12 +20,21 @@ SCORE_INTERVAL_DEFAULT = 22 * 60
 
 
 class MinerScorer:
-    def __init__(self, chain: AsyncChain, interval: float = SCORE_INTERVAL_DEFAULT, debug: bool = False):
+    def __init__(
+        self,
+        chain: AsyncChain,
+        interval: float = SCORE_INTERVAL_DEFAULT,
+        debug: bool = False,
+        enable_weight_sync: bool = True,
+    ):
         self.chain = chain
         self.interval = interval
-        self._running = True
         self._debug = debug
+        self._weight_syncer: WeightSyncer | None = None
+        if enable_weight_sync:
+            self._weight_syncer = WeightSyncer(chain=chain, verified_hotkeys=VALIDATOR_VERIFIED_HOTKEYS)
         self._debug_rewards_path = Path("debug_rewards.jsonl")
+        self._running = True
 
     async def start_loop(self) -> None:
         self._running = True
@@ -108,12 +118,20 @@ class MinerScorer:
                 with self._debug_rewards_path.open("a+") as fh:
                     record_str: str = json.dumps(record)
                     fh.write(f"{record_str}\n")
-            # TODO: Flush the db only on set_weights_result is True.
+
+            if self._weight_syncer is not None:
+                try:
+                    hkey_agg_rewards = await self._weight_syncer.compute_weighted_rewards(hkey_agg_rewards)
+                except BaseException as exc:
+                    logger.error(f"Failed to compute weighted average rewards over the network, skipping: {exc}")
+
             if hkey_agg_rewards:
                 rewards_array = np.array(list(hkey_agg_rewards.values()))
                 logger.debug(f"Setting weights, reward mean={rewards_array.mean():.4f} min={rewards_array.min():.4f}")
             else:
                 logger.warning(f"Setting empty rewards: {hkey_agg_rewards}")
+
+            # TODO: Flush the db only on set_weights_result is True.
             set_weights_result = await self.chain.set_weights(hkey_agg_rewards)
 
             # 4. Flush all deletions in a single commit.

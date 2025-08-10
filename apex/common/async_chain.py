@@ -16,7 +16,6 @@ class AsyncChain:
         if isinstance(network, str):
             network = [network]
         self._network: list[str] = network
-
         self._coldkey = coldkey
         self._hotkey = hotkey
         self._netuid = netuid
