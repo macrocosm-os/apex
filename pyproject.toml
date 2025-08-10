@@ -33,6 +33,7 @@ dependencies = [
     "types-pyyaml>=6.0.12.20250516",
     "types-cachetools>=6.0.0.20250525",
     "dotenv>=0.9.9",
+    "pytest-mock>=3.14.1",
 ]
 
 

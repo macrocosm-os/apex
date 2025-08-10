@@ -4,7 +4,8 @@ set -euo pipefail
 APP_NAME="sn1"
 PY_VERSION_FILE=".python-version"
 UV_INSTALL_URL="https://astral.sh/uv/install.sh"
-CONFIG="config/mainnet.yaml"
+# CONFIG="config/mainnet.yaml"
+CONFIG="config/testnet.yaml"
 
 # Ensure common user bin dirs are in PATH.
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/bin:$HOME/.npm-global/bin:$PATH"
