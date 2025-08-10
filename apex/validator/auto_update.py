@@ -10,7 +10,7 @@ ROOT_DIR = Path(__file__).parent.parent
 
 
 def get_version() -> str:
-    """Extract the version as current git commit hash"""
+    """Extract the version as current git commit hash."""
     result = subprocess.run(
         split("git rev-parse HEAD"),
         check=True,
@@ -24,6 +24,7 @@ def get_version() -> str:
 
 def pull_latest_version() -> None:
     """Pull the latest version from git.
+
     This uses `git pull --rebase`, so if any changes were made to the local repository,
     this will try to apply them on top of origin's changes. This is intentional, as we
     don't want to overwrite any local changes. However, if there are any conflicts,
@@ -40,6 +41,7 @@ def pull_latest_version() -> None:
 
 def upgrade_packages() -> None:
     """Upgrade python packages by running `pip install --upgrade -r requirements.txt`.
+
     Notice: this won't work if some package in `requirements.txt` is downgraded.
     Ignored as this is unlikely to happen.
     """
@@ -56,6 +58,7 @@ def upgrade_packages() -> None:
 
 async def autoupdate_loop() -> None:
     """Async version of autoupdate that runs alongside the validator.
+
     Checks for updates every hour and applies them if available.
     """
     current_version = latest_version = get_version()
@@ -71,12 +74,13 @@ async def autoupdate_loop() -> None:
 
             if latest_version != current_version:
                 logger.info(
-                    "Upgraded to latest version: %s -> %s",
+                    "Upgraded to latest version: %s -> %s, terminating program for restart",
                     current_version,
                     latest_version,
                 )
                 upgrade_packages()
-                current_version = latest_version
+                logger.info("Program terminating, please run with persistent process manager")
+                sys.exit(0)
 
     except asyncio.CancelledError:
         logger.info("Autoupdate task cancelled")
