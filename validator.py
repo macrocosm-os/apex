@@ -13,6 +13,7 @@ from apex.validator.logger_db import LoggerDB
 from apex.validator.miner_sampler import MinerSampler
 from apex.validator.miner_scorer import MinerScorer
 from apex.validator.pipeline import Pipeline
+from apex.validator.auto_update import autoupdate_loop
 
 
 async def read_args() -> argparse.Namespace:
@@ -24,6 +25,12 @@ async def read_args() -> argparse.Namespace:
         default="config/mainnet.yaml",
         help="Config file path (e.g. config/mainnet.yaml).",
         type=Path,
+    )
+    parser.add_argument(
+        "--no-autoupdate",
+        action="store_true",
+        default=False,
+        help="Disable automatic updates (checks every hour) (default: enabled)",
     )
     args = parser.parse_args()
     return args
@@ -48,6 +55,12 @@ async def main() -> None:
     miner_scorer = MinerScorer(chain=chain, **config.miner_scorer.kwargs)
     asyncio.create_task(miner_scorer.start_loop())
 
+    # Start autoupdate task if enabled
+    autoupdate_task = None
+    if not args.no_autoupdate:
+        logger.info("Autoupdate enabled - will check for updates every hour")
+        autoupdate_task = asyncio.create_task(autoupdate_loop())
+
     llm = LLM(**config.llm.kwargs)
 
     deep_research = DeepResearchLangchain(websearch=websearch, **config.deep_research.kwargs)
@@ -68,6 +81,14 @@ async def main() -> None:
     except BaseException as exc:
         logger.exception(f"Unknown exception caught, exiting validator: {exc}")
     finally:
+        # Cancel autoupdate task if it was started
+        if autoupdate_task is not None:
+            autoupdate_task.cancel()
+            try:
+                await autoupdate_task
+            except asyncio.CancelledError:
+                pass
+
         await chain.shutdown()
         await logger_db.shutdown()
         await miner_scorer.shutdown()
