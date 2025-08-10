@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 APP_NAME="sn1"
-# CONFIG="config/mainnet.yaml"
-CONFIG="config/testnet.yaml"
+CONFIG="config/mainnet.yaml"
+# CONFIG="config/testnet.yaml"
 
 UV_INSTALL_URL="https://astral.sh/uv/install.sh"
 
@@ -42,5 +42,5 @@ else
   echo "[info] pm2 found: $(command -v pm2)"
 fi
 
-pm2 start scripts/autoupdater.py --interpreter .venv/bin/python --name sn1 -- -c config/testnet.yaml
+pm2 start scripts/autoupdater.py --interpreter .venv/bin/python --name sn1 -- -c $CONFIG
 pm2 logs sn1
