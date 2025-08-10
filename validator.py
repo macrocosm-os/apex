@@ -91,6 +91,7 @@ async def main() -> None:
         await chain.shutdown()
         await logger_db.shutdown()
         await miner_scorer.shutdown()
+        await weight_syncer.shutdown()
 
 
 if __name__ == "__main__":

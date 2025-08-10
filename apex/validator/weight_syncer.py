@@ -1,5 +1,4 @@
 import asyncio
-import os
 import time
 from typing import cast
 
@@ -71,7 +70,7 @@ class WeightSyncer:
             )
             self.server = uvicorn.Server(config)
             self.server_task = asyncio.create_task(self.server.serve())
-            logger.info(f"Started weight synchronization API on port {self.port}. pid={os.getpid()} self_id={id(self)}")
+            logger.info(f"Started weight synchronization API on port {self.port}")
 
             # Announce the axon on the network.
             external_ip = requests.get("https://checkip.amazonaws.com").text.strip()
@@ -124,10 +123,6 @@ class WeightSyncer:
         """Computes weighted rewards by fetching rewards from other validators and averaging them by stake."""
         self.hotkey_rewards = hotkey_rewards
         self.last_update_time = time.time()
-        # logger.debug(f"Updating rewards at: {self.last_update_time}")
-        import os
-
-        logger.debug(f"Updating rewards at: {self.last_update_time} pid={os.getpid()} self_id={id(self)}")
         if not self.receive_enabled:
             logger.warning("Rewards weight averaging is disable, using raw rewards")
             return hotkey_rewards
