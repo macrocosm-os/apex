@@ -76,7 +76,7 @@ def verify_signature(
     return None
 
 
-async def verify_weight_signature(request: Request, chain: AsyncChain) -> None:
+async def verify_validator_signature(request: Request, chain: AsyncChain, min_stake: float = 1024) -> None:
     signed_by = request.headers.get("Epistula-Signed-By")
     signed_for = request.headers.get("Epistula-Signed-For")
     if not signed_by or not signed_for:
@@ -88,7 +88,16 @@ async def verify_weight_signature(request: Request, chain: AsyncChain) -> None:
         logger.error("Bad Request, message is not intended for self")
         raise HTTPException(status_code=400, detail="Bad Request, message is not intended for self")
 
-    if signed_by not in VALIDATOR_VERIFIED_HOTKEYS:
+    is_validator = True
+    if min_stake > 0:
+        metagraph = await chain.metagraph()
+        try:
+            caller_uid = metagraph.hotkeys.index(signed_by)
+        except ValueError as exc:
+            raise HTTPException(status_code=401, detail="Signer is not in metagraph") from exc
+        is_validator = metagraph.stake[caller_uid] > min_stake
+
+    if signed_by not in VALIDATOR_VERIFIED_HOTKEYS and not is_validator:
         logger.error(f"Signer not the expected ss58 address: {signed_by}")
         raise HTTPException(status_code=401, detail="Signer not the expected ss58 address")
 
@@ -96,11 +105,8 @@ async def verify_weight_signature(request: Request, chain: AsyncChain) -> None:
     body: bytes = await request.body()
     try:
         json.loads(body)
-    except json.JSONDecodeError as e:
-        raise HTTPException(400, "Invalid JSON body") from e
-
-    # if payload.get("uid") != get_uid_from_hotkey(signed_by):
-    #     raise HTTPException(400, "Invalid uid in body")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(400, "Invalid JSON body") from exc
 
     err = verify_signature(
         request.headers.get("Epistula-Request-Signature"),

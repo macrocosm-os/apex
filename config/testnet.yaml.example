@@ -34,3 +34,12 @@ miner_sampler:
     # For testing purposes one can specify available pool of uids.
     # available_uids: [1, 2]
     # available_addresses: ["http://0.0.0.0:8081", "http://0.0.0.0:8082"]
+
+weight_syncer:
+  kwargs:
+    # Change port if needed.
+    port: 8001
+    # When enabled performs weight synchronization across validators in order to improve vTrust.
+    enable_receive: True
+    # When enabled, other validators can request your rewards for their weight averaging.
+    enable_send: True

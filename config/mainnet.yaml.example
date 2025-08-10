@@ -1,8 +1,8 @@
 chain:
   kwargs:
     netuid: 1
-    coldkey: "validator"
-    hotkey: "default"
+    coldkey: "YOUR_COLDKEY"
+    hotkey: "YOUR_HOTKEY"
     network:
       - finney
       # - ws://LOCAL_SUBTENSOR_FALLBACK_1
@@ -27,3 +27,12 @@ deep_research:
     research_model: "Qwen/Qwen3-235B-A22B-Instruct-2507"
     compression_model: "deepseek-ai/DeepSeek-V3-0324"
     final_model: "deepseek-ai/DeepSeek-V3-0324"
+
+weight_syncer:
+  kwargs:
+    # Change port if needed.
+    port: 8001
+    # When enabled performs weight synchronization across validators in order to improve vTrust.
+    enable_receive: True
+    # When enabled, other validators can request your rewards for their weight averaging.
+    enable_send: True

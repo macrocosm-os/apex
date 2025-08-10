@@ -83,10 +83,8 @@ exclude = [
     "^tests/",
     "^venv/",
     '^\.venv/',
-    # TODO: Enable once fixed.
     "scripts/",
-    "apex/services/",
-    "apex/validator/",
+    "drafts/",
 ]
 
 [[tool.mypy.overrides]]

@@ -1,4 +1,5 @@
 import asyncio
+import os
 import time
 from typing import cast
 
@@ -14,7 +15,7 @@ from pydantic import BaseModel
 
 from apex.common.async_chain import AsyncChain
 from apex.common.constants import VALIDATOR_VERIFIED_HOTKEYS
-from apex.common.epistula import generate_header, verify_weight_signature
+from apex.common.epistula import generate_header, verify_validator_signature
 
 
 class ValidatorInfo(BaseModel):
@@ -38,7 +39,7 @@ class WeightSyncer:
     ) -> None:
         """Validator weight synchronizer."""
         self.chain = chain
-        self._min_alpha_stake = min_alpha_stake
+        self.min_alpha_stake = min_alpha_stake
         self.verified_hotkeys = verified_hotkeys or VALIDATOR_VERIFIED_HOTKEYS
         self.wallet = self.chain.wallet
         self.current_hotkey = self.wallet.hotkey.ss58_address
@@ -48,7 +49,7 @@ class WeightSyncer:
         self.server: uvicorn.Server | None = None
         self.server_task: asyncio.Task[None] | None = None
         self.hotkey_rewards: dict[str, float] | None = None
-        self._last_update_time: float = 0
+        self.last_update_time: float = 0
 
     async def start(self) -> None:
         if not self.send_enabled:
@@ -56,16 +57,21 @@ class WeightSyncer:
             return
 
         try:
-            # Setup and run the API server in the background.
             app = FastAPI()
             app.include_router(self.get_router())
 
-            # Running uvicorn in a background task.
-            config = uvicorn.Config(app=app, host="0.0.0.0", port=self.port, log_level="info")
+            config = uvicorn.Config(
+                app=app,
+                host="0.0.0.0",
+                port=self.port,
+                log_level="info",
+                workers=1,
+                reload=False,
+                loop="asyncio",
+            )
             self.server = uvicorn.Server(config)
             self.server_task = asyncio.create_task(self.server.serve())
-
-            logger.info(f"Started weight synchronization API on port {self.port}.")
+            logger.info(f"Started weight synchronization API on port {self.port}. pid={os.getpid()} self_id={id(self)}")
 
             # Announce the axon on the network.
             external_ip = requests.get("https://checkip.amazonaws.com").text.strip()
@@ -98,13 +104,18 @@ class WeightSyncer:
 
         @router.post("/v1/get_rewards")
         async def get_rewards_endpoint(request: Request) -> dict[str, float]:
-            """FastAPI endpoint to get the rewards of this validator."""
-            await verify_weight_signature(request=request, chain=self.chain)
+            await verify_validator_signature(request=request, chain=self.chain, min_stake=self.min_alpha_stake)
 
-            if time.time() - self._last_update_time > self.REWARD_EXPIRATION_SEC or self.hotkey_rewards is None:
-                raise HTTPException(status_code=404, detail="Rewards not available or expired")
+            outdated = time.time() - self.last_update_time
+            if (outdated := time.time() - self.last_update_time) > self.REWARD_EXPIRATION_SEC:
+                logger.warning(f"Rewards expired: {outdated:.2f}s - {self.last_update_time}")
+                raise HTTPException(status_code=503, detail="Rewards expired")
+            if self.hotkey_rewards is None:
+                logger.warning("Rewards not available")
+                raise HTTPException(status_code=503, detail="Rewards not available")
             if not self.send_enabled:
-                raise HTTPException(status_code=404, detail="API is disabled")
+                logger.warning("API is disabled")
+                raise HTTPException(status_code=405, detail="API is disabled")
             return self.hotkey_rewards
 
         return router
@@ -112,7 +123,11 @@ class WeightSyncer:
     async def compute_weighted_rewards(self, hotkey_rewards: dict[str, float]) -> dict[str, float]:
         """Computes weighted rewards by fetching rewards from other validators and averaging them by stake."""
         self.hotkey_rewards = hotkey_rewards
-        self._last_update_time = time.time()
+        self.last_update_time = time.time()
+        # logger.debug(f"Updating rewards at: {self.last_update_time}")
+        import os
+
+        logger.debug(f"Updating rewards at: {self.last_update_time} pid={os.getpid()} self_id={id(self)}")
         if not self.receive_enabled:
             logger.warning("Rewards weight averaging is disable, using raw rewards")
             return hotkey_rewards
@@ -125,7 +140,7 @@ class WeightSyncer:
             logger.error(f"Could not find own hotkey {self.current_hotkey} in metagraph, returning raw rewards")
             return hotkey_rewards
 
-        validator_uids: list[int] = []
+        validator_rewards_tasks: dict[int, asyncio.Task[dict[str, float]]] = {}
         for uid in metagraph.uids:
             if uid == own_uid:
                 continue
@@ -135,21 +150,18 @@ class WeightSyncer:
             is_verified = hotkey in self.verified_hotkeys
             is_validator = metagraph.validator_permit[uid]
 
-            if stake >= self._min_alpha_stake or is_verified or is_validator:
-                validator_uids.append(uid)
-
-        validator_rewards_tasks: dict[int, asyncio.Task[dict[str, float]]] = {
-            uid: asyncio.create_task(self.receive_rewards(metagraph, uid)) for uid in validator_uids
-        }
+            if (stake >= self.min_alpha_stake and is_validator) or is_verified:
+                validator_rewards_tasks[uid] = asyncio.create_task(self.receive_rewards(metagraph, uid))
 
         results = await asyncio.gather(*validator_rewards_tasks.values(), return_exceptions=True)
 
         validator_rewards: dict[int, dict[str, float]] = {}
-        for uid, result in zip(validator_uids, results, strict=True):
-            if isinstance(result, BaseException):
+        for uid, result in zip(validator_rewards_tasks, results, strict=True):
+            if isinstance(result, BaseException) or not result:
                 logger.warning(f"Cannot receive rewards from uid {uid}: {result}")
                 continue
             validator_rewards[uid] = result
+            logger.debug(f"Received rewards from validator {uid} with stake {metagraph.stake[uid]}")
 
         all_validator_uids = [own_uid] + list(validator_rewards.keys())
         total_stake = sum(metagraph.stake[uid] for uid in all_validator_uids)
@@ -167,14 +179,13 @@ class WeightSyncer:
 
             for uid, rewards in validator_rewards.items():
                 validator_reward = rewards.get(miner_hkey, 0.0)
-                validator_stake = metagraph.stake[uid].item()
-                total_weighted_reward += validator_reward * validator_stake
+                total_weighted_reward += validator_reward * metagraph.stake[uid]
 
             weighted_rewards[miner_hkey] = total_weighted_reward / total_stake
 
         logger.debug(
             f"Averaged rewards over {len(all_validator_uids)} validators. "
-            f"Self stake percentage: {100 * own_stake / total_stake:.2f}"
+            f"Self stake: {100 * own_stake / total_stake:.2f}%"
         )
         return weighted_rewards
 
@@ -185,16 +196,18 @@ class WeightSyncer:
             if (address := VALIDATOR_VERIFIED_HOTKEYS.get(target_hotkey)) is None:
                 axon = metagraph.axons[uid]
                 address = f"{axon.ip}:{axon.port}"
+
             async with httpx.AsyncClient() as client:
+                body = b"{}"
                 headers = await generate_header(
-                    self.chain.wallet.hotkey,
-                    body=b"",
+                    hotkey=self.chain.wallet.hotkey,
+                    body=body,
                     signed_for=target_hotkey,
                 )
                 resp = await client.post(
                     f"http://{address}/v1/get_rewards",
                     headers=headers,
-                    content=b"",
+                    content=body,
                 )
                 resp.raise_for_status()
                 return cast(dict[str, float], resp.json())

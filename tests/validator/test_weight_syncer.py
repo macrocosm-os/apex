@@ -116,7 +116,7 @@ async def test_receive_rewards_http_error(mock_async_client, weight_syncer, mock
     assert rewards == {}
 
 
-@patch("apex.validator.weight_syncer.verify_weight_signature", new_callable=AsyncMock)
+@patch("apex.validator.weight_syncer.verify_validator_signature", new_callable=AsyncMock)
 def test_get_rewards_endpoint(mock_verify_signature, weight_syncer):
     """Test the FastAPI endpoint for serving rewards."""
     app = FastAPI()
@@ -125,17 +125,16 @@ def test_get_rewards_endpoint(mock_verify_signature, weight_syncer):
 
     # Case 1: No rewards set yet
     response = client.post("/v1/get_rewards")
-    assert response.status_code == 404
-    assert response.json() == {"detail": "Rewards not available or expired"}
+    assert response.status_code == 503
 
     # Case 2: Rewards are set and not expired
     weight_syncer.hotkey_rewards = {"miner1": 0.95}
-    weight_syncer._last_update_time = time.time()
+    weight_syncer.last_update_time = time.time()
     response = client.post("/v1/get_rewards")
     assert response.status_code == 200
     assert response.json() == {"miner1": 0.95}
 
     # Case 3: Rewards are expired
-    weight_syncer._last_update_time = time.time() - WeightSyncer.REWARD_EXPIRATION_SEC - 1
+    weight_syncer.last_update_time = time.time() - WeightSyncer.REWARD_EXPIRATION_SEC - 1
     response = client.post("/v1/get_rewards")
-    assert response.status_code == 404
+    assert response.status_code == 503

@@ -11,7 +11,7 @@ import numpy as np
 from loguru import logger
 
 from apex.common.async_chain import AsyncChain
-from apex.common.constants import VALIDATOR_REFERENCE_LABEL, VALIDATOR_VERIFIED_HOTKEYS
+from apex.common.constants import VALIDATOR_REFERENCE_LABEL
 from apex.validator.weight_syncer import WeightSyncer
 
 # Scoring moving average in hours. Set to be: immunity_period - post_reg_threshold.
@@ -23,16 +23,14 @@ class MinerScorer:
     def __init__(
         self,
         chain: AsyncChain,
+        weight_syncer: WeightSyncer | None = None,
         interval: float = SCORE_INTERVAL_DEFAULT,
         debug: bool = False,
-        enable_weight_sync: bool = True,
     ):
         self.chain = chain
         self.interval = interval
         self._debug = debug
-        self._weight_syncer: WeightSyncer | None = None
-        if enable_weight_sync:
-            self._weight_syncer = WeightSyncer(chain=chain, verified_hotkeys=VALIDATOR_VERIFIED_HOTKEYS)
+        self._weight_syncer = weight_syncer
         self._debug_rewards_path = Path("debug_rewards.jsonl")
         self._running = True
 

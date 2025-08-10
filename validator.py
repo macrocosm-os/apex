@@ -22,8 +22,8 @@ async def read_args() -> argparse.Namespace:
     parser.add_argument(
         "-c",
         "--config",
-        # default="config/testnet.yaml",
-        default="config/mainnet.yaml",
+        default="config/testnet.yaml",
+        # default="config/mainnet.yaml",
         help="Config file path (e.g. config/mainnet.yaml).",
         type=Path,
     )
@@ -55,14 +55,14 @@ async def main() -> None:
     miner_sampler = MinerSampler(chain=chain, logger_db=logger_db, **config.miner_sampler.kwargs)
     logger.debug("Started miner sampler")
 
-    weight_syncer = WeightSyncer(**config.weight_syncer.kwargs)
+    weight_syncer = WeightSyncer(chain=chain, **config.weight_syncer.kwargs)
     await weight_syncer.start()
     logger.debug(
         f"Started weight synchronizer, receive enabled: {weight_syncer.receive_enabled}, "
         f"send enabled: {weight_syncer.send_enabled}, port: {weight_syncer.port}"
     )
 
-    miner_scorer = MinerScorer(chain=chain, **config.miner_scorer.kwargs)
+    miner_scorer = MinerScorer(chain=chain, weight_syncer=weight_syncer, **config.miner_scorer.kwargs)
     asyncio.create_task(miner_scorer.start_loop())
     logger.debug(f"Started miner scorer with interval={miner_scorer.interval}")
 
