@@ -6,7 +6,6 @@ from typing import Any
 
 from loguru import logger
 
-from apex.common.config import Config
 from apex.common.models import QueryTask
 from apex.services.deep_research.deep_research_base import DeepResearchBase
 from apex.services.llm.llm_base import LLMBase
@@ -19,20 +18,18 @@ from apex.validator.miner_sampler import MinerSampler
 class Pipeline:
     def __init__(
         self,
-        config: Config,
         websearch: WebSearchBase,
         miner_sampler: MinerSampler,
         llm: LLMBase,
         deep_research: DeepResearchBase,
         logger_apex: LoggerApex | None = None,
-        num_consumers: int = 10,
-        timeout_consumer: float = 60,
-        timeout_producer: float = 6,
+        num_consumers: int = 5,
+        timeout_consumer: float = 180,
+        timeout_producer: float = 36,
         queue_size: int = 10_000,
-        redundancy_rate: float = 0.1,  # The rate that references are generated in addition to generator steps
+        redundancy_rate: float = 0.05,  # The rate that references are generated in addition to generator steps
         reference_rate: float = 0.5,  # The rate that references are generated as opposed to generator steps
     ):
-        self.config = config
         self.websearch = websearch
         self.miner_registry = miner_sampler
         self.llm = llm
@@ -81,21 +78,27 @@ class Pipeline:
             logger.debug("Generating task query")
             query = await generate_query(llm=self.llm, websearch=self.websearch)
 
+        reference = None
+        tool_history: list[dict[str, str]] = []
         if random.random() < self.reference_rate:
+            try:
+                generator_results = None
+                ground_truth = 0
+                logger.debug(f"Generating task reference for query: {query[:20]}..")
+                reference, tool_history = await generate_reference(llm=self.deep_research, query=query)
+            except BaseException as exc:
+                logger.exception(f"Failed to generate reference: {exc}")
+
+        if reference is None:
             ground_truth = 1
             logger.debug(f"Querying generators with query: {query[:20]}..")
             generator_results = await self.miner_registry.query_generators(query=query)
             if random.random() < self.redundancy_rate:
-                logger.debug(f"Generating redundant task reference for query: {query[:20]}..")
-                reference, tool_history = await generate_reference(llm=self.deep_research, query=query)
-            else:
-                reference = None
-                tool_history = []
-        else:
-            generator_results = None
-            ground_truth = 0
-            logger.debug(f"Generating task reference for query: {query[:20]}..")
-            reference, tool_history = await generate_reference(llm=self.deep_research, query=query)
+                try:
+                    logger.debug(f"Generating redundant task reference for query: {query[:20]}..")
+                    reference, tool_history = await generate_reference(llm=self.deep_research, query=query)
+                except BaseException as exc:
+                    logger.warning(f"Failed to generate redundant reference: {exc}")
 
         discriminator_results = await self.miner_registry.query_discriminators(
             query=query, generator_results=generator_results, reference=reference, ground_truth=ground_truth

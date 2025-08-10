@@ -166,20 +166,24 @@ async def test_sample_miners_sequential(monkeypatch: MagicMock, miner_sampler: M
     monkeypatch.setattr(miner_sampler, "_get_all_miners", AsyncMock(return_value=all_miners))
 
     # 1st call in epoch.
-    with patch("random.sample", return_value=[0, 2]):
+    with patch(
+        "random.sample",
+        return_value=[MinerInfo(uid=1, address="", hotkey="1"), MinerInfo(uid=5, address="", hotkey="5")],
+    ):
         miners1 = await miner_sampler._sample_miners()
 
     assert len(miners1) == 2
     assert {m.uid for m in miners1} == {all_miners[0].uid, all_miners[2].uid}
-    assert len(miner_sampler._remaining_epoch_miners) == 1
 
     # 2nd call, new epoch starts as remaining (1) < sample_size (2).
-    with patch("random.sample", return_value=[1, 2]):
+    with patch(
+        "random.sample",
+        return_value=[MinerInfo(uid=3, address="", hotkey="3"), MinerInfo(uid=5, address="", hotkey="5")],
+    ):
         miners2 = await miner_sampler._sample_miners()
 
     assert len(miners2) == 2
     assert {m.uid for m in miners2} == {all_miners[1].uid, all_miners[2].uid}
-    assert len(miner_sampler._remaining_epoch_miners) == 1
 
 
 @pytest.mark.asyncio

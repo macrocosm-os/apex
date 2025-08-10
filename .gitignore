@@ -1,3 +1,4 @@
+*.log
 requirements.txt
 **/*.ipynb
 debug_rewards.jsonl

@@ -40,7 +40,7 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
 
 3. **Install the project and its development dependencies:**
    ```bash
-   uv venv && uv python install 3.11 && uv python pin 3.11 && uv venv --python=3.11 && uv pip install -e '.[dev]'
+   uv venv --python=3.11 && uv pip install '.[dev]'
    ```
 
 4. **Activate python environment:**

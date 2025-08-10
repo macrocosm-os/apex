@@ -4,6 +4,7 @@ from pathlib import Path
 
 from loguru import logger
 
+from apex import __version__
 from apex.common.async_chain import AsyncChain
 from apex.common.config import Config
 from apex.services.deep_research.deep_research_langchain import DeepResearchLangchain
@@ -39,21 +40,30 @@ async def read_args() -> argparse.Namespace:
 async def main() -> None:
     args = await read_args()
     config = Config.from_file(path=args.config)
+    logger.debug(f"Starting validator v{__version__} with config: {args.config}")
 
     chain = AsyncChain(**config.chain.kwargs)
     await chain.start()
+    logger.debug(
+        f"Connected to the chain netuid={chain.netuid} with coldkey '{chain.coldkey[:2]}***', "
+        f"hotkey '{chain.hotkey[:2]}***'"
+    )
 
     logger_db = LoggerDB(**config.logger_db.kwargs)
     asyncio.create_task(logger_db.start_loop())
+    logger.debug(f"Started DB at: '{logger_db.db_path}'")
 
     # logger_apex = LoggerApex(async_chain=chain)
 
     websearch = WebSearchTavily(**config.websearch.kwargs)
+    logger.debug("Started web search tool")
 
     miner_sampler = MinerSampler(chain=chain, logger_db=logger_db, **config.miner_sampler.kwargs)
+    logger.debug("Started miner sampler")
 
     miner_scorer = MinerScorer(chain=chain, **config.miner_scorer.kwargs)
     asyncio.create_task(miner_scorer.start_loop())
+    logger.debug(f"Started miner scorer with interval={miner_scorer.interval}")
 
     # Start autoupdate task if enabled
     autoupdate_task = None
@@ -62,11 +72,12 @@ async def main() -> None:
         autoupdate_task = asyncio.create_task(autoupdate_loop())
 
     llm = LLM(**config.llm.kwargs)
+    logger.debug("Started LLM provider")
 
     deep_research = DeepResearchLangchain(websearch=websearch, **config.deep_research.kwargs)
+    logger.debug("Started Deep Researcher")
 
     pipeline = Pipeline(
-        config=config,
         websearch=websearch,
         miner_sampler=miner_sampler,
         llm=llm,
@@ -75,6 +86,7 @@ async def main() -> None:
         **config.pipeline.kwargs,
     )
     try:
+        logger.debug("Starting pipeline loop...")
         await pipeline.start_loop()
     except KeyboardInterrupt:
         logger.warning("Keyboard interrupt caught, exiting validator")
