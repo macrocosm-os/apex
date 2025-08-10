@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
+import argparse
 import os
 import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 CHECK_INTERVAL = 15 * 60
 
@@ -21,7 +23,7 @@ def read_python_version() -> str | None:
         return None
 
 
-def start_proc() -> subprocess.Popen:
+def start_proc(config: Path) -> subprocess.Popen:
     py_ver = read_python_version()
     if py_ver:
         subprocess.run(["uv", "venv", "--python", py_ver], check=True)
@@ -32,7 +34,7 @@ def start_proc() -> subprocess.Popen:
     subprocess.run(["uv", "pip", "install", ".[dev]"], check=True)
 
     # Run validator.
-    return subprocess.Popen([venv_python(), "validator.py"])
+    return subprocess.Popen([venv_python(), "validator.py", "-c", str(config)])
 
 
 def stop_proc(process: subprocess.Popen) -> None:
@@ -66,8 +68,23 @@ def git_pull_ff_only() -> None:
         print("Staying on the current version.", file=sys.stderr)
 
 
+def read_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Apex validator")
+    parser.add_argument(
+        "-c",
+        "--config",
+        # default="config/testnet.yaml",
+        default="config/mainnet.yaml",
+        help="Config file path (e.g. config/mainnet.yaml).",
+        type=Path,
+    )
+    args = parser.parse_args()
+    return args
+
+
 def main() -> None:
-    proc = start_proc()
+    args = read_args()
+    proc = start_proc(config=args.config)
 
     def handle_sigint(sig, frame):
         stop_proc(proc)
@@ -87,7 +104,7 @@ def main() -> None:
             print("Updates detected, restaring process")
             stop_proc(proc)
             git_pull_ff_only()
-            proc = start_proc()
+            proc = start_proc(config=args.config)
 
 
 if __name__ == "__main__":

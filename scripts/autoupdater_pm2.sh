@@ -4,7 +4,7 @@ set -euo pipefail
 APP_NAME="sn1"
 PY_VERSION_FILE=".python-version"
 UV_INSTALL_URL="https://astral.sh/uv/install.sh"
-CONFIG="configs/mainnet.yaml"
+CONFIG="config/mainnet.yaml"
 
 # Ensure common user bin dirs are in PATH.
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$HOME/bin:$HOME/.npm-global/bin:$PATH"
@@ -70,8 +70,7 @@ uv pip install '.[dev]'
 
 # 5) Start with pm2
 pm2 delete "$APP_NAME" >/dev/null 2>&1 || true
-pm2 start ".venv/bin/python" --name "$APP_NAME" -- \
-  scripts/autoupdater.py -c "$CONFIG"
+pm2 start ".venv/bin/python" --name "$APP_NAME" -- scripts/autoupdater.py -c "$CONFIG"
 
 echo "[done] pm2 process '$APP_NAME' started."
-pm2 status "$APP_NAME"
+pm2 logs "$APP_NAME"

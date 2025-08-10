@@ -10,7 +10,7 @@ import autoupdater  # isort: skip
 
 
 def test_venv_python(mocker):
-    mocker.patch("os.path.join", return_value=".venv/bin/python")
+    mocker.patch("autoupdater.os.path.join", return_value=".venv/bin/python")
     assert autoupdater.venv_python() == ".venv/bin/python"
     autoupdater.os.path.join.assert_called_once_with(".venv", "bin", "python")
 
@@ -33,7 +33,7 @@ def test_start_proc_with_version(mocker):
     mock_popen = mocker.patch("subprocess.Popen", return_value=mocker.Mock())
     mocker.patch("autoupdater.venv_python", return_value="mock_python")
 
-    proc = autoupdater.start_proc()
+    proc = autoupdater.start_proc(config="mock.yaml")
     autoupdater.read_python_version.assert_called_once()
     mock_run.assert_has_calls(
         [
@@ -41,7 +41,7 @@ def test_start_proc_with_version(mocker):
             mock.call(["uv", "pip", "install", ".[dev]"], check=True),
         ]
     )
-    mock_popen.assert_called_once_with(["mock_python", "validator.py"])
+    mock_popen.assert_called_once_with(["mock_python", "validator.py", "-c", "mock.yaml"])
     assert proc is not None
 
 
@@ -51,7 +51,7 @@ def test_start_proc_without_version(mocker):
     mock_popen = mocker.patch("subprocess.Popen", return_value=mocker.Mock())
     mocker.patch("autoupdater.venv_python", return_value="mock_python")
 
-    proc = autoupdater.start_proc()
+    proc = autoupdater.start_proc(config="mock.yaml")
     autoupdater.read_python_version.assert_called_once()
     mock_run.assert_has_calls(
         [
@@ -59,7 +59,7 @@ def test_start_proc_without_version(mocker):
             mock.call(["uv", "pip", "install", ".[dev]"], check=True),
         ]
     )
-    mock_popen.assert_called_once_with(["mock_python", "validator.py"])
+    mock_popen.assert_called_once_with(["mock_python", "validator.py", "-c", "mock.yaml"])
     assert proc is not None
 
 
@@ -136,49 +136,68 @@ def test_git_pull_ff_only_conflict(mocker):
 
 
 def test_main_loop_with_update(mocker):
+    # start_proc returns the same Mock proc; we drive its poll() via side_effect
     mock_start_proc = mocker.patch("autoupdater.start_proc", return_value=mocker.Mock())
-    mock_start_proc.return_value.returncode = 0  # Ensure returncode is 0 for sys.exit(0)
+    mock_start_proc.return_value.returncode = 0
     mock_stop_proc = mocker.patch("autoupdater.stop_proc")
-    mock_remote_updates = mocker.patch("autoupdater.remote_has_updates", side_effect=[False, True, False])
+    mock_remote_updates = mocker.patch("autoupdater.remote_has_updates", side_effect=[False, True])
     mock_git_pull = mocker.patch("autoupdater.git_pull_ff_only")
-    mock_sleep = mocker.patch(
-        "time.sleep", side_effect=[None, None, Exception("StopLoop")]
-    )  # Allow 2 calls to remote_has_updates
-    mock_sys_exit = mocker.patch("sys.exit")
+    mock_sleep = mocker.patch("time.sleep", return_value=None)
 
-    mock_start_proc.return_value.poll.side_effect = [None, 0]  # proc.poll() returns 0 on second iteration
+    def _raise(code=0):
+        raise SystemExit(code)
 
-    with pytest.raises(Exception) as cm:
+    mock_sys_exit = mocker.patch("sys.exit", side_effect=_raise)
+
+    mock_args = mocker.Mock()
+    mock_args.config = "mock.yaml"
+    mocker.patch("autoupdater.read_args", return_value=mock_args)
+
+    # First loop: running (None), no update
+    # Second loop: still running (None), update happens -> restart
+    # Third loop: process seen as exited (0) -> sys.exit(0)
+    mock_start_proc.return_value.poll.side_effect = [None, None, 0]
+
+    with pytest.raises(SystemExit) as pytest_wrapped_e:
         autoupdater.main()
-    assert str(cm.value) == "StopLoop"
+    assert pytest_wrapped_e.type is SystemExit
+    assert pytest_wrapped_e.value.code == 0
 
-    assert mock_sleep.call_count == 3
-    mock_remote_updates.assert_has_calls([mock.call(), mock.call()])
+    assert mock_sleep.call_count == 3  # before each iteration, including after restart
+    assert mock_remote_updates.call_count == 2
     mock_stop_proc.assert_called_once_with(mock_start_proc.return_value)
     mock_git_pull.assert_called_once()
-    mock_start_proc.assert_called_with()  # Called initially and after update
+    mock_start_proc.assert_called_with(config=mock.ANY)
     mock_sys_exit.assert_called_once_with(0)
 
 
 def test_main_loop_no_update(mocker):
     mock_start_proc = mocker.patch("autoupdater.start_proc", return_value=mocker.Mock())
-    mock_start_proc.return_value.returncode = 0  # Ensure returncode is 0 for sys.exit(0)
+    mock_start_proc.return_value.returncode = 0
     mock_stop_proc = mocker.patch("autoupdater.stop_proc")
     mock_remote_updates = mocker.patch("autoupdater.remote_has_updates", return_value=False)
     mock_git_pull = mocker.patch("autoupdater.git_pull_ff_only")
-    mock_sleep = mocker.patch(
-        "time.sleep", side_effect=[None, None, Exception("StopLoop")]
-    )  # Allow 2 calls to remote_has_updates
-    mock_sys_exit = mocker.patch("sys.exit")
+    mock_sleep = mocker.patch("time.sleep", return_value=None)
 
-    mock_start_proc.return_value.poll.side_effect = [None, 0]  # proc.poll() returns 0 on second iteration
+    def _raise(code=0):
+        raise SystemExit(code)
 
-    with pytest.raises(Exception) as cm:
+    mock_sys_exit = mocker.patch("sys.exit", side_effect=_raise)
+
+    mock_args = mocker.Mock()
+    mock_args.config = "mock.yaml"
+    mocker.patch("autoupdater.read_args", return_value=mock_args)
+
+    # First loop running; second loop exits -> sys.exit(0) before checking for updates
+    mock_start_proc.return_value.poll.side_effect = [None, 0]
+
+    with pytest.raises(SystemExit) as pytest_wrapped_e:
         autoupdater.main()
-    assert str(cm.value) == "StopLoop"
+    assert pytest_wrapped_e.type is SystemExit
+    assert pytest_wrapped_e.value.code == 0
 
-    assert mock_sleep.call_count == 3
-    assert mock_remote_updates.call_count == 2
+    assert mock_sleep.call_count == 2
+    assert mock_remote_updates.call_count == 1  # second loop exits before calling this
     mock_stop_proc.assert_not_called()
     mock_git_pull.assert_not_called()
     mock_sys_exit.assert_called_once_with(0)
