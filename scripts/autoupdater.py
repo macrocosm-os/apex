@@ -7,8 +7,7 @@ import sys
 import time
 from pathlib import Path
 
-# CHECK_INTERVAL = 15 * 60
-CHECK_INTERVAL = 15
+CHECK_INTERVAL = 15 * 60
 
 
 def venv_python() -> str:
