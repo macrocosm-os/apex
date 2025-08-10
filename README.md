@@ -44,12 +44,12 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
    python scripts/autoupdater.py -c config/mainnet.yaml
    ```
 
-3a. **[Alternative #1] Run validator with pm2 and auto-updater:**
+4. **[Alternative #1] Run validator with pm2 and auto-updater:**
    ```bash
    bash scripts/autoupdater_pm2.sh
    ```
 
-3b. **[Alternative #2] Install dependencies and run validator without auto-updater:**
+5. **[Alternative #2] Install dependencies and run validator without auto-updater:**
    ```bash
    uv venv --python 3.11 && uv pip install '.[dev]' && python validator.py -c config/mainnet.yaml
    ```
