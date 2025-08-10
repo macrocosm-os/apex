@@ -5,8 +5,6 @@ from math import ceil
 from typing import Annotated, Any
 from uuid import uuid4
 
-# from fastapi import HTTPException, Request
-# from loguru import logger
 from fastapi import HTTPException, Request
 from loguru import logger
 from substrateinterface import Keypair

@@ -30,9 +30,9 @@ deep_research:
 
 weight_syncer:
   kwargs:
-    # Change port if needed.
+    # Change the port if necessary.
     port: 8001
-    # When enabled performs weight synchronization across validators in order to improve vTrust.
+    # When enabled, performs weight synchronization across validators, drastically improves vTrust.
     enable_receive: True
-    # When enabled, other validators can request your rewards for their weight averaging.
+    # When enabled, allows other validators to request your rewards, slightly improves vTrust.
     enable_send: True
