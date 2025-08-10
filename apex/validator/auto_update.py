@@ -1,10 +1,10 @@
 import asyncio
 import subprocess
 import sys
-import time
-from loguru import logger
 from pathlib import Path
 from shlex import split
+
+from loguru import logger
 
 ROOT_DIR = Path(__file__).parent.parent
 
@@ -23,8 +23,7 @@ def get_version() -> str:
 
 
 def pull_latest_version() -> None:
-    """
-    Pull the latest version from git.
+    """Pull the latest version from git.
     This uses `git pull --rebase`, so if any changes were made to the local repository,
     this will try to apply them on top of origin's changes. This is intentional, as we
     don't want to overwrite any local changes. However, if there are any conflicts,
@@ -40,12 +39,10 @@ def pull_latest_version() -> None:
 
 
 def upgrade_packages() -> None:
-    """
-    Upgrade python packages by running `pip install --upgrade -r requirements.txt`.
+    """Upgrade python packages by running `pip install --upgrade -r requirements.txt`.
     Notice: this won't work if some package in `requirements.txt` is downgraded.
     Ignored as this is unlikely to happen.
     """
-
     logger.info("Upgrading packages")
     try:
         subprocess.run(
@@ -58,8 +55,7 @@ def upgrade_packages() -> None:
 
 
 async def autoupdate_loop() -> None:
-    """
-    Async version of autoupdate that runs alongside the validator.
+    """Async version of autoupdate that runs alongside the validator.
     Checks for updates every hour and applies them if available.
     """
     current_version = latest_version = get_version()

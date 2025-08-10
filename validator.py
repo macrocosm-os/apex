@@ -9,11 +9,11 @@ from apex.common.config import Config
 from apex.services.deep_research.deep_research_langchain import DeepResearchLangchain
 from apex.services.llm.llm import LLM
 from apex.services.websearch.websearch_tavily import WebSearchTavily
+from apex.validator.auto_update import autoupdate_loop
 from apex.validator.logger_db import LoggerDB
 from apex.validator.miner_sampler import MinerSampler
 from apex.validator.miner_scorer import MinerScorer
 from apex.validator.pipeline import Pipeline
-from apex.validator.auto_update import autoupdate_loop
 
 
 async def read_args() -> argparse.Namespace:
