@@ -13,6 +13,7 @@ class DummyMetagraph:
     def __init__(self, hotkeys: Iterable[str] | None = None, uids: Iterable[int] | None = None) -> None:
         self.hotkeys = list(hotkeys or ())
         self.uids = list(uids or ())
+        self.n = 2
 
 
 class DummySubtensor:
