@@ -150,13 +150,16 @@ class WeightSyncer:
 
         results = await asyncio.gather(*validator_rewards_tasks.values(), return_exceptions=True)
 
+        all_miner_hotkeys: set[str] = set()
         validator_rewards: dict[int, dict[str, float]] = {}
         for uid, result in zip(validator_rewards_tasks, results, strict=True):
             if isinstance(result, BaseException) or not result:
                 logger.warning(f"Cannot receive rewards from uid {uid}: {result}")
                 continue
             validator_rewards[uid] = result
+            all_miner_hotkeys.update(result)
             logger.debug(f"Received rewards from validator {uid} with stake {metagraph.stake[uid]}")
+        logger.debug(f"Total amount of unique hotkeys from all validators: {len(all_miner_hotkeys)}")
 
         all_validator_uids = [own_uid] + list(validator_rewards.keys())
         total_stake = sum(metagraph.stake[uid] for uid in all_validator_uids)
@@ -168,7 +171,7 @@ class WeightSyncer:
         own_stake = metagraph.stake[own_uid]
 
         weighted_rewards: dict[str, float] = {}
-        for miner_hkey in hotkey_rewards:
+        for miner_hkey in all_miner_hotkeys:
             own_reward = hotkey_rewards.get(miner_hkey, 0.0)
             total_weighted_reward = own_reward * own_stake
 
