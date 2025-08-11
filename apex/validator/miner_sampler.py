@@ -11,7 +11,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from apex.common.async_chain import AsyncChain
-from apex.common.constants import VALIDATOR_REFERENCE_LABEL
+from apex.common.constants import TIMEOUT, VALIDATOR_REFERENCE_LABEL
 from apex.common.epistula import generate_header
 from apex.common.models import MinerDiscriminatorResults, MinerGeneratorResults
 from apex.common.utils import async_cache
@@ -132,9 +132,16 @@ class MinerSampler:
         )
         return miners_sample
 
-    async def query_miners(self, body: dict[str, Any], endpoint: str, hotkey: str | None = None) -> str:
+    async def query_miners(
+        self,
+        body: dict[str, Any],
+        endpoint: str,
+        hotkey: str | None = None,
+        timeout: float = TIMEOUT
+    ) -> str:
         """Query the miners for the query."""
         try:
+            client_timeout = aiohttp.ClientTimeout(total=timeout)
             async with aiohttp.ClientSession() as session:
                 headers = await generate_header(
                     self._chain.wallet.hotkey, body=json.dumps(body).encode("utf-8"), signed_for=hotkey
@@ -143,7 +150,9 @@ class MinerSampler:
                     f"{endpoint}/v1/chat/completions",
                     headers=headers,
                     json=body,
+                    timeout=client_timeout,
                 ) as resp:
+                    resp.raise_for_status()
                     result = await resp.text()
         except BaseException:
             # Error during miner query, return empty string.

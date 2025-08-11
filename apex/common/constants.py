@@ -1,3 +1,4 @@
+TIMEOUT: float = 20
 MAX_TOKENS: int = 2048
 TEMPERATURE: float = 0.1
 WEBPAGE_MAXSIZE: int = 500
