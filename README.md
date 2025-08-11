@@ -24,7 +24,7 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
 
 ---
 
-## Installation
+## Run Validator
 
 1. **Clone the repository:**
    ```bash
@@ -32,33 +32,26 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
    cd apex
    ```
 
-2. **Install `uv`:**
-   Follow the instructions at [https://github.com/astral-sh/uv](https://github.com/astral-sh/uv) to install `uv`. For example:
-   ```bash
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   ```
 
-3. **Install the project and its development dependencies:**
-   ```bash
-   uv venv && uv python install 3.11 && uv python pin 3.11 && uv venv --python=3.11 && uv pip install -e '.[dev]'
-   ```
-
-4. **Activate python environment:**
-  ```bash
-  . .venv/bin/activate
-  ```
-
-## Run Mainnet Validator
-
-1. Prepare config file:
+2. **Prepare config file:**
    ```bash
    cp config/mainnet.yaml.example config/mainnet.yaml
    # Fill in the required values in config/mainnet.yaml
    ```
 
-2. **Run the validator:**
+3. **[Recommended] Run validator with auto-updater:**
    ```bash
-   python validator.py -c config/mainnet.yaml
+   python scripts/autoupdater.py -c config/mainnet.yaml
+   ```
+
+4. **[Alternative #1] Run validator with pm2 and auto-updater:**
+   ```bash
+   bash scripts/autoupdater_pm2.sh
+   ```
+
+5. **[Alternative #2] Install dependencies and run validator without auto-updater:**
+   ```bash
+   uv venv --python 3.11 && uv pip install '.[dev]' && python validator.py -c config/mainnet.yaml
    ```
 
 ## Run Testnet Validator
@@ -69,9 +62,9 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
    # Fill in the required values in config/testnet.yaml
    ```
 
-2. **Run the validator:**
+2. Install dependencies and run validator:
    ```bash
-   python validator.py -c config/testnet.yaml
+   uv venv --python 3.11 && uv pip install '.[dev]' && python validator.py -c config/testnet.yaml
    ```
 
 ## Base Miner (for showcase purposes only)
