@@ -44,7 +44,7 @@ class WeightSyncer:
         self.current_hotkey = self.wallet.hotkey.ss58_address
         self.receive_enabled = enable_receive
         self.send_enabled = enable_send
-        self.port = port
+        self.port = int(port)
         self.server: uvicorn.Server | None = None
         self.server_task: asyncio.Task[None] | None = None
         self.hotkey_rewards: dict[str, float] | None = None
