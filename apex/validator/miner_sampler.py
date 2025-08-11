@@ -133,11 +133,7 @@ class MinerSampler:
         return miners_sample
 
     async def query_miners(
-        self,
-        body: dict[str, Any],
-        endpoint: str,
-        hotkey: str | None = None,
-        timeout: float = TIMEOUT
+        self, body: dict[str, Any], endpoint: str, hotkey: str | None = None, timeout: float = TIMEOUT
     ) -> str:
         """Query the miners for the query."""
         try:

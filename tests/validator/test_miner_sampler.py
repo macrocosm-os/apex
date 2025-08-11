@@ -3,6 +3,7 @@ from collections.abc import Generator
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import aiohttp
 import pytest
 from pydantic import BaseModel
 from pytest import MonkeyPatch
@@ -213,12 +214,15 @@ async def test_query_miners() -> None:
         patch("time.time", return_value=12345),
     ):
         mock_generate_header.return_value = {"some": "header"}
-        result = await sampler.query_miners(body, endpoint)
+        timeout = 20
+        result = await sampler.query_miners(body, endpoint, timeout=timeout)
 
         mock_client_session.assert_called_once()
         expected_body = {"test": "data"}
+
+        client_timeout = aiohttp.ClientTimeout(total=timeout)
         mock_session.post.assert_called_with(
-            endpoint + "/v1/chat/completions", headers={"some": "header"}, json=expected_body
+            endpoint + "/v1/chat/completions", headers={"some": "header"}, json=expected_body, timeout=client_timeout
         )
         mock_generate_header.assert_called_with(
             mock_chain.wallet.hotkey, body=json.dumps(body).encode("utf-8"), signed_for=None
