@@ -30,7 +30,7 @@ class WeightSyncer:
     def __init__(
         self,
         chain: AsyncChain,
-        min_alpha_stake: float = 100_000,
+        min_alpha_stake: float = 15_000,
         verified_hotkeys: dict[str, str | None] | None = None,
         enable_receive: bool = True,
         enable_send: bool = True,
