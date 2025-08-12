@@ -37,7 +37,7 @@ def test_start_proc_with_version(mocker):
     autoupdater.read_python_version.assert_called_once()
     mock_run.assert_has_calls(
         [
-            mock.call(["uv", "venv", "--python", "3.11.9"], check=True),
+            mock.call(["uv", "venv", "--python", "3.11.9", "--clear"], check=True),
             mock.call(["uv", "pip", "install", ".[dev]"], check=True),
         ]
     )
@@ -55,7 +55,7 @@ def test_start_proc_without_version(mocker):
     autoupdater.read_python_version.assert_called_once()
     mock_run.assert_has_calls(
         [
-            mock.call(["uv", "venv"], check=True),
+            mock.call(["uv", "venv", "--clear"], check=True),
             mock.call(["uv", "pip", "install", ".[dev]"], check=True),
         ]
     )
