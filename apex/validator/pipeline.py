@@ -100,6 +100,7 @@ class Pipeline:
                 except BaseException as exc:
                     logger.warning(f"Failed to generate redundant reference: {exc}")
 
+        logger.debug(f"Querying discriminators with reference GT: {ground_truth}, query: {query[:20]}..")
         discriminator_results = await self.miner_registry.query_discriminators(
             query=query, generator_results=generator_results, reference=reference, ground_truth=ground_truth
         )

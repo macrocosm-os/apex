@@ -114,7 +114,7 @@ class AsyncChain:
         try:
             metagraph = await self.metagraph()
             subtensor = await self.subtensor()
-            weights: dict[int, float] = {}
+            weights: dict[int, float] = dict.fromkeys(range(int(metagraph.n)), 0.0)
 
             for hotkey, reward in rewards.items():
                 try:
