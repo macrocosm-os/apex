@@ -163,7 +163,6 @@ class MinerSampler:
         hotkeys: list[str] = []
         tasks: list[Coroutine[str, str, Any]] = []
 
-        logger.debug(f"Querying {len(miner_information)} miner generators")
         for miner_info in miner_information:
             hotkeys.append(miner_info.hotkey)
             tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))

@@ -78,11 +78,12 @@ async def test_compute_weighted_rewards_happy_path(weight_syncer, mock_metagraph
         # self (1000) + validator1 (2000) = 3000 total stake
         # miner1: (0.9 * 1000 + 0.85 * 2000) / 3000 = 0.8666
         # miner2: (0.1 * 1000 + 0.82 * 2000) / 3000 = 0.58
+        # miner3: (0.0 * 1000 + 0.70 * 2000) / 3000 = 0.4666
         assert mock_receive.call_count == 1
         assert mock_receive.call_args.args[1] == 1  # Called for UID 1
         assert pytest.approx(weighted_rewards["miner1"], 0.001) == 0.8666
         assert pytest.approx(weighted_rewards["miner2"], 0.001) == 0.58
-        assert "miner3" not in weighted_rewards
+        assert pytest.approx(weighted_rewards["miner3"], 0.001) == 0.4666
 
 
 @pytest.mark.asyncio

@@ -71,6 +71,7 @@ class LoggerDB:
                 # flush every 1 000 rows or on demand
                 if self._queue.empty() or db.total_changes % 1000 == 0:
                     await db.commit()
+                    await db.execute("PRAGMA wal_checkpoint(FULL);")
                 self._queue.task_done()
 
     async def log(self, row: MinerDiscriminatorResults) -> None:

@@ -125,7 +125,10 @@ class MinerScorer:
 
             if hkey_agg_rewards:
                 rewards_array = np.array(list(hkey_agg_rewards.values()))
-                logger.debug(f"Setting weights, reward mean={rewards_array.mean():.4f} min={rewards_array.min():.4f}")
+                logger.debug(
+                    f"Setting weights to {len(hkey_agg_rewards)} hotkeys; "
+                    f"reward mean={rewards_array.mean():.4f} min={rewards_array.min():.4f}"
+                )
             else:
                 logger.warning(f"Setting empty rewards: {hkey_agg_rewards}")
 
