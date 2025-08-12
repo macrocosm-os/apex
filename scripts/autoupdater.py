@@ -26,9 +26,9 @@ def read_python_version() -> str | None:
 def start_proc(config: Path) -> subprocess.Popen:
     py_ver = read_python_version()
     if py_ver:
-        subprocess.run(["uv", "venv", "--python", py_ver], check=True)
+        subprocess.run(["uv", "venv", "--python", py_ver, "--clear"], check=True)
     else:
-        subprocess.run(["uv", "venv"], check=True)
+        subprocess.run(["uv", "venv", "--clear"], check=True)
 
     # Install project in dev mode into the venv.
     subprocess.run(["uv", "pip", "install", ".[dev]"], check=True)
