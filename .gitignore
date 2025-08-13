@@ -1,6 +1,7 @@
 *.log
 requirements.txt
 **/*.ipynb
+debug/
 debug_rewards.jsonl
 results.db*
 sn13_db.db*

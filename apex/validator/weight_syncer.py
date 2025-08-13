@@ -150,7 +150,7 @@ class WeightSyncer:
 
         results = await asyncio.gather(*validator_rewards_tasks.values(), return_exceptions=True)
 
-        all_miner_hotkeys: set[str] = set()
+        all_miner_hotkeys: set[str] = set(hotkey_rewards)
         validator_rewards: dict[int, dict[str, float]] = {}
         for uid, result in zip(validator_rewards_tasks, results, strict=True):
             if isinstance(result, BaseException) or not result:
