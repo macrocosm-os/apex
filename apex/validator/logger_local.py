@@ -5,7 +5,7 @@ from pathlib import Path
 from apex.common.models import MinerDiscriminatorResults, MinerGeneratorResults
 
 
-class LoggerLocalDebug:
+class LoggerLocal:
     def __init__(self, filepath: str = "debug/logs.jsonl"):
         self._debug_file_path = Path(filepath)
         self._debug_file_path.parent.mkdir(exist_ok=True)

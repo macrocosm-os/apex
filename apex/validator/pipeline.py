@@ -12,7 +12,7 @@ from apex.services.llm.llm_base import LLMBase
 from apex.services.websearch.websearch_base import WebSearchBase
 from apex.validator import generate_query, generate_reference
 from apex.validator.logger_apex import LoggerApex
-from apex.validator.logger_local import LoggerLocalDebug
+from apex.validator.logger_local import LoggerLocal
 from apex.validator.miner_sampler import MinerSampler
 
 
@@ -46,7 +46,7 @@ class Pipeline:
         self.redundancy_rate = redundancy_rate
         self.reference_rate = reference_rate
         self._debug = debug
-        self._logger_local = LoggerLocalDebug()
+        self._logger_local = LoggerLocal()
 
     async def start_loop(self, initial_queries: Sequence[str] | None = None) -> None:
         """Kick off producer -> consumer workers. Runs in perpetuity, generating unique IDs for each task."""
