@@ -29,6 +29,7 @@ class LoggerLocal:
             "generator_hotkeys": generator_results.generator_hotkeys if generator_results else [],
             "discriminator_results": discriminator_results.discriminator_results if discriminator_results else [],
             "discriminator_scores": discriminator_results.discriminator_scores if discriminator_results else [],
+            "discriminator_hotkeys": discriminator_results.discriminator_hotkeys if discriminator_results else [],
             "generator_hotkey": discriminator_results.generator_hotkey if discriminator_results else "",
         }
 
