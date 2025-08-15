@@ -106,6 +106,7 @@ class MinerScorer:
             logger.debug(f"Total hotkeys to score: {len(hkey_agg_rewards)}")
 
             # 3. Delete rows that are older than the time window.
+            logger.debug("Cleaning up expired miner's history")
             await conn.execute(
                 "DELETE FROM discriminator_results WHERE timestamp < ?",
                 (cutoff_timestamp,),
@@ -121,6 +122,7 @@ class MinerScorer:
                     fh.write(f"{record_str}\n")
 
             if self._weight_syncer is not None:
+                logger.debug("Attempting to perform weight synchronization")
                 try:
                     hkey_agg_rewards = await self._weight_syncer.compute_weighted_rewards(hkey_agg_rewards)
                     logger.debug(f"Total hotkeys to score after weight sync: {len(hkey_agg_rewards)}")
