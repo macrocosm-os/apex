@@ -84,6 +84,7 @@ class LoggerDB:
                 commit_changes = (db.total_changes - last_changes) >= self._COMMIT_CHANGES
                 commit_timer = time.monotonic() - last_commit >= self._COMMIT_FREQ
                 if commit_changes or commit_timer:
+                    logger.debug(f"Commiting scores to the {self.db_path}")
                     await db.commit()
                     last_commit = time.monotonic()
                     last_changes = db.total_changes
