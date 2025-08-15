@@ -45,7 +45,7 @@ class LoggerDB:
                     discriminator_hotkeys TEXT,  -- JSON array of strings
                     discriminator_results TEXT,  -- JSON array of strings
                     discriminator_scores TEXT,  -- JSON array of floats
-                    timestamps INTEGER,  -- Unix timestamp when row was added
+                    timestamp INTEGER,  -- Unix timestamp when row was added
                     processed INTEGER DEFAULT 0,
                     PRIMARY KEY (query, generator_hotkey)
                 );
@@ -96,7 +96,7 @@ class LoggerDB:
                 """
                 INSERT INTO discriminator_results (
                     query, generator_hotkey, generator_result, generator_score,
-                    discriminator_hotkeys, discriminator_results, discriminator_scores, timestamps
+                    discriminator_hotkeys, discriminator_results, discriminator_scores, timestamp
                 ) VALUES (?,?,?,?,?,?,?,?)
                 ON CONFLICT(query, generator_hotkey) DO UPDATE SET
                     generator_result = excluded.generator_result,
@@ -104,7 +104,7 @@ class LoggerDB:
                     discriminator_hotkeys = excluded.discriminator_hotkeys,
                     discriminator_results = excluded.discriminator_results,
                     discriminator_scores = excluded.discriminator_scores,
-                    timestamps = excluded.timestamps
+                    timestamp = excluded.timestamp
                 """,
                 (
                     row.query,

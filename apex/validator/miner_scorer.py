@@ -83,7 +83,7 @@ class MinerScorer:
                 return False
 
             # 2. Iterate over the in-memory list so that the caller can process freely.
-            logger.debug("Pre-processing miner's rewards")
+            logger.debug(f"Pre-processing miner's rewards, fetched {rows} rows")
             hkey_agg_rewards: dict[str, float] = {}
             for generator_hotkey, generator_score, disc_hotkeys_json, disc_scores_json in rows:
                 # Deserialize JSON columns.
@@ -100,9 +100,9 @@ class MinerScorer:
                 # Update the aggregate rewards.
                 for hotkey, reward in reward_dict.items():
                     hkey_agg_rewards[hotkey] = float(hkey_agg_rewards.get(hotkey, 0.0)) + float(reward)
+            logger.debug(f"Total hotkeys to score: {len(hkey_agg_rewards)}")
 
             # 3. Delete rows that are older than the time window.
-            logger.debug("Cleaning up miner's outdated history")
             await conn.execute(
                 "DELETE FROM discriminator_results WHERE timestamp < ?",
                 (cutoff_timestamp,),
@@ -120,6 +120,7 @@ class MinerScorer:
             if self._weight_syncer is not None:
                 try:
                     hkey_agg_rewards = await self._weight_syncer.compute_weighted_rewards(hkey_agg_rewards)
+                    logger.debug(f"Total hotkeys to score after weight sync: {len(hkey_agg_rewards)}")
                 except BaseException as exc:
                     logger.error(f"Failed to compute weighted average rewards over the network, skipping: {exc}")
 
