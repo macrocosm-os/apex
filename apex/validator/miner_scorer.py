@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -37,13 +37,13 @@ class MinerScorer:
     async def start_loop(self) -> None:
         self._running = True
         while self._running:
-            await asyncio.sleep(self.interval)
             logger.debug("Attempting to set weights")
             success = await self.set_scores()
             if success:
                 logger.info("Successfully set weights")
             else:
                 logger.error("Failed to set weights")
+            await asyncio.sleep(self.interval)
 
     async def shutdown(self) -> None:
         self._running = False
@@ -52,8 +52,36 @@ class MinerScorer:
     @asynccontextmanager
     async def _db() -> AsyncGenerator[aiosqlite.Connection, None]:
         async with aiosqlite.connect("results.db") as conn:
-            await conn.execute("PRAGMA foreign_keys = ON")
+            await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA synchronous=NORMAL")
+            await conn.execute("PRAGMA busy_timeout=15000")
+            await conn.execute("PRAGMA foreign_keys=ON")
             yield conn
+
+    async def _delete_expired(self, conn: aiosqlite.Connection, cutoff_ts: int, batch_size: int = 5000) -> int:
+        total = 0
+        while True:
+            cur = await conn.execute(
+                """
+                DELETE FROM discriminator_results
+                WHERE rowid IN (
+                    SELECT rowid FROM discriminator_results
+                    WHERE timestamp < ?
+                    LIMIT ?
+                )
+                """,
+                (cutoff_ts, batch_size),
+            )
+            n = cur.rowcount if cur.rowcount is not None else 0
+            total += max(n, 0)
+
+            # Commit each batch to release the write lock early.
+            await conn.commit()
+            logger.debug(f"Deleted batch: {n} (total deleeted: {total})")
+
+            if n < batch_size:
+                break
+        return total
 
     async def set_scores(self) -> bool:
         """Set weights based on the current miner scores.
@@ -77,15 +105,16 @@ class MinerScorer:
                     """,
                     (cutoff_timestamp,),
                 ) as cursor:
-                    rows = await cursor.fetchall()
+                    rows: Iterable[aiosqlite.Row] = await cursor.fetchall()
             except BaseException as exc:
                 logger.exception(f"Exception during DB fetch: {exc}")
                 return False
 
             # 2. Iterate over the in-memory list so that the caller can process freely.
-            logger.debug("Pre-processing miner's rewards")
             hkey_agg_rewards: dict[str, float] = {}
+            rows_count = 0
             for generator_hotkey, generator_score, disc_hotkeys_json, disc_scores_json in rows:
+                rows_count += 1
                 # Deserialize JSON columns.
                 disc_hotkeys = json.loads(disc_hotkeys_json)
                 disc_scores = json.loads(disc_scores_json)
@@ -101,12 +130,16 @@ class MinerScorer:
                 for hotkey, reward in reward_dict.items():
                     hkey_agg_rewards[hotkey] = float(hkey_agg_rewards.get(hotkey, 0.0)) + float(reward)
 
+            logger.debug(f"Fetched {rows_count} rows for scoring")
+            logger.debug(f"Total hotkeys to score: {len(hkey_agg_rewards)}")
+
             # 3. Delete rows that are older than the time window.
-            logger.debug("Cleaning up miner's outdated history")
-            await conn.execute(
-                "DELETE FROM discriminator_results WHERE timestamp < ?",
-                (cutoff_timestamp,),
-            )
+            logger.debug("Cleaning up expired miner's history")
+            try:
+                deleted_total = await asyncio.wait_for(self._delete_expired(conn, cutoff_timestamp), timeout=15)
+                logger.debug(f"Expired rows cleanup done: {deleted_total} rows")
+            except TimeoutError:
+                logger.warning("Timed out deleting expired rows; will retry next loop")
 
             if self._debug:
                 record: dict[str, str | dict[str, float]] = {
@@ -118,13 +151,18 @@ class MinerScorer:
                     fh.write(f"{record_str}\n")
 
             if self._weight_syncer is not None:
+                logger.debug("Attempting to perform weight synchronization")
                 try:
                     hkey_agg_rewards = await self._weight_syncer.compute_weighted_rewards(hkey_agg_rewards)
+                    logger.debug(f"Total hotkeys to score after weight sync: {len(hkey_agg_rewards)}")
                 except BaseException as exc:
                     logger.error(f"Failed to compute weighted average rewards over the network, skipping: {exc}")
 
             if hkey_agg_rewards:
                 rewards_array = np.array(list(hkey_agg_rewards.values()))
+                if rewards_array.min() < 0:
+                    logger.warning(f"Negative reward detected: {rewards_array.min():.4f}, assigning zero value instead")
+                    hkey_agg_rewards = {hkey: max(reward, 0) for hkey, reward in hkey_agg_rewards.items()}
                 logger.debug(
                     f"Setting weights to {len(hkey_agg_rewards)} hotkeys; "
                     f"reward mean={rewards_array.mean():.4f} min={rewards_array.min():.4f}"
