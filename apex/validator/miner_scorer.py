@@ -52,8 +52,36 @@ class MinerScorer:
     @asynccontextmanager
     async def _db() -> AsyncGenerator[aiosqlite.Connection, None]:
         async with aiosqlite.connect("results.db") as conn:
-            await conn.execute("PRAGMA foreign_keys = ON")
+            await conn.execute("PRAGMA journal_mode=WAL")
+            await conn.execute("PRAGMA synchronous=NORMAL")
+            await conn.execute("PRAGMA busy_timeout=15000")
+            await conn.execute("PRAGMA foreign_keys=ON")
             yield conn
+
+    async def _delete_expired(self, conn: aiosqlite.Connection, cutoff_ts: int, batch_size: int = 5000) -> int:
+        total = 0
+        while True:
+            cur = await conn.execute(
+                """
+                DELETE FROM discriminator_results
+                WHERE rowid IN (
+                    SELECT rowid FROM discriminator_results
+                    WHERE timestamp < ?
+                    LIMIT ?
+                )
+                """,
+                (cutoff_ts, batch_size),
+            )
+            n = cur.rowcount if cur.rowcount is not None else 0
+            total += max(n, 0)
+
+            # Commit each batch to release the write lock early.
+            await conn.commit()
+            logger.debug(f"Deleted batch: {n} (total deleeted: {total})")
+
+            if n < batch_size:
+                break
+        return total
 
     async def set_scores(self) -> bool:
         """Set weights based on the current miner scores.
@@ -107,10 +135,11 @@ class MinerScorer:
 
             # 3. Delete rows that are older than the time window.
             logger.debug("Cleaning up expired miner's history")
-            await conn.execute(
-                "DELETE FROM discriminator_results WHERE timestamp < ?",
-                (cutoff_timestamp,),
-            )
+            try:
+                deleted_total = await asyncio.wait_for(self._delete_expired(conn, cutoff_timestamp), timeout=15)
+                logger.debug(f"Expired rows cleanup done: {deleted_total} rows")
+            except TimeoutError:
+                logger.warning("Timed out deleting expired rows; will retry next loop")
 
             if self._debug:
                 record: dict[str, str | dict[str, float]] = {
