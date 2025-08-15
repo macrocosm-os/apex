@@ -1,7 +1,7 @@
 import asyncio
 import json
 import time
-from collections.abc import AsyncGenerator
+from collections.abc import AsyncGenerator, Iterable
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -77,15 +77,16 @@ class MinerScorer:
                     """,
                     (cutoff_timestamp,),
                 ) as cursor:
-                    rows = await cursor.fetchall()
+                    rows: Iterable[aiosqlite.Row] = await cursor.fetchall()
             except BaseException as exc:
                 logger.exception(f"Exception during DB fetch: {exc}")
                 return False
 
             # 2. Iterate over the in-memory list so that the caller can process freely.
-            logger.debug(f"Pre-processing miner's rewards, fetched {rows} rows")
             hkey_agg_rewards: dict[str, float] = {}
+            rows_count = 0
             for generator_hotkey, generator_score, disc_hotkeys_json, disc_scores_json in rows:
+                rows_count += 1
                 # Deserialize JSON columns.
                 disc_hotkeys = json.loads(disc_hotkeys_json)
                 disc_scores = json.loads(disc_scores_json)
@@ -100,6 +101,8 @@ class MinerScorer:
                 # Update the aggregate rewards.
                 for hotkey, reward in reward_dict.items():
                     hkey_agg_rewards[hotkey] = float(hkey_agg_rewards.get(hotkey, 0.0)) + float(reward)
+
+            logger.debug(f"Fetched {rows_count} rows for scoring")
             logger.debug(f"Total hotkeys to score: {len(hkey_agg_rewards)}")
 
             # 3. Delete rows that are older than the time window.
@@ -126,6 +129,9 @@ class MinerScorer:
 
             if hkey_agg_rewards:
                 rewards_array = np.array(list(hkey_agg_rewards.values()))
+                if rewards_array.min() < 0:
+                    logger.warning(f"Negative reward detected: {rewards_array.min():.4f}, assigning zero value instead")
+                    hkey_agg_rewards = {hkey: max(reward, 0) for hkey, reward in hkey_agg_rewards.items()}
                 logger.debug(
                     f"Setting weights to {len(hkey_agg_rewards)} hotkeys; "
                     f"reward mean={rewards_array.mean():.4f} min={rewards_array.min():.4f}"
