@@ -199,7 +199,7 @@ class MinerSampler:
         else:
             if reference is None:
                 raise ValueError("Reference cannot be None when not using miner generator results")
-            selected_generator = (VALIDATOR_REFERENCE_LABEL, reference)
+            selected_generator = (VALIDATOR_REFERENCE_LABEL, reference, 0.0)
 
         body = {
             "step": "discriminator",

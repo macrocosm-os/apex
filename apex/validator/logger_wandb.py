@@ -1,15 +1,14 @@
-import asyncio
-
-from macrocosmos import AsyncLoggerClient
-
-from apex import __version__
 import wandb
+from typing import Any, Mapping
+
 from apex.common.async_chain import AsyncChain
 from apex.common.models import MinerDiscriminatorResults
+
 
 def approximate_tokens(text: str) -> int:
     """Count the number of tokens in a text."""
     return len(text) // 4
+
 
 class LoggerWandb:
     def __init__(
@@ -18,10 +17,11 @@ class LoggerWandb:
         project: str = "apex-gan-arena",
         api_key: str | None = None,
     ):
+        self.run: Any | None = None
         if project and api_key:
-            self.run = wandb.init(project=project, api_key=api_key)
-        else:
-            self.run = None
+            # Authenticate with W&B, then initialize the run
+            wandb.login(key=api_key)
+            self.run = wandb.init(project=project)
 
     async def log(
         self,
@@ -35,16 +35,17 @@ class LoggerWandb:
                 processed_event = self.process_event(discriminator_results.model_dump())
                 processed_event["reference"] = reference
                 processed_event["tool_history"] = tool_history
-                await self.run.log(processed_event)
+                # W&B log is synchronous
+                self.run.log(processed_event)
 
-    def process_event(self, event: dict[str, str]) -> dict[str, str | float]:
+    def process_event(self, event: Mapping[str, Any]) -> dict[str, Any]:
         """Preprocess an event before logging it."""
-        reference = event.get("reference")
+        reference = event.get("reference", "")
         generation = event.get("generation", "")
         generator_tokens = approximate_tokens(generation)
         reference_tokens = approximate_tokens(reference)
 
-        processed_event = dict(event)
+        processed_event: dict[str, Any] = dict(event)
         processed_event["generator_tokens"] = generator_tokens
         processed_event["reference_tokens"] = reference_tokens
 
