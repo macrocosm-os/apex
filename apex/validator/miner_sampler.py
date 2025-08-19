@@ -134,8 +134,9 @@ class MinerSampler:
 
     async def query_miners(
         self, body: dict[str, Any], endpoint: str, hotkey: str | None = None, timeout: float = TIMEOUT
-    ) -> str:
+    ) -> tuple[str, float]:
         """Query the miners for the query."""
+        start_time = time.time()
         try:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
             async with aiohttp.ClientSession() as session:
@@ -152,8 +153,8 @@ class MinerSampler:
                     result = await resp.text()
         except BaseException:
             # Error during miner query, return empty string.
-            return ""
-        return str(result)
+            return "", 0.0
+        return str(result), time.time() - start_time
 
     async def query_generators(self, query: str) -> MinerGeneratorResults:
         """Query the miners for the query."""
@@ -161,13 +162,18 @@ class MinerSampler:
         body = {"step": "generator", "query": query}
 
         hotkeys: list[str] = []
-        tasks: list[Coroutine[str, str, Any]] = []
+        tasks: list[Coroutine[tuple[str, float], str, Any]] = []
 
         for miner_info in miner_information:
             hotkeys.append(miner_info.hotkey)
             tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
         generator_results = await asyncio.gather(*tasks)
-        return MinerGeneratorResults(query=query, generator_hotkeys=hotkeys, generator_results=generator_results)
+        return MinerGeneratorResults(
+            query=query,
+            generator_hotkeys=hotkeys,
+            generator_results=[result[0] for result in generator_results],
+            generator_times=[result[1] for result in generator_results],
+        )
 
     async def query_discriminators(
         self,
@@ -180,11 +186,12 @@ class MinerSampler:
         miner_information = await self._sample_miners()
         # Flip the coin for the generator.
         if ground_truth and generator_results:
-            selected_generator: tuple[str, str] = random.choice(
+            selected_generator: tuple[str, str, float] = random.choice(
                 list(
                     zip(
                         generator_results.generator_hotkeys,
                         generator_results.generator_results,
+                        generator_results.generator_times,
                         strict=False,
                     )
                 )
@@ -201,7 +208,7 @@ class MinerSampler:
         }
 
         hotkeys: list[str] = []
-        tasks: list[Coroutine[str, str, Any]] = []
+        tasks: list[Coroutine[tuple[str, float], str, Any]] = []
         for miner_info in miner_information:
             hotkeys.append(miner_info.hotkey)
             tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
@@ -212,7 +219,7 @@ class MinerSampler:
         parsed_discriminator_results: list[str] = []
         score_per_miner = 1.0 / len(miner_information)
 
-        for result in discriminator_results:
+        for result, _ in discriminator_results:
             if result:
                 # Parse the OpenAI response to extract the discriminator's choice.
                 try:
@@ -243,6 +250,7 @@ class MinerSampler:
             generator_hotkey=selected_generator[0],
             generator_result=selected_generator[1],
             generator_score=generator_result_float,
+            generator_time=selected_generator[2],
             discriminator_hotkeys=hotkeys,
             discriminator_results=parsed_discriminator_results,
             discriminator_scores=discriminator_results_float,
