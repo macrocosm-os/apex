@@ -35,8 +35,11 @@ class LoggerWandb:
                         "version": __version__,
                     },
                 )
+                logger.info(f"Initialized W&B run: {self.run.id}")
             except Exception as e:
                 logger.error(f"Failed to initialize W&B run: {e}")
+        else:
+            logger.warning("W&B API key not provided, skipping logging to W&B")
 
     async def log(
         self,
