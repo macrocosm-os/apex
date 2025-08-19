@@ -117,3 +117,5 @@ cython_debug/
 
 # VS Code
 .vscode
+
+wandb/
