@@ -227,7 +227,7 @@ async def test_query_miners() -> None:
         mock_generate_header.assert_called_with(
             mock_chain.wallet.hotkey, body=json.dumps(body).encode("utf-8"), signed_for=None
         )
-        assert result == '{"response": "ok"}'
+        assert result == ('{"response": "ok"}', 0)
 
 
 @pytest.mark.asyncio
