@@ -11,8 +11,8 @@ from apex.services.deep_research.deep_research_base import DeepResearchBase
 from apex.services.llm.llm_base import LLMBase
 from apex.services.websearch.websearch_base import WebSearchBase
 from apex.validator import generate_query, generate_reference
-from apex.validator.logger_wandb import LoggerWandb
 from apex.validator.logger_local import LoggerLocal
+from apex.validator.logger_wandb import LoggerWandb
 from apex.validator.miner_sampler import MinerSampler
 
 

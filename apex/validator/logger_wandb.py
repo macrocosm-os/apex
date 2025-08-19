@@ -1,9 +1,11 @@
-import wandb
-from typing import Any, Mapping
+from collections.abc import Mapping
+from typing import Any
 
+import wandb
+
+from apex import __version__
 from apex.common.async_chain import AsyncChain
 from apex.common.models import MinerDiscriminatorResults
-from apex import __version__
 
 
 def approximate_tokens(text: str) -> int:
