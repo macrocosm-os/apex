@@ -12,6 +12,7 @@ from apex.services.llm.llm_base import LLMBase
 from apex.services.websearch.websearch_base import WebSearchBase
 from apex.validator import generate_query, generate_reference
 from apex.validator.logger_wandb import LoggerWandb
+from apex.validator.logger_local import LoggerLocal
 from apex.validator.miner_sampler import MinerSampler
 
 
@@ -29,6 +30,7 @@ class Pipeline:
         queue_size: int = 10_000,
         redundancy_rate: float = 0.05,  # The rate that references are generated in addition to generator steps
         reference_rate: float = 0.5,  # The rate that references are generated as opposed to generator steps
+        debug: bool = False,
     ):
         self.websearch = websearch
         self.miner_registry = miner_sampler
@@ -43,6 +45,8 @@ class Pipeline:
         self.q_out: asyncio.Queue[str] = asyncio.Queue()
         self.redundancy_rate = redundancy_rate
         self.reference_rate = reference_rate
+        self._debug = debug
+        self._logger_local = LoggerLocal()
 
     async def start_loop(self, initial_queries: Sequence[str] | None = None) -> None:
         """Kick off producer -> consumer workers. Runs in perpetuity, generating unique IDs for each task."""
@@ -108,6 +112,15 @@ class Pipeline:
         if self.logger_wandb:
             await self.logger_wandb.log(
                 reference=reference, discriminator_results=discriminator_results, tool_history=tool_history
+            )
+
+        if self._debug:
+            await self._logger_local.log(
+                query=query,
+                ground_truth=ground_truth,
+                reference=reference,
+                generator_results=generator_results,
+                discriminator_results=discriminator_results,
             )
 
         return task.query_id
