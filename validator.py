@@ -48,7 +48,7 @@ async def main() -> None:
     asyncio.create_task(logger_db.start_loop())
     logger.debug(f"Started DB at: '{logger_db.db_path}'")
 
-    logger_wandb = LoggerWandb(async_chain=chain)
+    logger_wandb = LoggerWandb(async_chain=chain, **config.logger_wandb.kwargs)
 
     websearch = WebSearchTavily(**config.websearch.kwargs)
     logger.debug("Started web search tool")
