@@ -2,6 +2,7 @@ from collections.abc import Mapping
 from typing import Any
 
 import wandb
+from loguru import logger
 
 from apex import __version__
 from apex.common.async_chain import AsyncChain
@@ -22,17 +23,20 @@ class LoggerWandb:
     ):
         self.run: Any | None = None
         if project and api_key:
-            # Authenticate with W&B, then initialize the run
-            wandb.login(key=api_key)
-            self.run = wandb.init(
-                entity="macrocosmos",
-                project=project,
-                config={
-                    "hotkey": async_chain.wallet.hotkey.ss58_address,
-                    "netuid": async_chain.netuid,
-                    "version": __version__,
-                },
-            )
+            try:
+                # Authenticate with W&B, then initialize the run
+                wandb.login(key=api_key)
+                self.run = wandb.init(
+                    entity="macrocosmos",
+                    project=project,
+                    config={
+                        "hotkey": async_chain.wallet.hotkey.ss58_address,
+                        "netuid": async_chain.netuid,
+                        "version": __version__,
+                    },
+                )
+            except Exception as e:
+                logger.error(f"Failed to initialize W&B run: {e}")
 
     async def log(
         self,
