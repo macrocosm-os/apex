@@ -134,9 +134,8 @@ class MinerSampler:
 
     async def query_miners(
         self, body: dict[str, Any], endpoint: str, hotkey: str | None = None, timeout: float = TIMEOUT
-    ) -> tuple[str, float]:
+    ) -> str:
         """Query the miners for the query."""
-        start_time = time.time()
         try:
             client_timeout = aiohttp.ClientTimeout(total=timeout)
             async with aiohttp.ClientSession() as session:
@@ -153,8 +152,16 @@ class MinerSampler:
                     result = await resp.text()
         except BaseException:
             # Error during miner query, return empty string.
-            return "", 0.0
-        return str(result), time.time() - start_time
+            return ""
+        return str(result)
+
+    async def query_miners_with_times(
+        self, body: dict[str, Any], endpoint: str, hotkey: str | None = None, timeout: float = TIMEOUT
+    ) -> tuple[str, float]:
+        """Query the miners for the query."""
+        start_time = time.time()
+        result = await self.query_miners(body, endpoint, hotkey, timeout)
+        return result, time.time() - start_time
 
     async def query_generators(self, query: str) -> MinerGeneratorResults:
         """Query the miners for the query."""
@@ -166,7 +173,7 @@ class MinerSampler:
 
         for miner_info in miner_information:
             hotkeys.append(miner_info.hotkey)
-            tasks.append(self.query_miners(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
+            tasks.append(self.query_miners_with_times(body=body, endpoint=miner_info.address, hotkey=miner_info.hotkey))
         generator_results = await asyncio.gather(*tasks)
         return MinerGeneratorResults(
             query=query,
@@ -219,7 +226,7 @@ class MinerSampler:
         parsed_discriminator_results: list[str] = []
         score_per_miner = 1.0 / len(miner_information)
 
-        for result, _ in discriminator_results:
+        for result in discriminator_results:
             if result:
                 # Parse the OpenAI response to extract the discriminator's choice.
                 try:
