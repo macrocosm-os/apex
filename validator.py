@@ -15,6 +15,7 @@ from apex.validator.miner_sampler import MinerSampler
 from apex.validator.miner_scorer import MinerScorer
 from apex.validator.pipeline import Pipeline
 from apex.validator.weight_syncer import WeightSyncer
+from apex.validator.logger_wandb import LoggerWandb
 
 
 async def read_args() -> argparse.Namespace:
@@ -47,7 +48,7 @@ async def main() -> None:
     asyncio.create_task(logger_db.start_loop())
     logger.debug(f"Started DB at: '{logger_db.db_path}'")
 
-    # logger_apex = LoggerApex(async_chain=chain)
+    logger_wandb = LoggerWandb(async_chain=chain)
 
     websearch = WebSearchTavily(**config.websearch.kwargs)
     logger.debug("Started web search tool")
@@ -77,7 +78,7 @@ async def main() -> None:
         miner_sampler=miner_sampler,
         llm=llm,
         deep_research=deep_research,
-        # logger_apex=logger_apex,
+        logger_wandb=logger_wandb,
         **config.pipeline.kwargs,
     )
     try:
