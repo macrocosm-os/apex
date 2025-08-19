@@ -52,7 +52,7 @@ class MinerSampler:
             sample_mode: Sampling mode, available modes:
                 - random: Samples random uids.
                 - sequential: Samples all uids sequentially.
-            sample_size: Amount of miners to be samples in one call.
+            sample_size: Amount of miners to be sampled in one call.
             logger_db: Optional logger DB object.
             available_uids: List of available UIDs. If None, use all UIDs.
             available_addresses: List of available addresses for given UIDs. If None, use metagraph addresses.
