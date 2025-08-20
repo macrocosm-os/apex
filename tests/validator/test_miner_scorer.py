@@ -5,7 +5,7 @@ import time
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, call, patch
 
 import aiosqlite
 import pytest
@@ -408,7 +408,16 @@ class TestMinerScorer:
                     assert conn is mock_conn
 
                 mock_connect.assert_called_once_with("results.db")
-                mock_conn.execute.assert_called_once_with("PRAGMA foreign_keys = ON")
+
+                mock_conn.execute.assert_has_calls(
+                    [
+                        call("PRAGMA journal_mode=WAL"),
+                        call("PRAGMA synchronous=NORMAL"),
+                        call("PRAGMA busy_timeout=15000"),
+                        call("PRAGMA foreign_keys=ON"),
+                    ]
+                )
+                assert mock_conn.execute.call_count == 4
         finally:
             Path(db_path).unlink()
 
