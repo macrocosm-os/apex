@@ -141,7 +141,7 @@ wheels = [
 
 [[package]]
 name = "apex"
-version = "3.0.1"
+version = "3.0.3"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
@@ -202,7 +202,7 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.8.3" },
     { name = "aiosqlite", specifier = ">=0.21.0" },
     { name = "beautifulsoup4", specifier = ">=4.13.3" },
-    { name = "bittensor", specifier = ">=9.7.0" },
+    { name = "bittensor", specifier = ">=9.8.3" },
     { name = "cachetools", specifier = ">=5.0.0" },
     { name = "dotenv", specifier = ">=0.9.9" },
     { name = "faiss-cpu", specifier = ">=1.8.0" },
