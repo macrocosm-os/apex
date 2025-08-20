@@ -39,7 +39,8 @@ class MinerSampler:
         self,
         chain: AsyncChain,
         sample_mode: Literal["random", "sequential"] = "sequential",
-        sample_size: int = 50,
+        discriminator_sample_size: int = 50,
+        generator_sample_size: int = 1,
         logger_db: LoggerDB | None = None,
         available_uids: Sequence[int] | None = None,
         available_addresses: Sequence[str] | None = None,
@@ -52,7 +53,8 @@ class MinerSampler:
             sample_mode: Sampling mode, available modes:
                 - random: Samples random uids.
                 - sequential: Samples all uids sequentially.
-            sample_size: Amount of miners to be samples in one call.
+            discriminator_sample_size: Amount of miners to be sampled for discriminator queries.
+            generator_sample_size: Amount of miners to be sampled for generator queries.
             logger_db: Optional logger DB object.
             available_uids: List of available UIDs. If None, use all UIDs.
             available_addresses: List of available addresses for given UIDs. If None, use metagraph addresses.
@@ -61,7 +63,8 @@ class MinerSampler:
         """
         self._chain = chain
         self._sample_mode = sample_mode
-        self._sample_size = sample_size
+        self._discriminator_sample_size = discriminator_sample_size
+        self._generator_sample_size = generator_sample_size
         self._logger_db = logger_db
         self._available_uids = available_uids
         self._available_addresses = available_addresses
@@ -74,7 +77,7 @@ class MinerSampler:
         self._sample_lock = asyncio.Lock()
 
     @async_cache(_TTL_UIDS_RESYNC)
-    async def _get_all_miners(self) -> list[MinerInfo]:
+    async def _get_all_miners(self, sample_size: int) -> list[MinerInfo]:
         meta = await self._chain.metagraph()
         miners: list[MinerInfo] = []
         for idx in range(meta.n.item()):
@@ -101,24 +104,24 @@ class MinerSampler:
                 miners_test.append(miner_info)
             miners = miners_test
 
-        if self._sample_size > len(miners):
+        if sample_size > len(miners):
             logger.warning(
-                f"Sample size is larger than amount of miners: {self._sample_size} > {len(miners)}. "
+                f"Sample size is larger than amount of miners: {sample_size} > {len(miners)}. "
                 f"Setting sample size to {len(miners)}"
             )
-            self._sample_size = len(miners)
+            sample_size = len(miners)
         return miners
 
-    async def _sample_miners(self) -> list[MinerInfo]:
-        miners = await self._get_all_miners()
+    async def _sample_miners(self, sample_size: int) -> list[MinerInfo]:
+        miners = await self._get_all_miners(sample_size=sample_size)
 
         miners_sample: list[MinerInfo] = []
         if self._sample_mode == "random":
-            miners_sample = random.sample(miners, self._sample_size)
+            miners_sample = random.sample(miners, sample_size)
 
         elif self._sample_mode == "sequential":
             async with self._sample_lock:
-                while len(miners_sample) < self._sample_size:
+                while len(miners_sample) < (sample_size):
                     if not self._epoch_deque:
                         # Get shuffled deque of miners.
                         self._epoch_deque = deque(random.sample(miners, len(miners)))
@@ -127,9 +130,7 @@ class MinerSampler:
         else:
             raise ValueError(f"Unknown sampling mode: {self._sample_mode}")
 
-        logger.debug(
-            f"Sampled uids (sample size = {self._sample_size}): {sorted([miner.uid for miner in miners_sample])}"
-        )
+        logger.debug(f"Sampled uids (sample size = {sample_size}): {sorted([miner.uid for miner in miners_sample])}")
         return miners_sample
 
     async def query_miners(
@@ -157,7 +158,7 @@ class MinerSampler:
 
     async def query_generators(self, query: str) -> MinerGeneratorResults:
         """Query the miners for the query."""
-        miner_information = await self._sample_miners()
+        miner_information = await self._sample_miners(sample_size=self._generator_sample_size)
         body = {"step": "generator", "query": query}
 
         hotkeys: list[str] = []
@@ -177,7 +178,7 @@ class MinerSampler:
         ground_truth: int,
     ) -> MinerDiscriminatorResults:
         """Query the miners for the query."""
-        miner_information = await self._sample_miners()
+        miner_information = await self._sample_miners(sample_size=self._discriminator_sample_size)
         # Flip the coin for the generator.
         if ground_truth and generator_results:
             selected_generator: tuple[str, str] = random.choice(
