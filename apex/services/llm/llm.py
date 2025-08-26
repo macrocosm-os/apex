@@ -14,7 +14,7 @@ class LLM(LLMBase):
 
     async def invoke(
         self, messages: list[dict[str, str]], body: dict[str, Any] | None = None
-    ) -> tuple[str, list[dict[str, str]]]:
+    ) -> tuple[str, list[dict[str, str]], list[dict[str, Any]]]:
         headers = {
             "Authorization": "Bearer " + self._key,
             "Content-Type": "application/json",
@@ -35,7 +35,7 @@ class LLM(LLMBase):
 
                 data = await response.json()
                 content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                return str(content), []
+                return str(content), [], []
 
     def __str__(self) -> str:
         return f"{self.__class__.__name__}({self._base_url}, {self._model})"

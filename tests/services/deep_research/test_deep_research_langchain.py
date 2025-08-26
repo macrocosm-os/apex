@@ -149,9 +149,11 @@ async def test_invoke_no_documents_found(deep_research_langchain, mock_websearch
     messages = [{"role": "user", "content": "test question"}]
     mock_websearch.search.return_value = []
 
-    result = await deep_research_langchain.invoke(messages)
+    response, tool_history, reasoning_traces = await deep_research_langchain.invoke(messages)
 
-    assert result == ("Could not find any information on the topic.", deep_research_langchain.tool_history)
+    assert response == "Could not find any information on the topic."
+    assert tool_history == deep_research_langchain.tool_history
+    assert isinstance(reasoning_traces, list)
 
 
 @pytest.mark.asyncio
@@ -197,7 +199,7 @@ async def test_full_invoke_flow(deep_research_langchain, mock_websearch):
         final_chain.ainvoke.return_value = final_answer
         mock_prompt_template.return_value.__or__.return_value.__or__.return_value = final_chain
 
-        result = await deep_research_langchain.invoke(messages)
+        response, tool_history, reasoning_traces = await deep_research_langchain.invoke(messages)
 
         mock_websearch.search.assert_called_once_with(query=question, max_results=5)
         mock_faiss.afrom_documents.assert_called_once()
@@ -208,4 +210,6 @@ async def test_full_invoke_flow(deep_research_langchain, mock_websearch):
         final_chain.ainvoke.assert_called_once_with(
             {"summary": summary, "research_report": research_report, "question": question}
         )
-        assert result == (final_answer, deep_research_langchain.tool_history)
+        assert response == final_answer
+        assert tool_history == deep_research_langchain.tool_history
+        assert isinstance(reasoning_traces, list)
