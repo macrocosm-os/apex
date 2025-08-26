@@ -23,6 +23,6 @@ async def generate_query(llm: LLMBase, websearch: WebSearchBase) -> str:
     search_website = random.choice(search_results)
     search_content = search_website.content
     query = QUERY_PROMPT_TEMPLATE.format(context=search_content)
-    query_response, _ = await llm.invoke([{"role": "user", "content": query}])
+    query_response, _, _ = await llm.invoke([{"role": "user", "content": query}])
     logger.debug(f"Generated query.\nPrompt: '{query}'\nResponse: '{query_response}'")
     return query_response

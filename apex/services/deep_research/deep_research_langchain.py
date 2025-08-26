@@ -116,9 +116,10 @@ Research Report:
 
     async def invoke(
         self, messages: list[dict[str, str]], body: dict[str, Any] | None = None
-    ) -> tuple[str, list[dict[str, str]]]:  # type: ignore[override]
+    ) -> tuple[str, list[dict[str, str]], list[dict[str, Any]]]:  # type: ignore[override]
         # Clear tool history for each new invocation
         self.tool_history = []
+        reasoning_traces: list[dict[str, Any]] = []
         question = messages[-1]["content"]
         documents: list[Document] = []
         if body and "documents" in body and body["documents"]:
@@ -127,6 +128,12 @@ Research Report:
                 for doc in body["documents"]
                 if doc and "page_content" in doc and doc["page_content"] is not None
             ]
+            reasoning_traces.append(
+                {
+                    "step": "documents_from_body",
+                    "num_documents": len(documents),
+                }
+            )
 
         if not documents:
             # Track websearch in tool history
@@ -135,13 +142,27 @@ Research Report:
             for website in websites:
                 if website.content:
                     documents.append(Document(page_content=str(website.content), metadata={"url": website.url}))
+            reasoning_traces.append(
+                {
+                    "step": "websearch",
+                    "query": question,
+                    "max_results": 5,
+                    "results": [{"url": getattr(site, "url", None)} for site in websites],
+                }
+            )
 
         if not documents:
-            return "Could not find any information on the topic.", self.tool_history
+            return "Could not find any information on the topic.", self.tool_history, reasoning_traces
 
         retriever = await self._create_vector_store(documents)
         if not retriever:
-            return "Could not create a vector store from the documents.", self.tool_history
+            return "Could not create a vector store from the documents.", self.tool_history, reasoning_traces
+        reasoning_traces.append(
+            {
+                "step": "create_vector_store",
+                "num_documents": len(documents),
+            }
+        )
 
         compression_retriever = self._create_compression_retriever(retriever)
 
@@ -149,10 +170,29 @@ Research Report:
         research_chain = self._create_research_chain()
 
         compressed_docs: list[Document] = await compression_retriever.ainvoke(question)
+        reasoning_traces.append(
+            {
+                "step": "compression",
+                "question": question,
+                "num_compressed_docs": len(compressed_docs),
+            }
+        )
 
         summary: str = await summary_chain.ainvoke({"context": compressed_docs, "question": question})
+        reasoning_traces.append(
+            {
+                "step": "summary",
+                "output": summary,
+            }
+        )
 
         research_report: str = await research_chain.ainvoke({"context": compressed_docs, "question": question})
+        reasoning_traces.append(
+            {
+                "step": "research_report",
+                "output": research_report,
+            }
+        )
 
         final_prompt = PromptTemplate(
             input_variables=["summary", "research_report", "question"],
@@ -168,7 +208,13 @@ Final Answer:
         final_answer: str = await final_chain.ainvoke(
             {"summary": summary, "research_report": research_report, "question": question}
         )
-        return final_answer, self.tool_history
+        reasoning_traces.append(
+            {
+                "step": "final_answer",
+                "output": final_answer,
+            }
+        )
+        return final_answer, self.tool_history, reasoning_traces
 
 
 class _CustomEmbeddings(Embeddings):  # type: ignore
@@ -207,9 +253,10 @@ if __name__ == "__main__":
     # Run the invoke method.
     async def main() -> None:
         timer_start = time.perf_counter()
-        result, tool_history = await deep_researcher.invoke(dummy_messages, dummy_body)
+        result, tool_history, reasoning_traces = await deep_researcher.invoke(dummy_messages, dummy_body)
         logger.debug("Answer:", result)
         logger.debug("Tool History:", tool_history)
+        logger.debug("Reasoning Traces:", reasoning_traces)
         timer_end = time.perf_counter()
         logger.debug(f"Time elapsed: {timer_end - timer_start:.2f}s")
 
