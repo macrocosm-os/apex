@@ -91,7 +91,7 @@ def test_miner_info_hash() -> None:
 @pytest.mark.asyncio
 async def test_get_all_miners(miner_sampler: MinerSampler, mock_metagraph: MockMetagraph) -> None:
     """Tests that all miners are returned."""
-    miners = await miner_sampler._get_all_miners()
+    miners = await miner_sampler._get_all_miners(sample_size=3)
     assert len(miners) == 3
     uids = {m.uid for m in miners}
     assert uids == {1, 3, 5}
@@ -110,7 +110,7 @@ async def test_get_all_miners_with_available_uids(mock_chain: MockAsyncChain) ->
         available_uids=[1, 5, 10],
         validator_min_stake=16000,
     )
-    miners = await sampler._get_all_miners()
+    miners = await sampler._get_all_miners(sample_size=3)
     assert len(miners) == 2
     uids = {m.uid for m in miners}
     assert uids == {1, 5}
@@ -125,7 +125,7 @@ async def test_get_all_miners_with_available_uids_and_addresses(mock_chain: Mock
         available_addresses=["http://localhost:1234", "http://localhost:5678"],
         validator_min_stake=16000,
     )
-    miners = await sampler._get_all_miners()
+    miners = await sampler._get_all_miners(sample_size=3)
     assert len(miners) == 2
     miner1 = next(m for m in miners if m.uid == 1)
     miner3 = next(m for m in miners if m.uid == 3)
@@ -137,7 +137,7 @@ async def test_get_all_miners_with_available_uids_and_addresses(mock_chain: Mock
 async def test_sample_miners_random(miner_sampler: MinerSampler) -> None:
     """Tests that a random sample of miners is returned."""
     miner_sampler._sample_mode = "random"
-    miner_sampler._sample_size = 2
+    miner_sampler._discriminator_sample_size = 2
 
     with patch(
         "random.sample",
@@ -146,10 +146,10 @@ async def test_sample_miners_random(miner_sampler: MinerSampler) -> None:
             MinerInfo(hotkey="key3", uid=3, address="http://3.3.3.3:8002"),
         ],
     ) as mock_random_sample:
-        miners = await miner_sampler._sample_miners()
+        miners = await miner_sampler._sample_miners(sample_size=2)
         assert len(miners) == 2
         mock_random_sample.assert_called_once()
-        all_miners = await miner_sampler._get_all_miners()
+        all_miners = await miner_sampler._get_all_miners(sample_size=2)
         arg_uids = {m.uid for m in mock_random_sample.call_args[0][0]}
         all_uids = {m.uid for m in all_miners}
         assert arg_uids == all_uids
@@ -160,9 +160,9 @@ async def test_sample_miners_random(miner_sampler: MinerSampler) -> None:
 async def test_sample_miners_sequential(monkeypatch: MagicMock, miner_sampler: MinerSampler) -> None:
     """Tests that a sequential sample of miners is returned."""
     miner_sampler._sample_mode = "sequential"
-    miner_sampler._sample_size = 2
+    miner_sampler._discriminator_sample_size = 2
 
-    all_miners = await miner_sampler._get_all_miners()
+    all_miners = await miner_sampler._get_all_miners(sample_size=2)
     all_miners.sort(key=lambda m: m.uid)
     monkeypatch.setattr(miner_sampler, "_get_all_miners", AsyncMock(return_value=all_miners))
 
@@ -171,7 +171,7 @@ async def test_sample_miners_sequential(monkeypatch: MagicMock, miner_sampler: M
         "random.sample",
         return_value=[MinerInfo(uid=1, address="", hotkey="1"), MinerInfo(uid=5, address="", hotkey="5")],
     ):
-        miners1 = await miner_sampler._sample_miners()
+        miners1 = await miner_sampler._sample_miners(sample_size=2)
 
     assert len(miners1) == 2
     assert {m.uid for m in miners1} == {all_miners[0].uid, all_miners[2].uid}
@@ -181,7 +181,7 @@ async def test_sample_miners_sequential(monkeypatch: MagicMock, miner_sampler: M
         "random.sample",
         return_value=[MinerInfo(uid=3, address="", hotkey="3"), MinerInfo(uid=5, address="", hotkey="5")],
     ):
-        miners2 = await miner_sampler._sample_miners()
+        miners2 = await miner_sampler._sample_miners(sample_size=2)
 
     assert len(miners2) == 2
     assert {m.uid for m in miners2} == {all_miners[1].uid, all_miners[2].uid}
