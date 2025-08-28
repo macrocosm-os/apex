@@ -12,6 +12,11 @@ websearch:
   kwargs:
     key: "TAVILY_API_KEY"
 
+logger_wandb:
+  kwargs:
+    project: "apex-gan-arena"
+    api_key: "YOUR_WANDB_API_KEY"
+
 llm:
   kwargs:
     key: "CHUTES_API_KEY"
