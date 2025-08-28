@@ -243,8 +243,12 @@ async def test_query_generators(monkeypatch: MonkeyPatch, miner_sampler: MinerSa
             ],
         ),
     )
-    query_miners_mock: AsyncMock = AsyncMock(side_effect=["result1", "result2"])
-    monkeypatch.setattr(miner_sampler, "query_miners", AsyncMock(side_effect=query_miners_mock))
+    query_miners_with_times_mock: AsyncMock = AsyncMock(side_effect=[("result1", 0.1), ("result2", 0.2)])
+    monkeypatch.setattr(
+        miner_sampler,
+        "query_miners_with_times",
+        AsyncMock(side_effect=query_miners_with_times_mock),
+    )
 
     query = "test query"
     results = await miner_sampler.query_generators(query)
@@ -253,12 +257,13 @@ async def test_query_generators(monkeypatch: MonkeyPatch, miner_sampler: MinerSa
     assert results.query == query
     assert results.generator_hotkeys == ["key1", "key3"]
     assert results.generator_results == ["result1", "result2"]
+    assert results.generator_times == [0.1, 0.2]
 
-    assert query_miners_mock.call_count == 2  # type: ignore
-    query_miners_mock.assert_any_call(
+    assert query_miners_with_times_mock.call_count == 2  # type: ignore
+    query_miners_with_times_mock.assert_any_call(
         body={"step": "generator", "query": query}, endpoint="http://1.1.1.1:8000", hotkey="key1"
     )
-    query_miners_mock.assert_any_call(  # type: ignore
+    query_miners_with_times_mock.assert_any_call(  # type: ignore
         body={"step": "generator", "query": query}, endpoint="http://3.3.3.3:8002", hotkey="key3"
     )
 
@@ -270,7 +275,7 @@ async def test_query_discriminators_selects_generator(
     mock_random_choice: MagicMock, mock_random_random: MagicMock, monkeypatch: MonkeyPatch, miner_sampler: MinerSampler
 ) -> None:
     """Tests that a query to a discriminator is successful when a generator is selected."""
-    mock_random_choice.return_value = ("gen_key1", "gen_result1")
+    mock_random_choice.return_value = ("gen_key1", "gen_result1", 0.1)
 
     monkeypatch.setattr(
         miner_sampler,
@@ -295,7 +300,10 @@ async def test_query_discriminators_selects_generator(
     )
 
     generator_results = MinerGeneratorResults(
-        query="test query", generator_hotkeys=["gen_key1", "gen_key2"], generator_results=["gen_result1", "gen_result2"]
+        query="test query",
+        generator_hotkeys=["gen_key1", "gen_key2"],
+        generator_results=["gen_result1", "gen_result2"],
+        generator_times=[0.1, 0.2],
     )
     reference = "reference text"
 
@@ -308,6 +316,7 @@ async def test_query_discriminators_selects_generator(
     assert results.discriminator_results == ["1", "0"]
     assert results.discriminator_scores == [0.5, 0.0]
     assert results.generator_score == 0.5
+    assert results.generator_time == 0.1
 
 
 @pytest.mark.asyncio
@@ -339,7 +348,10 @@ async def test_query_discriminators_selects_reference(
     )
 
     generator_results = MinerGeneratorResults(
-        query="test query", generator_hotkeys=["gen_key1", "gen_key2"], generator_results=["gen_result1", "gen_result2"]
+        query="test query",
+        generator_hotkeys=["gen_key1", "gen_key2"],
+        generator_results=["gen_result1", "gen_result2"],
+        generator_times=[0.1, 0.2],
     )
     reference = "reference text"
 
@@ -349,6 +361,7 @@ async def test_query_discriminators_selects_reference(
 
     assert results.generator_hotkey == "Validator"
     assert results.generator_result == reference
+    assert results.generator_time == 0.0
     assert results.discriminator_hotkeys == ["disc_key1", "disc_key2"]
     assert results.discriminator_results == ["0", "1"]
     assert results.discriminator_scores == [0.5, 0.0]
@@ -390,7 +403,10 @@ async def test_query_discriminators_response_parsing(
     monkeypatch.setattr(miner_sampler, "query_miners", AsyncMock(return_value=miner_response))
 
     generator_results = MinerGeneratorResults(
-        query="test query", generator_hotkeys=["gen_key1"], generator_results=["gen_result1"]
+        query="test query",
+        generator_hotkeys=["gen_key1"],
+        generator_results=["gen_result1"],
+        generator_times=[0.1],
     )
     reference = "reference text"
 
@@ -423,7 +439,10 @@ async def test_query_discriminators_with_db_log(monkeypatch: MonkeyPatch, miner_
 
     with patch("random.random", return_value=0.6):
         generator_results = MinerGeneratorResults(
-            query="test query", generator_hotkeys=["gen_key1"], generator_results=["gen_result1"]
+            query="test query",
+            generator_hotkeys=["gen_key1"],
+            generator_results=["gen_result1"],
+            generator_times=[0.1],
         )
         reference = "reference text"
 

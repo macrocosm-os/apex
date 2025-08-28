@@ -11,8 +11,8 @@ from apex.services.deep_research.deep_research_base import DeepResearchBase
 from apex.services.llm.llm_base import LLMBase
 from apex.services.websearch.websearch_base import WebSearchBase
 from apex.validator import generate_query, generate_reference
-from apex.validator.logger_apex import LoggerApex
 from apex.validator.logger_local import LoggerLocal
+from apex.validator.logger_wandb import LoggerWandb
 from apex.validator.miner_sampler import MinerSampler
 
 
@@ -23,7 +23,7 @@ class Pipeline:
         miner_sampler: MinerSampler,
         llm: LLMBase,
         deep_research: DeepResearchBase,
-        logger_apex: LoggerApex | None = None,
+        logger_wandb: LoggerWandb | None = None,
         num_consumers: int = 5,
         timeout_consumer: float = 1200,
         timeout_producer: float = 240,
@@ -36,7 +36,7 @@ class Pipeline:
         self.miner_registry = miner_sampler
         self.llm = llm
         self.deep_research = deep_research
-        self.logger_apex = logger_apex
+        self.logger_wandb = logger_wandb
         self.num_consumers = num_consumers
         self.timeout_consumer = timeout_consumer
         self.timeout_producer = timeout_producer
@@ -109,8 +109,8 @@ class Pipeline:
             query=query, generator_results=generator_results, reference=reference, ground_truth=ground_truth
         )
 
-        if self.logger_apex:
-            await self.logger_apex.log(
+        if self.logger_wandb:
+            await self.logger_wandb.log(
                 reference=reference, discriminator_results=discriminator_results, tool_history=tool_history
             )
 

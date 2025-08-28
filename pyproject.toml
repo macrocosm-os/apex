@@ -34,6 +34,8 @@ dependencies = [
     "types-cachetools>=6.0.0.20250525",
     "dotenv>=0.9.9",
     "pytest-mock>=3.14.1",
+    "wandb>=0.21.1",
+    "ruff>=0.12.5",
 ]
 
 
