@@ -18,9 +18,6 @@ from apex.validator.miner_scorer import MinerScorer
 from apex.validator.pipeline import Pipeline
 from apex.validator.weight_syncer import WeightSyncer
 
-pylogger = logging.getLogger("wandb")
-pylogger.setLevel(logging.INFO)
-
 
 async def read_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Apex validator")
