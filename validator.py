@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import logging
 from pathlib import Path
 
 from loguru import logger
@@ -16,6 +17,9 @@ from apex.validator.miner_sampler import MinerSampler
 from apex.validator.miner_scorer import MinerScorer
 from apex.validator.pipeline import Pipeline
 from apex.validator.weight_syncer import WeightSyncer
+
+pylogger = logging.getLogger("wandb")
+pylogger.setLevel(logging.INFO)
 
 
 async def read_args() -> argparse.Namespace:
