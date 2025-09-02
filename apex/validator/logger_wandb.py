@@ -54,7 +54,7 @@ class LoggerWandb:
                 processed_event = self.process_event(discriminator_results.model_dump())
                 processed_event["reference"] = reference
                 processed_event["tool_history"] = tool_history
-                processed_event["reasoning_traces"] = str(reasoning_traces)
+                processed_event["reasoning_trace"] = str(reasoning_traces)
                 self.run.log(processed_event)
 
     def process_event(self, event: Mapping[str, Any]) -> dict[str, Any]:
