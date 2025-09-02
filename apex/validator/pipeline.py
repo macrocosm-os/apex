@@ -84,6 +84,7 @@ class Pipeline:
 
         reference = None
         tool_history: list[dict[str, str]] = []
+        reasoning_traces: list[dict[str, Any]] = []
         if random.random() < self.reference_rate:
             try:
                 generator_results = None
