@@ -46,6 +46,7 @@ class LoggerWandb:
         reference: str | None = None,
         discriminator_results: MinerDiscriminatorResults | None = None,
         tool_history: list[dict[str, str]] | None = None,
+        reasoning_traces: list[dict[str, Any]] | None = None,
     ) -> None:
         """Log an event to wandb."""
         if self.run:
@@ -53,6 +54,7 @@ class LoggerWandb:
                 processed_event = self.process_event(discriminator_results.model_dump())
                 processed_event["reference"] = reference
                 processed_event["tool_history"] = tool_history
+                processed_event["reasoning_traces"] = str(reasoning_traces)
                 self.run.log(processed_event)
 
     def process_event(self, event: Mapping[str, Any]) -> dict[str, Any]:

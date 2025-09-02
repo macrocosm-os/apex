@@ -151,7 +151,9 @@ async def test_invoke_no_documents_found(deep_research_langchain, mock_websearch
 
     result = await deep_research_langchain.invoke(messages)
 
-    assert result == ("Could not find any information on the topic.", deep_research_langchain.tool_history)
+    assert result[0] == "Could not find any information on the topic."
+    assert result[1] == deep_research_langchain.tool_history
+    assert isinstance(result[2], list)
 
 
 @pytest.mark.asyncio
@@ -208,4 +210,6 @@ async def test_full_invoke_flow(deep_research_langchain, mock_websearch):
         final_chain.ainvoke.assert_called_once_with(
             {"summary": summary, "research_report": research_report, "question": question}
         )
-        assert result == (final_answer, deep_research_langchain.tool_history)
+        assert result[0] == final_answer
+        assert result[1] == deep_research_langchain.tool_history
+        assert isinstance(result[2], list)
