@@ -9,6 +9,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnableSerializable
+from langchain_experimental.utilities import PythonREPL
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -74,6 +75,9 @@ class DeepResearchLangchain(DeepResearchBase):
             max_retries=3,
             temperature=0.01,
         )
+        # Caution: PythonREPL can execute arbitrary code on the host machine.
+        # Use with caution and consider sandboxing for untrusted inputs.
+        self.python_repl = PythonREPL()
 
     async def _create_vector_store(self, documents: list[Document]) -> BaseRetriever:
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=512, chunk_overlap=64)
@@ -159,17 +163,21 @@ Research Report:
                 input_variables=["question", "notes", "sources"],
                 template=(
                     "You are DeepResearcher, a meticulous, tool-using research agent.\n"
-                    "You can use exactly one tool: websearch.\n\n"
+                    "You can use exactly these tools: websearch, python_repl.\n\n"
                     "Tool: websearch\n"
                     "- description: Search the web for relevant information.\n"
                     "- args: keys: 'query' (string), 'max_results' (integer <= 10)\n\n"
+                    "Tool: python_repl\n"
+                    "- description: A Python shell for executing Python commands.\n"
+                    "- note: Print values to see output, e.g., `print(...)`.\n"
+                    "- args: keys: 'code' (string: valid python command).\n\n"
                     "Follow an iterative think-act-observe loop until you have enough information to answer.\n"
                     "Always respond in strict JSON. Use one of the two schemas:\n\n"
                     "1) Action step (JSON keys shown with dot-paths):\n"
                     "- thought: string\n"
-                    "- action.tool: 'websearch'\n"
-                    "- action.input.query: string\n"
-                    "- action.input.max_results: integer\n\n"
+                    "- action.tool: 'websearch' | 'python_repl'\n"
+                    "- action.input: for websearch -> {{query: string, max_results: integer}}\n"
+                    "- action.input: for python_repl -> {{code: string}}\n\n"
                     "2) Final answer step:\n"
                     "- thought: string\n"
                     "- final_answer: string\n\n"
@@ -267,6 +275,35 @@ Research Report:
                         "model": getattr(self.research_model, "model_name", "unknown"),
                         "thought": thought,
                         "action": {"tool": "websearch", "query": query, "max_results": max_results},
+                        "observation": observation_text[:1000],
+                    }
+                )
+                continue
+
+            if action.get("tool") == "python_repl":
+                action_input = action.get("input") or {}
+                code = str(action_input.get("code", "")).strip()
+                # Record the tool use (truncate long code for history)
+                self.tool_history.append({"tool": "python_repl", "args": code[:200]})
+
+                if not code:
+                    observation_text = "python_repl received empty code."
+                else:
+                    try:
+                        # PythonREPL returns only printed output (may include trailing newline)
+                        repl_output = self.python_repl.run(code)
+                        observation_text = repl_output if repl_output else "(no output)"
+                    except Exception as e:  # noqa: BLE001
+                        observation_text = f"Error while executing code: {e}"
+
+                notes.append(f"Thought: {thought}")
+                notes.append(f"Observation from python_repl:\n{observation_text}")
+                reasoning_traces.append(
+                    {
+                        "step": f"iteration-{step_index}",
+                        "model": getattr(self.research_model, "model_name", "unknown"),
+                        "thought": thought,
+                        "action": {"tool": "python_repl", "code": code[:500]},
                         "observation": observation_text[:1000],
                     }
                 )

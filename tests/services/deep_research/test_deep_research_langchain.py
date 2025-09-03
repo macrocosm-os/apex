@@ -32,6 +32,10 @@ def deep_research_langchain(mock_websearch, mock_llm_embed, mock_chat_openai):
     with (
         patch("apex.services.deep_research.deep_research_langchain.LLMEmbed", return_value=mock_llm_embed),
         patch("apex.services.deep_research.deep_research_langchain.ChatOpenAI", return_value=mock_chat_openai),
+        patch(
+            "apex.services.deep_research.deep_research_langchain.PythonREPL",
+            return_value=MagicMock(run=MagicMock(return_value="2\n")),
+        ),
     ):
         return DeepResearchLangchain(
             key="test_key",
@@ -176,3 +180,24 @@ async def test_full_invoke_flow_with_multiple_actions(deep_research_langchain, m
         assert result[1][0]["tool"] == "websearch"
         # Reasoning traces present
         assert isinstance(result[2], list)
+
+
+@pytest.mark.asyncio
+async def test_invoke_with_python_repl(deep_research_langchain):
+    """Agent chooses python_repl then produces final answer."""
+    with (
+        patch("apex.services.deep_research.deep_research_langchain.PromptTemplate") as mock_prompt_template,
+        patch("apex.services.deep_research.deep_research_langchain.StrOutputParser"),
+    ):
+        agent_chain = AsyncMock()
+        agent_chain.ainvoke.side_effect = [
+            ('{"thought": "compute needed", "action": {"tool": "python_repl", "input": {"code": "print(1+1)"}}}'),
+            '{"thought": "done", "final_answer": "final_answer"}',
+        ]
+        mock_prompt_template.return_value.__or__.return_value.__or__.return_value = agent_chain
+
+        result = await deep_research_langchain.invoke([{"role": "user", "content": "q"}])
+
+        # Tool history includes python_repl usage
+        assert any(t["tool"] == "python_repl" for t in result[1])
+        assert result[0] == "final_answer"
