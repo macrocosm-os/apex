@@ -7,8 +7,8 @@ from langchain_community.vectorstores import FAISS, VectorStore
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.retrievers import BaseRetriever
 from langchain_core.runnables import RunnableSerializable
+from langchain_core.retrievers import BaseRetriever
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from loguru import logger
@@ -117,80 +117,185 @@ Research Report:
     async def invoke(
         self, messages: list[dict[str, str]], body: dict[str, Any] | None = None
     ) -> tuple[str, list[dict[str, str]], list[dict[str, Any]]]:  # type: ignore[override]
-        # Clear tool history for each new invocation
+        # Agentic, iterative deep research with a single websearch tool.
         self.tool_history = []
         reasoning_traces: list[dict[str, Any]] = []
+
         question = messages[-1]["content"]
-        documents: list[Document] = []
+
+        # Seed notes with any provided documents
+        notes: list[str] = []
         if body and "documents" in body and body["documents"]:
-            documents = [
-                Document(page_content=doc["page_content"])
-                for doc in body["documents"]
-                if doc and "page_content" in doc and doc["page_content"] is not None
-            ]
+            for doc in body["documents"]:
+                if doc and "page_content" in doc and doc["page_content"] is not None:
+                    content = str(doc["page_content"])[:1000]
+                    notes.append(f"Provided document snippet: {content}")
 
-        if not documents:
-            # Track websearch in tool history
-            self.tool_history.append({"tool": "websearch", "args": question})
-            websites = await self.websearch.search(query=question, max_results=5)
-            for website in websites:
-                if website.content:
-                    documents.append(Document(page_content=str(website.content), metadata={"url": website.url}))
+        # Iterative loop using research model to choose actions
+        max_iterations = 6
+        step_index = 0
 
-        if not documents:
-            return "Could not find any information on the topic.", self.tool_history, reasoning_traces
+        def _render_notes(max_items: int = 8) -> str:
+            if not notes:
+                return "(none yet)"
+            clipped = notes[-max_items:]
+            return "\n".join(f"- {item}" for item in clipped)
 
-        retriever = await self._create_vector_store(documents)
-        if not retriever:
-            return "Could not create a vector store from the documents.", self.tool_history, reasoning_traces
+        def _build_agent_chain() -> RunnableSerializable[dict[str, Any], str]:
+            prompt = PromptTemplate(
+                input_variables=["question", "notes"],
+                template=(
+                    "You are DeepResearcher, a meticulous, tool-using research agent.\n"
+                    "You can use exactly one tool: websearch.\n\n"
+                    "Tool: websearch\n"
+                    "- description: Search the web for relevant information.\n"
+                    "- args: keys: 'query' (string), 'max_results' (integer <= 10)\n\n"
+                    "Follow an iterative think-act-observe loop until you have enough information to answer.\n"
+                    "Always respond in strict JSON. Use one of the two schemas:\n\n"
+                    "1) Action step (JSON keys shown with dot-paths):\n"
+                    "- thought: string\n"
+                    "- action.tool: 'websearch'\n"
+                    "- action.input.query: string\n"
+                    "- action.input.max_results: integer\n\n"
+                    "2) Final answer step:\n"
+                    "- thought: string\n"
+                    "- final_answer: string\n\n"
+                    "Question:\n{question}\n\n"
+                    "Notes and observations so far:\n{notes}\n\n"
+                    "Respond with JSON only."
+                ),
+            )
+            return prompt | self.research_model | StrOutputParser()
 
-        compression_retriever = self._create_compression_retriever(retriever)
+        agent_chain = _build_agent_chain()
 
-        summary_chain = self._create_summary_chain()
-        research_chain = self._create_research_chain()
+        while step_index < max_iterations:
+            step_index += 1
+            agent_output: str = await agent_chain.ainvoke({
+                "question": question,
+                "notes": _render_notes(),
+            })
 
-        compressed_docs: list[Document] = await compression_retriever.ainvoke(question)
+            parsed = self._safe_parse_json(agent_output)
+            if parsed is None:
+                reasoning_traces.append({
+                    "step": f"iteration-{step_index}",
+                    "model": getattr(self.research_model, "model_name", "unknown"),
+                    "output": agent_output,
+                    "error": "Failed to parse JSON from agent output",
+                })
+                # Add a note to steer next iteration toward valid JSON
+                notes.append("Agent output was not valid JSON. Please respond with valid JSON per schema.")
+                continue
 
-        summary: str = await summary_chain.ainvoke({"context": compressed_docs, "question": question})
-        reasoning_traces.append(
-            {
-                "step": "summary",
-                "model": getattr(self.summary_model, "model_name", "unknown"),
-                "output": summary,
-            }
-        )
+            thought = str(parsed.get("thought", ""))
 
-        research_report: str = await research_chain.ainvoke({"context": compressed_docs, "question": question})
-        reasoning_traces.append(
-            {
-                "step": "research",
+            # Final answer branch
+            if "final_answer" in parsed:
+                final_answer = str(parsed.get("final_answer", ""))
+                reasoning_traces.append({
+                    "step": f"iteration-{step_index}",
+                    "model": getattr(self.research_model, "model_name", "unknown"),
+                    "thought": thought,
+                    "final_answer": final_answer,
+                })
+                return final_answer, self.tool_history, reasoning_traces
+
+            # Action branch (only websearch supported)
+            action = parsed.get("action") or {}
+            if action.get("tool") == "websearch":
+                action_input = action.get("input") or {}
+                query = str(action_input.get("query", question))
+                try:
+                    max_results = int(action_input.get("max_results", 5))
+                except Exception:
+                    max_results = 5
+                max_results = max(1, min(10, max_results))
+
+                self.tool_history.append({"tool": "websearch", "args": query})
+                websites = await self.websearch.search(query=query, max_results=max_results)
+
+                observations: list[str] = []
+                for idx, website in enumerate(websites[:max_results]):
+                    if website.content:
+                        snippet = str(website.content)[:500]
+                        observations.append(
+                            f"Result {idx+1}: {website.title or website.url or 'untitled'}\n{snippet}"
+                        )
+
+                observation_text = "\n\n".join(observations) if observations else "No results returned."
+                notes.append(f"Thought: {thought}")
+                notes.append(f"Observation from websearch (q=\"{query}\"):\n{observation_text}")
+                reasoning_traces.append({
+                    "step": f"iteration-{step_index}",
+                    "model": getattr(self.research_model, "model_name", "unknown"),
+                    "thought": thought,
+                    "action": {"tool": "websearch", "query": query, "max_results": max_results},
+                    "observation": observation_text[:1000],
+                })
+                continue
+
+            # Unknown action or schema
+            reasoning_traces.append({
+                "step": f"iteration-{step_index}",
                 "model": getattr(self.research_model, "model_name", "unknown"),
-                "output": research_report,
-            }
-        )
+                "thought": thought,
+                "error": f"Unsupported action or schema: {action}",
+            })
+            notes.append("Agent returned an unsupported action. Use the websearch tool or provide final_answer.")
 
+        # Fallback: if loop ends without final answer, ask final model to synthesize from notes
         final_prompt = PromptTemplate(
-            input_variables=["summary", "research_report", "question"],
-            template="""Based on the following summary and research report, provide a final answer to the question.
-Summary: {summary}
-Research Report: {research_report}
-Question: {question}
-Final Answer:
-""",
+            input_variables=["question", "notes"],
+            template=(
+                "You are a senior researcher. Based on the notes below, produce a concise, well-sourced final answer.\n\n"
+                "Question:\n{question}\n\nNotes:\n{notes}\n\nFinal Answer:"
+            ),
         )
         final_chain = final_prompt | self.final_model | StrOutputParser()
-
-        final_answer: str = await final_chain.ainvoke(
-            {"summary": summary, "research_report": research_report, "question": question}
-        )
-        reasoning_traces.append(
-            {
-                "step": "final",
-                "model": getattr(self.final_model, "model_name", "unknown"),
-                "output": final_answer,
-            }
-        )
+        final_answer: str = await final_chain.ainvoke({
+            "question": question,
+            "notes": _render_notes(12),
+        })
+        reasoning_traces.append({
+            "step": "final-fallback",
+            "model": getattr(self.final_model, "model_name", "unknown"),
+            "output": final_answer,
+        })
         return final_answer, self.tool_history, reasoning_traces
+
+    def _safe_parse_json(self, text: str) -> dict[str, Any] | None:
+        """Attempt to parse a JSON object from model output.
+        Tries full parse, fenced code extraction, and best-effort substring extraction.
+        """
+        import json
+        import re
+
+        # Direct parse
+        try:
+            return json.loads(text)
+        except Exception:
+            pass
+
+        # Extract first JSON code fence
+        fence_match = re.search(r"```(?:json)?\s*({[\s\S]*?})\s*```", text)
+        if fence_match:
+            candidate = fence_match.group(1)
+            try:
+                return json.loads(candidate)
+            except Exception:
+                pass
+
+        # Heuristic: find first '{' and last '}' and try parse
+        start = text.find("{")
+        end = text.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            candidate2 = text[start : end + 1]
+            try:
+                return json.loads(candidate2)
+            except Exception:
+                return None
+        return None
 
 
 class _CustomEmbeddings(Embeddings):  # type: ignore
@@ -230,10 +335,10 @@ if __name__ == "__main__":
     async def main() -> None:
         timer_start = time.perf_counter()
         result, tool_history, reasoning_traces = await deep_researcher.invoke(dummy_messages, dummy_body)
-        logger.debug("Answer:", result)
-        logger.debug("Tool History:", tool_history)
-        logger.debug("Reasoning Traces:", reasoning_traces)
+        print(f"Answer: {result}")
+        print(f"Tool History: {tool_history}")
+        print(f"Reasoning Traces: {reasoning_traces}")
         timer_end = time.perf_counter()
-        logger.debug(f"Time elapsed: {timer_end - timer_start:.2f}s")
+        print(f"Time elapsed: {timer_end - timer_start:.2f}s")
 
     asyncio.run(main())
