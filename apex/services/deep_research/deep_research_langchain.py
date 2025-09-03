@@ -248,11 +248,12 @@ Research Report:
                             f"Result {idx + 1}: {website.title or website.url or 'untitled'}\n{snippet}"
                         )
                     # Track source metadata for citations
-                    if getattr(website, "url", None) and website.url not in seen_urls:
-                        seen_urls.add(website.url)
+                    url = getattr(website, "url", "") or ""
+                    if url and url not in seen_urls:
+                        seen_urls.add(url)
                         collected_sources.append(
                             {
-                                "url": website.url or "",
+                                "url": url,
                                 "title": website.title or "",
                             }
                         )
@@ -297,7 +298,7 @@ Research Report:
             ),
         )
         final_chain = final_prompt | self.final_model | StrOutputParser()
-        final_answer: str = await final_chain.ainvoke(
+        final_report: str = await final_chain.ainvoke(
             {
                 "question": question,
                 "notes": _render_notes(12),
@@ -308,13 +309,14 @@ Research Report:
             {
                 "step": "final-fallback",
                 "model": getattr(self.final_model, "model_name", "unknown"),
-                "output": final_answer,
+                "output": final_report,
             }
         )
-        return final_answer, self.tool_history, reasoning_traces
+        return final_report, self.tool_history, reasoning_traces
 
     def _safe_parse_json(self, text: str) -> dict[str, Any] | None:
         """Attempt to parse a JSON object from model output.
+
         Tries full parse, fenced code extraction, and best-effort substring extraction.
         """
         import json
@@ -322,7 +324,10 @@ Research Report:
 
         # Direct parse
         try:
-            return json.loads(text)
+            obj = json.loads(text)
+            if isinstance(obj, dict):
+                return obj
+            return None
         except Exception:
             pass
 
@@ -331,7 +336,10 @@ Research Report:
         if fence_match:
             candidate = fence_match.group(1)
             try:
-                return json.loads(candidate)
+                obj2 = json.loads(candidate)
+                if isinstance(obj2, dict):
+                    return obj2
+                return None
             except Exception:
                 pass
 
@@ -341,7 +349,10 @@ Research Report:
         if start != -1 and end != -1 and end > start:
             candidate2 = text[start : end + 1]
             try:
-                return json.loads(candidate2)
+                obj3 = json.loads(candidate2)
+                if isinstance(obj3, dict):
+                    return obj3
+                return None
             except Exception:
                 return None
         return None
