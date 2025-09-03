@@ -7,11 +7,10 @@ from langchain_community.vectorstores import FAISS, VectorStore
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnableSerializable
 from langchain_core.retrievers import BaseRetriever
+from langchain_core.runnables import RunnableSerializable
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from loguru import logger
 
 from apex.common.config import Config
 from apex.services.deep_research.deep_research_base import DeepResearchBase
@@ -190,20 +189,24 @@ Research Report:
 
         while step_index < max_iterations:
             step_index += 1
-            agent_output: str = await agent_chain.ainvoke({
-                "question": question,
-                "notes": _render_notes(),
-                "sources": _render_sources(),
-            })
+            agent_output: str = await agent_chain.ainvoke(
+                {
+                    "question": question,
+                    "notes": _render_notes(),
+                    "sources": _render_sources(),
+                }
+            )
 
             parsed = self._safe_parse_json(agent_output)
             if parsed is None:
-                reasoning_traces.append({
-                    "step": f"iteration-{step_index}",
-                    "model": getattr(self.research_model, "model_name", "unknown"),
-                    "output": agent_output,
-                    "error": "Failed to parse JSON from agent output",
-                })
+                reasoning_traces.append(
+                    {
+                        "step": f"iteration-{step_index}",
+                        "model": getattr(self.research_model, "model_name", "unknown"),
+                        "output": agent_output,
+                        "error": "Failed to parse JSON from agent output",
+                    }
+                )
                 # Add a note to steer next iteration toward valid JSON
                 notes.append("Agent output was not valid JSON. Please respond with valid JSON per schema.")
                 continue
@@ -213,12 +216,14 @@ Research Report:
             # Final answer branch
             if "final_answer" in parsed:
                 final_answer = str(parsed.get("final_answer", ""))
-                reasoning_traces.append({
-                    "step": f"iteration-{step_index}",
-                    "model": getattr(self.research_model, "model_name", "unknown"),
-                    "thought": thought,
-                    "final_answer": final_answer,
-                })
+                reasoning_traces.append(
+                    {
+                        "step": f"iteration-{step_index}",
+                        "model": getattr(self.research_model, "model_name", "unknown"),
+                        "thought": thought,
+                        "final_answer": final_answer,
+                    }
+                )
                 return final_answer, self.tool_history, reasoning_traces
 
             # Action branch (only websearch supported)
@@ -240,35 +245,41 @@ Research Report:
                     if website.content:
                         snippet = str(website.content)[:500]
                         observations.append(
-                            f"Result {idx+1}: {website.title or website.url or 'untitled'}\n{snippet}"
+                            f"Result {idx + 1}: {website.title or website.url or 'untitled'}\n{snippet}"
                         )
                     # Track source metadata for citations
                     if getattr(website, "url", None) and website.url not in seen_urls:
                         seen_urls.add(website.url)
-                        collected_sources.append({
-                            "url": website.url or "",
-                            "title": website.title or "",
-                        })
+                        collected_sources.append(
+                            {
+                                "url": website.url or "",
+                                "title": website.title or "",
+                            }
+                        )
 
                 observation_text = "\n\n".join(observations) if observations else "No results returned."
                 notes.append(f"Thought: {thought}")
-                notes.append(f"Observation from websearch (q=\"{query}\"):\n{observation_text}")
-                reasoning_traces.append({
-                    "step": f"iteration-{step_index}",
-                    "model": getattr(self.research_model, "model_name", "unknown"),
-                    "thought": thought,
-                    "action": {"tool": "websearch", "query": query, "max_results": max_results},
-                    "observation": observation_text[:1000],
-                })
+                notes.append(f'Observation from websearch (q="{query}"):\n{observation_text}')
+                reasoning_traces.append(
+                    {
+                        "step": f"iteration-{step_index}",
+                        "model": getattr(self.research_model, "model_name", "unknown"),
+                        "thought": thought,
+                        "action": {"tool": "websearch", "query": query, "max_results": max_results},
+                        "observation": observation_text[:1000],
+                    }
+                )
                 continue
 
             # Unknown action or schema
-            reasoning_traces.append({
-                "step": f"iteration-{step_index}",
-                "model": getattr(self.research_model, "model_name", "unknown"),
-                "thought": thought,
-                "error": f"Unsupported action or schema: {action}",
-            })
+            reasoning_traces.append(
+                {
+                    "step": f"iteration-{step_index}",
+                    "model": getattr(self.research_model, "model_name", "unknown"),
+                    "thought": thought,
+                    "error": f"Unsupported action or schema: {action}",
+                }
+            )
             notes.append("Agent returned an unsupported action. Use the websearch tool or provide final_answer.")
 
         # Fallback: if loop ends without final answer, ask final model to synthesize from notes
@@ -286,16 +297,20 @@ Research Report:
             ),
         )
         final_chain = final_prompt | self.final_model | StrOutputParser()
-        final_answer: str = await final_chain.ainvoke({
-            "question": question,
-            "notes": _render_notes(12),
-            "sources": _render_sources(20),
-        })
-        reasoning_traces.append({
-            "step": "final-fallback",
-            "model": getattr(self.final_model, "model_name", "unknown"),
-            "output": final_answer,
-        })
+        final_answer: str = await final_chain.ainvoke(
+            {
+                "question": question,
+                "notes": _render_notes(12),
+                "sources": _render_sources(20),
+            }
+        )
+        reasoning_traces.append(
+            {
+                "step": "final-fallback",
+                "model": getattr(self.final_model, "model_name", "unknown"),
+                "output": final_answer,
+            }
+        )
         return final_answer, self.tool_history, reasoning_traces
 
     def _safe_parse_json(self, text: str) -> dict[str, Any] | None:
