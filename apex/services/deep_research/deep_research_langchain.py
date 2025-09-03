@@ -132,8 +132,22 @@ Research Report:
                     notes.append(f"Provided document snippet: {content}")
 
         # Iterative loop using research model to choose actions
-        max_iterations = 6
+        max_iterations = 20
         step_index = 0
+
+        # Track discovered sources from websearch for citations
+        collected_sources: list[dict[str, str]] = []
+        seen_urls: set[str] = set()
+
+        def _render_sources(max_items: int = 12) -> str:
+            if not collected_sources:
+                return "(none)"
+            lines: list[str] = []
+            for i, src in enumerate(collected_sources[:max_items], start=1):
+                title = src.get("title") or "untitled"
+                url = src.get("url") or ""
+                lines.append(f"[{i}] {title} - {url}")
+            return "\n".join(lines)
 
         def _render_notes(max_items: int = 8) -> str:
             if not notes:
@@ -143,7 +157,7 @@ Research Report:
 
         def _build_agent_chain() -> RunnableSerializable[dict[str, Any], str]:
             prompt = PromptTemplate(
-                input_variables=["question", "notes"],
+                input_variables=["question", "notes", "sources"],
                 template=(
                     "You are DeepResearcher, a meticulous, tool-using research agent.\n"
                     "You can use exactly one tool: websearch.\n\n"
@@ -160,8 +174,13 @@ Research Report:
                     "2) Final answer step:\n"
                     "- thought: string\n"
                     "- final_answer: string\n\n"
+                    "When producing final_answer, write a structured research report with sections:\n"
+                    "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
+                    "Use inline numeric citations like [1], [2] that refer to Sources.\n"
+                    "Include a final section titled 'Sources' listing the numbered citations.\n\n"
                     "Question:\n{question}\n\n"
                     "Notes and observations so far:\n{notes}\n\n"
+                    "Sources (use these for citations):\n{sources}\n\n"
                     "Respond with JSON only."
                 ),
             )
@@ -174,6 +193,7 @@ Research Report:
             agent_output: str = await agent_chain.ainvoke({
                 "question": question,
                 "notes": _render_notes(),
+                "sources": _render_sources(),
             })
 
             parsed = self._safe_parse_json(agent_output)
@@ -222,6 +242,13 @@ Research Report:
                         observations.append(
                             f"Result {idx+1}: {website.title or website.url or 'untitled'}\n{snippet}"
                         )
+                    # Track source metadata for citations
+                    if getattr(website, "url", None) and website.url not in seen_urls:
+                        seen_urls.add(website.url)
+                        collected_sources.append({
+                            "url": website.url or "",
+                            "title": website.title or "",
+                        })
 
                 observation_text = "\n\n".join(observations) if observations else "No results returned."
                 notes.append(f"Thought: {thought}")
@@ -246,16 +273,23 @@ Research Report:
 
         # Fallback: if loop ends without final answer, ask final model to synthesize from notes
         final_prompt = PromptTemplate(
-            input_variables=["question", "notes"],
+            input_variables=["question", "notes", "sources"],
             template=(
-                "You are a senior researcher. Based on the notes below, produce a concise, well-sourced final answer.\n\n"
-                "Question:\n{question}\n\nNotes:\n{notes}\n\nFinal Answer:"
+                "You are a senior researcher. Write a research report with sections:\n"
+                "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
+                "Use inline numeric citations like [1], [2] that refer to Sources.\n"
+                "At the end, include a 'Sources' section listing the numbered citations.\n\n"
+                "Question:\n{question}\n\n"
+                "Notes:\n{notes}\n\n"
+                "Sources:\n{sources}\n\n"
+                "Research Report:"
             ),
         )
         final_chain = final_prompt | self.final_model | StrOutputParser()
         final_answer: str = await final_chain.ainvoke({
             "question": question,
             "notes": _render_notes(12),
+            "sources": _render_sources(20),
         })
         reasoning_traces.append({
             "step": "final-fallback",
