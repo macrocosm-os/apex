@@ -53,6 +53,7 @@ class DeepResearchLangchain(DeepResearchBase):
             openai_api_base=summary_base_url if summary_base_url is not None else base_url,
             max_retries=3,
             temperature=0.01,
+            max_tokens=800,
         )
         self.research_model = ChatOpenAI(
             model_name=research_model,
@@ -60,6 +61,7 @@ class DeepResearchLangchain(DeepResearchBase):
             openai_api_base=research_base_url if research_base_url is not None else base_url,
             max_retries=3,
             temperature=0.01,
+            max_tokens=1200,
         )
         self.compression_model = ChatOpenAI(
             model_name=compression_model,
@@ -67,6 +69,7 @@ class DeepResearchLangchain(DeepResearchBase):
             openai_api_base=compression_base_url if compression_base_url is not None else base_url,
             max_retries=3,
             temperature=0.01,
+            max_tokens=600,
         )
         self.final_model = ChatOpenAI(
             model_name=final_model,
@@ -74,6 +77,7 @@ class DeepResearchLangchain(DeepResearchBase):
             openai_api_base=final_base_url if final_base_url is not None else base_url,
             max_retries=3,
             temperature=0.01,
+            max_tokens=1600,
         )
         # Caution: PythonREPL can execute arbitrary code on the host machine.
         # Use with caution and consider sandboxing for untrusted inputs.
@@ -110,6 +114,15 @@ Helpful Answer:
         prompt = PromptTemplate(
             input_variables=["context", "question"],
             template="""Generate a comprehensive research report based on the provided context.
+The report should be long-form (800-1200 words) and include the sections:
+- Executive Summary
+- Key Findings
+- Evidence (quote or paraphrase context with attributions)
+- Limitations and Uncertainties
+- Conclusion
+
+Explain reasoning explicitly in prose. Prefer depth over breadth.
+
 Context: {context}
 Question: {question}
 Research Report:
@@ -171,7 +184,13 @@ Research Report:
                     "- description: A Python shell for executing Python commands.\n"
                     "- note: Print values to see output, e.g., `print(...)`.\n"
                     "- args: keys: 'code' (string: valid python command).\n\n"
-                    "Follow an iterative think-act-observe loop until you have enough information to answer.\n"
+                    "Follow an iterative think-act-observe loop. "
+                    "Prefer rich internal reasoning over issuing many tool calls.\n"
+                    "Spend time thinking: produce substantial, explicit reasoning in each 'thought'.\n"
+                    "Avoid giving a final answer too early. Aim for at least 6 detailed thoughts before finalizing,\n"
+                    "unless the question is truly trivial. "
+                    "If no tool use is needed in a step, still provide a reflective 'thought'\n"
+                    "that evaluates evidence, identifies gaps, and plans the next step.\n\n"
                     "Always respond in strict JSON. Use one of the two schemas:\n\n"
                     "1) Action step (JSON keys shown with dot-paths):\n"
                     "- thought: string\n"
@@ -181,7 +200,11 @@ Research Report:
                     "2) Final answer step:\n"
                     "- thought: string\n"
                     "- final_answer: string\n\n"
-                    "When producing final_answer, write a structured research report with sections:\n"
+                    "In every step, make 'thought' a detailed paragraph (120-200 words) that:\n"
+                    "- Summarizes what is known and unknown so far\n"
+                    "- Justifies the chosen next action or decision not to act\n"
+                    "- Evaluates evidence quality and cites source numbers when applicable\n"
+                    "- Identifies risks, uncertainties, and alternative hypotheses\n\n"
                     "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
                     "Use inline numeric citations like [1], [2] that refer to Sources.\n"
                     "Include a final section titled 'Sources' listing the numbered citations.\n\n"
@@ -425,7 +448,16 @@ if __name__ == "__main__":
     deep_researcher = DeepResearchLangchain(**config.deep_research.kwargs, websearch=websearch)
 
     # Create a dummy request.
-    dummy_messages = [{"role": "user", "content": "What is the purpose of subnet 1 in Bittensor?"}]
+    dummy_messages = [
+        {
+            "role": "user",
+            "content": """In the study of convex sets, why might two closed convex sets fail to have a strictly
+            separating hyperplane, even if they are disjoint? What geometric or topological properties could
+            prevent strict separation, and how does this contrast
+            with the case where strict separation is possible? Can you provide an intuitive example where such
+            a scenario occurs, and explain the underlying reasoning?""",
+        }
+    ]
     dummy_body: dict[str, Any] = {}
 
     # Run the invoke method.
