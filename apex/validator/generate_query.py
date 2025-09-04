@@ -23,7 +23,7 @@ async def generate_query(llm: LLMBase, websearch: WebSearchBase) -> str:
         search_results = await websearch.search(random_words, max_results=5)
         search_website = random.choice(search_results)
         search_content = search_website.content
-    except BaseException as exc:
+    except Exception as exc:
         logger.error(f"Error during web search: {exc}")
         search_content = ""
     query = QUERY_PROMPT_TEMPLATE.format(context=search_content)
