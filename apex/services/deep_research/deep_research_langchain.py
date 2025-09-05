@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 from typing import Any
 
 import tenacity
@@ -272,7 +273,8 @@ Research Report:
                 else:
                     try:
                         # PythonREPL returns only printed output (may include trailing newline)
-                        repl_output = self.python_repl.run(code)
+                        with contextlib.redirect_stdout(None):
+                            repl_output = self.python_repl.run(code)
                         observation_text = repl_output if repl_output else "(no output)"
                         logger.debug(f"Code execution result:\n{observation_text}")
                     except Exception as e:  # noqa: BLE001
