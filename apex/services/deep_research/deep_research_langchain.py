@@ -25,6 +25,16 @@ from apex.services.websearch.websearch_tavily import WebSearchTavily
 
 
 class DeepResearchLangchain(DeepResearchBase):
+    _FINAL_ANSWER_INST = (
+        "You are a senior interdisciplinary researcher with expertise across "
+        "science, technology, humanities, and social sciences.\n"
+        "Provide report only in plain text using natural language.\n"
+        "Write your response in the form of a well-structured research report with sections:\n"
+        "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
+        "Use inline numeric citations like [1], [2] that refer to Sources.\n"
+        "At the end, include a 'Sources' section listing the numbered citations.\n\n"
+    )
+
     def __init__(
         self,
         key: str,
@@ -142,6 +152,7 @@ Research Report:
         reasoning_traces: list[dict[str, Any]] = []
 
         question = messages[-1]["content"]
+        question = self._FINAL_ANSWER_INST + question
 
         # Seed notes with any provided documents
         notes: list[str] = []
@@ -297,14 +308,7 @@ Research Report:
         final_prompt = PromptTemplate(
             input_variables=["question", "notes", "sources"],
             template=(
-                "You are a senior interdisciplinary researcher with expertise across "
-                "science, technology, humanities, and social sciences.\n"
-                "Provide report only in plain text using natural language.\n"
-                "Write your response in the form of a well-structured research report with sections:\n"
-                "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
-                "Use inline numeric citations like [1], [2] that refer to Sources.\n"
-                "At the end, include a 'Sources' section listing the numbered citations.\n\n"
-                "Do NOT use JSON, or any other structured data format.\n"
+                self._FINAL_ANSWER_INST + "Do NOT use JSON, or any other structured data format.\n"
                 "Question:\n{question}\n\n"
                 "Notes:\n{notes}\n\n"
                 "Sources:\n{sources}\n\n"

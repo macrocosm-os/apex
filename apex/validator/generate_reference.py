@@ -26,11 +26,7 @@ async def generate_reference(
     }
     user_message: dict[str, str] = {
         "role": "user",
-        "content": (
-            f"Research Question: {query}\n\n"
-            "Please think through the answer carefully, annotate each step with citations like [1], [2], etc., "
-            'and conclude with a "Sources:" list mapping each [n] to its source URL or title.'
-        ),
+        "content": query,
     }
 
     response, tool_history, reasoning_traces = await llm.invoke([system_message, user_message])
