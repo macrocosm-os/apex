@@ -84,12 +84,15 @@ class Pipeline:
 
         reference = None
         tool_history: list[dict[str, str]] = []
+        reasoning_traces: list[dict[str, Any]] = []
         if random.random() < self.reference_rate:
             try:
                 generator_results = None
                 ground_truth = 0
                 logger.debug(f"Generating task reference for query: {query[:20]}..")
-                reference, tool_history = await generate_reference(llm=self.deep_research, query=query)
+                reference, tool_history, reasoning_traces = await generate_reference(
+                    llm=self.deep_research, query=query
+                )
             except BaseException as exc:
                 logger.exception(f"Failed to generate reference: {exc}")
 
@@ -100,7 +103,9 @@ class Pipeline:
             if random.random() < self.redundancy_rate:
                 try:
                     logger.debug(f"Generating redundant task reference for query: {query[:20]}..")
-                    reference, tool_history = await generate_reference(llm=self.deep_research, query=query)
+                    reference, tool_history, reasoning_traces = await generate_reference(
+                        llm=self.deep_research, query=query
+                    )
                 except BaseException as exc:
                     logger.warning(f"Failed to generate redundant reference: {exc}")
 
@@ -111,7 +116,10 @@ class Pipeline:
 
         if self.logger_wandb:
             await self.logger_wandb.log(
-                reference=reference, discriminator_results=discriminator_results, tool_history=tool_history
+                reference=reference,
+                discriminator_results=discriminator_results,
+                tool_history=tool_history,
+                reasoning_traces=reasoning_traces,
             )
 
         if self._debug:

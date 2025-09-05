@@ -36,6 +36,7 @@ dependencies = [
     "pytest-mock>=3.14.1",
     "wandb>=0.21.1",
     "ruff>=0.12.5",
+    "langchain-experimental>=0.3.4",
 ]
 
 
