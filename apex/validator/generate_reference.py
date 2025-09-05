@@ -29,7 +29,7 @@ async def generate_reference(
         "content": (
             f"Research Question: {query}\n\n"
             "Please think through the answer carefully, annotate each step with citations like [1], [2], etc., "
-            'and conclude with a "References:" list mapping each [n] to its source URL or title.'
+            'and conclude with a "Sources:" list mapping each [n] to its source URL or title.'
         ),
     }
 

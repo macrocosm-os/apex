@@ -1,5 +1,7 @@
+import asyncio
 from typing import Any
 
+import tenacity
 from langchain.prompts import PromptTemplate
 from langchain.retrievers import ContextualCompressionRetriever
 from langchain.retrievers.document_compressors import LLMChainFilter
@@ -12,6 +14,8 @@ from langchain_core.runnables import RunnableSerializable
 from langchain_experimental.utilities import PythonREPL
 from langchain_openai import ChatOpenAI
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from loguru import logger
+from openai import RateLimitError
 
 from apex.common.config import Config
 from apex.services.deep_research.deep_research_base import DeepResearchBase
@@ -77,7 +81,7 @@ class DeepResearchLangchain(DeepResearchBase):
             openai_api_base=final_base_url if final_base_url is not None else base_url,
             max_retries=3,
             temperature=0.01,
-            max_tokens=1600,
+            max_tokens=2000,
         )
         # Caution: PythonREPL can execute arbitrary code on the host machine.
         # Use with caution and consider sandboxing for untrusted inputs.
@@ -118,7 +122,7 @@ The report should be long-form (800-1200 words) and include the sections:
 - Executive Summary
 - Key Findings
 - Evidence (quote or paraphrase context with attributions)
-- Limitations and Uncertainties
+- Limitations
 - Conclusion
 
 Explain reasoning explicitly in prose. Prefer depth over breadth.
@@ -141,9 +145,9 @@ Research Report:
 
         # Seed notes with any provided documents
         notes: list[str] = []
-        if body and "documents" in body and body["documents"]:
+        if body is not None and "documents" in body:
             for doc in body["documents"]:
-                if doc and "page_content" in doc and doc["page_content"] is not None:
+                if doc and doc.get("page_content") is not None:
                     content = str(doc["page_content"])[:1000]
                     notes.append(f"Provided document snippet: {content}")
 
@@ -155,79 +159,19 @@ Research Report:
         collected_sources: list[dict[str, str]] = []
         seen_urls: set[str] = set()
 
-        def _render_sources(max_items: int = 12) -> str:
-            if not collected_sources:
-                return "(none)"
-            lines: list[str] = []
-            for i, src in enumerate(collected_sources[:max_items], start=1):
-                title = src.get("title") or "untitled"
-                url = src.get("url") or ""
-                lines.append(f"[{i}] {title} - {url}")
-            return "\n".join(lines)
-
-        def _render_notes(max_items: int = 8) -> str:
-            if not notes:
-                return "(none yet)"
-            clipped = notes[-max_items:]
-            return "\n".join(f"- {item}" for item in clipped)
-
-        def _build_agent_chain() -> RunnableSerializable[dict[str, Any], str]:
-            prompt = PromptTemplate(
-                input_variables=["question", "notes", "sources"],
-                template=(
-                    "You are DeepResearcher, a meticulous, tool-using research agent.\n"
-                    "You can use exactly these tools: websearch, python_repl.\n\n"
-                    "Tool: websearch\n"
-                    "- description: Search the web for relevant information.\n"
-                    "- args: keys: 'query' (string), 'max_results' (integer <= 10)\n\n"
-                    "Tool: python_repl\n"
-                    "- description: A Python shell for executing Python commands.\n"
-                    "- note: Print values to see output, e.g., `print(...)`.\n"
-                    "- args: keys: 'code' (string: valid python command).\n\n"
-                    "Follow an iterative think-act-observe loop. "
-                    "Prefer rich internal reasoning over issuing many tool calls.\n"
-                    "Spend time thinking: produce substantial, explicit reasoning in each 'thought'.\n"
-                    "Avoid giving a final answer too early. Aim for at least 6 detailed thoughts before finalizing,\n"
-                    "unless the question is truly trivial. "
-                    "If no tool use is needed in a step, still provide a reflective 'thought'\n"
-                    "that evaluates evidence, identifies gaps, and plans the next step.\n\n"
-                    "Always respond in strict JSON. Use one of the two schemas:\n\n"
-                    "1) Action step (JSON keys shown with dot-paths):\n"
-                    "- thought: string\n"
-                    "- action.tool: 'websearch' | 'python_repl'\n"
-                    "- action.input: for websearch -> {{query: string, max_results: integer}}\n"
-                    "- action.input: for python_repl -> {{code: string}}\n\n"
-                    "2) Final answer step:\n"
-                    "- thought: string\n"
-                    "- final_answer: string\n\n"
-                    "In every step, make 'thought' a detailed paragraph (120-200 words) that:\n"
-                    "- Summarizes what is known and unknown so far\n"
-                    "- Justifies the chosen next action or decision not to act\n"
-                    "- Evaluates evidence quality and cites source numbers when applicable\n"
-                    "- Identifies risks, uncertainties, and alternative hypotheses\n\n"
-                    "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
-                    "Use inline numeric citations like [1], [2] that refer to Sources.\n"
-                    "Include a final section titled 'Sources' listing the numbered citations.\n\n"
-                    "Question:\n{question}\n\n"
-                    "Notes and observations so far:\n{notes}\n\n"
-                    "Sources (use these for citations):\n{sources}\n\n"
-                    "Respond with JSON only."
-                ),
-            )
-            return prompt | self.research_model | StrOutputParser()
-
-        agent_chain = _build_agent_chain()
+        agent_chain = self._build_agent_chain()
 
         while step_index < max_iterations:
+            logger.debug(f"Starting deep researcher {step_index + 1}/{max_iterations} step")
             step_index += 1
-            agent_output: str = await agent_chain.ainvoke(
+            agent_output: str = await self._try_invoke(
+                agent_chain,
                 {
                     "question": question,
-                    "notes": _render_notes(),
-                    "sources": _render_sources(),
-                }
+                    "notes": self._render_notes(notes=notes),
+                    "sources": self._render_sources(collected_sources=collected_sources),
+                },
             )
-
             parsed = self._safe_parse_json(agent_output)
             if parsed is None:
                 reasoning_traces.append(
@@ -246,6 +190,7 @@ Research Report:
 
             # Final answer branch
             if "final_answer" in parsed:
+                logger.debug("Early-stopping deep research due to the final answer")
                 final_answer = str(parsed.get("final_answer", ""))
                 reasoning_traces.append(
                     {
@@ -274,7 +219,7 @@ Research Report:
                 observations: list[str] = []
                 for idx, website in enumerate(websites[:max_results]):
                     if website.content:
-                        snippet = str(website.content)[:500]
+                        snippet = str(website.content)[:1000]
                         observations.append(
                             f"Result {idx + 1}: {website.title or website.url or 'untitled'}\n{snippet}"
                         )
@@ -304,8 +249,10 @@ Research Report:
                 continue
 
             if action.get("tool") == "python_repl":
+                logger.debug(f"Applying tool: {action.get('tool')}")
                 action_input = action.get("input") or {}
                 code = str(action_input.get("code", "")).strip()
+                logger.debug(f"Code to be executed:\n{code}")
                 # Record the tool use (truncate long code for history)
                 self.tool_history.append({"tool": "python_repl", "args": code[:200]})
 
@@ -316,17 +263,19 @@ Research Report:
                         # PythonREPL returns only printed output (may include trailing newline)
                         repl_output = self.python_repl.run(code)
                         observation_text = repl_output if repl_output else "(no output)"
+                        logger.debug(f"Code execution result:\n{observation_text}")
                     except Exception as e:  # noqa: BLE001
                         observation_text = f"Error while executing code: {e}"
 
                 notes.append(f"Thought: {thought}")
+                logger.debug(f"Thought: {thought}")
                 notes.append(f"Observation from python_repl:\n{observation_text}")
                 reasoning_traces.append(
                     {
                         "step": f"iteration-{step_index}",
                         "model": getattr(self.research_model, "model_name", "unknown"),
                         "thought": thought,
-                        "action": {"tool": "python_repl", "code": code[:500]},
+                        "action": {"tool": "python_repl", "code": code[:1000]},
                         "observation": observation_text[:1000],
                     }
                 )
@@ -344,13 +293,18 @@ Research Report:
             notes.append("Agent returned an unsupported action. Use the websearch tool or provide final_answer.")
 
         # Fallback: if loop ends without final answer, ask final model to synthesize from notes
+        logger.debug("Generating final answer")
         final_prompt = PromptTemplate(
             input_variables=["question", "notes", "sources"],
             template=(
-                "You are a senior researcher. Write a research report with sections:\n"
+                "You are a senior interdisciplinary researcher with expertise across "
+                "science, technology, humanities, and social sciences.\n"
+                "Provide report only in plain text using natural language.\n"
+                "Write your response in the form of a well-structured research report with sections:\n"
                 "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
                 "Use inline numeric citations like [1], [2] that refer to Sources.\n"
                 "At the end, include a 'Sources' section listing the numbered citations.\n\n"
+                "Do NOT use JSON, or any other structured data format.\n"
                 "Question:\n{question}\n\n"
                 "Notes:\n{notes}\n\n"
                 "Sources:\n{sources}\n\n"
@@ -358,12 +312,14 @@ Research Report:
             ),
         )
         final_chain = final_prompt | self.final_model | StrOutputParser()
-        final_report: str = await final_chain.ainvoke(
+
+        final_report: str = await self._try_invoke(
+            final_chain,
             {
                 "question": question,
-                "notes": _render_notes(12),
-                "sources": _render_sources(20),
-            }
+                "notes": self._render_notes(notes=notes, max_items=12),
+                "sources": self._render_sources(collected_sources=collected_sources, max_items=20),
+            },
         )
         reasoning_traces.append(
             {
@@ -373,6 +329,76 @@ Research Report:
             }
         )
         return final_report, self.tool_history, reasoning_traces
+
+    def _render_sources(self, collected_sources: list[dict[str, str]], max_items: int = 12) -> str:
+        if not collected_sources:
+            return "(none)"
+        lines: list[str] = []
+        for i, src in enumerate(collected_sources[:max_items], start=1):
+            title = src.get("title") or "untitled"
+            url = src.get("url") or ""
+            lines.append(f"[{i}] {title} - {url}")
+        return "\n".join(lines)
+
+    def _render_notes(self, notes: list[str], max_items: int = 8) -> str:
+        if not notes:
+            return "(none yet)"
+        clipped = notes[-max_items:]
+        return "\n".join(f"- {item}" for item in clipped)
+
+    def _build_agent_chain(self) -> RunnableSerializable[dict[str, Any], str]:
+        prompt = PromptTemplate(
+            input_variables=["question", "notes", "sources"],
+            template=(
+                "You are DeepResearcher, a meticulous, tool-using research agent.\n"
+                "You can use exactly these tools: websearch, python_repl.\n\n"
+                "Tool: websearch\n"
+                "- description: Search the web for relevant information.\n"
+                "- args: keys: 'query' (string), 'max_results' (integer <= 10)\n\n"
+                "Tool: python_repl\n"
+                "- description: A Python shell for executing Python commands.\n"
+                "- note: Print values to see output, e.g., `print(...)`.\n"
+                "- args: keys: 'code' (string: valid python command).\n\n"
+                "Follow an iterative think-act-observe loop. "
+                "Prefer rich internal reasoning over issuing many tool calls.\n"
+                "Spend time thinking: produce substantial, explicit reasoning in each 'thought'.\n"
+                "Avoid giving a final answer too early. Aim for at least 6 detailed thoughts before finalizing,\n"
+                "unless the question is truly trivial. "
+                "If no tool use is needed in a step, still provide a reflective 'thought'\n"
+                "that evaluates evidence, identifies gaps, and plans the next step.\n\n"
+                "Always respond in strict JSON. Use one of the two schemas:\n\n"
+                "1) Action step (JSON keys shown with dot-paths):\n"
+                "- thought: string\n"
+                "- action.tool: 'websearch' | 'python_repl'\n"
+                "- action.input: for websearch -> {{query: string, max_results: integer}}\n"
+                "- action.input: for python_repl -> {{code: string}}\n\n"
+                "2) Final answer step:\n"
+                "- thought: string\n"
+                "- final_answer: string (use plain text for final answer, not a JSON)\n\n"
+                "In every step, make 'thought' a detailed paragraph (120-200 words) that:\n"
+                "- Summarizes what is known and unknown so far\n"
+                "- Justifies the chosen next action or decision not to act\n"
+                "- Evaluates evidence quality and cites source numbers when applicable\n"
+                "- Identifies risks, uncertainties, and alternative hypotheses\n\n"
+                "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
+                "Use inline numeric citations like [1], [2] that refer to Sources.\n"
+                "Include a final section titled 'Sources' listing the numbered citations.\n\n"
+                "Question:\n{question}\n\n"
+                "Notes and observations so far:\n{notes}\n\n"
+                "Sources (use these for citations):\n{sources}\n\n"
+                "Respond with JSON always, except for final_anwer (use plain text)."
+            ),
+        )
+        return prompt | self.research_model | StrOutputParser()
+
+    @tenacity.retry(
+        retry=tenacity.retry_if_exception_type(RateLimitError),
+        stop=tenacity.stop_after_attempt(5),
+        wait=tenacity.wait_fixed(10),
+        reraise=True,
+    )
+    async def _try_invoke(self, chain: RunnableSerializable[dict[str, Any], str], inputs: dict[str, Any]) -> str:
+        return await chain.ainvoke(inputs)
 
     def _safe_parse_json(self, text: str) -> dict[str, Any] | None:
         """Attempt to parse a JSON object from model output.
