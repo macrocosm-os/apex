@@ -24,7 +24,7 @@ async def generate_query(llm: LLMBase, websearch: WebSearchBase) -> str:
         search_website = random.choice(search_results)
         search_content = search_website.content
     except Exception as exc:
-        logger.error(f"Error during web search: {exc}")
+        logger.debug(f"Error during web search: {exc}")
         search_content = ""
     query = QUERY_PROMPT_TEMPLATE.format(context=search_content)
     query_response, _ = await llm.invoke([{"role": "user", "content": query}])
