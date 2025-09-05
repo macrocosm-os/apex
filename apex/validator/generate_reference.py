@@ -1,9 +1,13 @@
+from typing import Any
+
 from loguru import logger
 
 from apex.services.deep_research.deep_research_base import DeepResearchBase
 
 
-async def generate_reference(llm: DeepResearchBase, query: str) -> tuple[str, list[dict[str, str]]]:
+async def generate_reference(
+    llm: DeepResearchBase, query: str
+) -> tuple[str, list[dict[str, str]], list[dict[str, Any]]]:
     """Generate a reference response for the given prompt.
 
     Args:
@@ -22,13 +26,9 @@ async def generate_reference(llm: DeepResearchBase, query: str) -> tuple[str, li
     }
     user_message: dict[str, str] = {
         "role": "user",
-        "content": (
-            f"Research Question: {query}\n\n"
-            "Please think through the answer carefully, annotate each step with citations like [1], [2], etc., "
-            'and conclude with a "References:" list mapping each [n] to its source URL or title.'
-        ),
+        "content": query,
     }
 
-    response, tool_history = await llm.invoke([system_message, user_message])
+    response, tool_history, reasoning_traces = await llm.invoke([system_message, user_message])
     logger.debug(f"Generated reference.\nPrompt: '{user_message}'\nResponse: '{response}'")
-    return response, tool_history
+    return response, tool_history, reasoning_traces

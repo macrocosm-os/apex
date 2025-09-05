@@ -154,6 +154,7 @@ dependencies = [
     { name = "langchain" },
     { name = "langchain-community" },
     { name = "langchain-core" },
+    { name = "langchain-experimental" },
     { name = "langchain-openai" },
     { name = "langchain-sandbox" },
     { name = "loguru" },
@@ -210,6 +211,7 @@ requires-dist = [
     { name = "langchain", specifier = ">=0.3.26" },
     { name = "langchain-community", specifier = ">=0.0.59" },
     { name = "langchain-core", specifier = ">=0.3.68" },
+    { name = "langchain-experimental", specifier = ">=0.3.4" },
     { name = "langchain-openai", specifier = ">=0.3.28" },
     { name = "langchain-sandbox", specifier = ">=0.0.6" },
     { name = "loguru", specifier = ">=0.7.3" },
@@ -1330,6 +1332,19 @@ wheels = [
 ]
 
 [[package]]
+name = "langchain-experimental"
+version = "0.3.4"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-community" },
+    { name = "langchain-core" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/27/56/a8acbb08a03383c28875b3b151e4cefea5612266917fbd6fc3c14c21e172/langchain_experimental-0.3.4.tar.gz", hash = "sha256:937c4259ee4a639c618d19acf0e2c5c2898ef127050346edc5655259aa281a21", size = 140532, upload-time = "2024-12-20T15:16:09.42Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/b2/27/fe8caa4884611286b1f7d6c5cfd76e1fef188faaa946db4fde6daa1cd2cd/langchain_experimental-0.3.4-py3-none-any.whl", hash = "sha256:2e587306aea36b60fa5e5fc05dc7281bee9f60a806f0bf9d30916e0ee096af80", size = 209154, upload-time = "2024-12-20T15:16:07.006Z" },
+]
+
+[[package]]
 name = "langchain-openai"
 version = "0.3.32"
 source = { registry = "https://pypi.org/simple" }
@@ -2142,6 +2157,7 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/3e/82/13e2ca5e43f2c7219fafa069341d52ee1867c2d929a019574ec90f6d0114/py_bip39_bindings-0.2.0-cp313-cp313t-musllinux_1_2_armv7l.whl", hash = "sha256:e6064feb105ed5c7278d19e8c4e371710ce56adcdd48e0c5e6b77f9b005201b9", size = 699630, upload-time = "2024-12-09T15:04:51.103Z" },
     { url = "https://files.pythonhosted.org/packages/78/d7/f4c33dbc311cd07946994481dea7f09e417a29dc46e3c6de81d367a87194/py_bip39_bindings-0.2.0-cp313-cp313t-musllinux_1_2_i686.whl", hash = "sha256:0cb7a39bd65455c4cc3feb3f8d5766644410f32ac137aeea88b119c6ebe2d58b", size = 627655, upload-time = "2024-12-09T15:05:03.212Z" },
     { url = "https://files.pythonhosted.org/packages/31/68/7dbb7f20d64222bd64e56d976e30614fb10d8b9dd60547028cf12b7d23a4/py_bip39_bindings-0.2.0-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:58743e95cedee157a545d060ee401639308f995badb91477d195f1d571664b65", size = 603340, upload-time = "2024-12-09T15:05:17.062Z" },
+    { url = "https://files.pythonhosted.org/packages/2d/ba/428b20399740ee40756df785fd0412b8afff35eaf49a9d93fff5d115e931/py_bip39_bindings-0.2.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:ade3ed8be37dcce01674e7f1974e4b53340abd423c940781898d33b096189581", size = 365266, upload-time = "2025-09-02T14:03:38.92Z" },
 ]
 
 [[package]]
@@ -2194,6 +2210,7 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/30/7a/0d5073188f94fd3b22a836e867e32fae0e26f3b39f734314e3eff5b530f6/py_ed25519_zebra_bindings-1.2.0-cp313-cp313t-musllinux_1_2_armv7l.whl", hash = "sha256:4fd00c8686b17e31ec29d8e4e7ce97f465fe26227f12c9e111e012b9d0dff4b9", size = 585681, upload-time = "2024-12-09T15:32:19.506Z" },
     { url = "https://files.pythonhosted.org/packages/ab/99/add86df518d799a17c91763eebf756de68b1a858a5c7977de1b335e886cc/py_ed25519_zebra_bindings-1.2.0-cp313-cp313t-musllinux_1_2_i686.whl", hash = "sha256:e4e55fc5be4ba0c723d424cefdbb8d863e74d2ff25fbeadca9539ca60d78cc0f", size = 514835, upload-time = "2024-12-09T15:32:30.13Z" },
     { url = "https://files.pythonhosted.org/packages/e7/fc/bf32dc80a597501fc7ef8b18638f78e5ee672b0b43cc02373075f9b1f8d4/py_ed25519_zebra_bindings-1.2.0-cp313-cp313t-musllinux_1_2_x86_64.whl", hash = "sha256:91816ed4cef90d4d08fa9f55fa0c5687c5eba601dc1a44f211adcf1c20d96cc3", size = 488524, upload-time = "2024-12-09T15:32:41.819Z" },
+    { url = "https://files.pythonhosted.org/packages/33/66/22746aea9669128918e93c1cb7d381269f2d18d3385612071950eb713011/py_ed25519_zebra_bindings-1.2.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:8e078ec4b72ed8492d6048e64c1979fcdc239104e3c23c9fb2cb7b9eee4bb098", size = 270358, upload-time = "2025-09-02T14:29:52.752Z" },
 ]
 
 [[package]]
