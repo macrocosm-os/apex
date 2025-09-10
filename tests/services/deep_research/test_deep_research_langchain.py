@@ -1,3 +1,4 @@
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -76,17 +77,26 @@ async def test_invoke_with_documents_in_body(deep_research_langchain, mock_webse
     body = {"documents": [{"page_content": "doc1"}, {"page_content": "doc2"}]}
 
     with (
-        patch("apex.services.deep_research.deep_research_langchain.PromptTemplate") as mock_prompt_template,
-        patch("apex.services.deep_research.deep_research_langchain.StrOutputParser"),
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_agent_chain"
+        ) as mock_build_agent_chain,
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_final_chain"
+        ) as mock_build_final_chain,
     ):
         agent_chain = AsyncMock()
-        agent_chain.ainvoke.return_value = '{"thought": "enough info", "final_answer": "final_report"}'
-        mock_prompt_template.return_value.__or__.return_value.__or__.return_value = agent_chain
+        return_value = json.dumps({"thought": "enough info", "final_answer": "final_report"})
+        agent_chain.ainvoke.return_value = return_value
+        mock_build_agent_chain.return_value = agent_chain
+
+        final_chain_mock = AsyncMock()
+        final_chain_mock.ainvoke.return_value = return_value
+        mock_build_final_chain.return_value = final_chain_mock
 
         result = await deep_research_langchain.invoke(messages, body)
 
         mock_websearch.search.assert_not_called()
-        assert result[0] == "final_report"
+        assert result[0] == return_value
 
 
 @pytest.mark.asyncio
@@ -96,8 +106,12 @@ async def test_invoke_with_websearch(deep_research_langchain, mock_websearch):
     mock_websearch.search.return_value = [MagicMock(content="web_doc", url="http://a.com", title="A")]
 
     with (
-        patch("apex.services.deep_research.deep_research_langchain.PromptTemplate") as mock_prompt_template,
-        patch("apex.services.deep_research.deep_research_langchain.StrOutputParser"),
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_agent_chain"
+        ) as mock_build_agent_chain,
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_final_chain"
+        ) as mock_build_final_chain,
     ):
         agent_chain = AsyncMock()
         agent_chain.ainvoke.side_effect = [
@@ -107,7 +121,11 @@ async def test_invoke_with_websearch(deep_research_langchain, mock_websearch):
             ),
             '{"thought": "done", "final_answer": "final_answer"}',
         ]
-        mock_prompt_template.return_value.__or__.return_value.__or__.return_value = agent_chain
+        mock_build_agent_chain.return_value = agent_chain
+
+        final_chain_mock = AsyncMock()
+        final_chain_mock.ainvoke.return_value = "final_answer"
+        mock_build_final_chain.return_value = final_chain_mock
 
         result = await deep_research_langchain.invoke(messages)
 
@@ -121,17 +139,26 @@ async def test_invoke_no_websearch_needed_final_answer(deep_research_langchain, 
     messages = [{"role": "user", "content": "test question"}]
 
     with (
-        patch("apex.services.deep_research.deep_research_langchain.PromptTemplate") as mock_prompt_template,
-        patch("apex.services.deep_research.deep_research_langchain.StrOutputParser"),
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_agent_chain"
+        ) as mock_build_agent_chain,
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_final_chain"
+        ) as mock_build_final_chain,
     ):
         agent_chain = AsyncMock()
-        agent_chain.ainvoke.return_value = '{"thought": "clear", "final_answer": "final_report"}'
-        mock_prompt_template.return_value.__or__.return_value.__or__.return_value = agent_chain
+        return_value = json.dumps({"thought": "enough info", "final_answer": "final_report"})
+        agent_chain.ainvoke.return_value = return_value
+        mock_build_agent_chain.return_value = agent_chain
+
+        final_chain_mock = AsyncMock()
+        final_chain_mock.ainvoke.return_value = return_value
+        mock_build_final_chain.return_value = final_chain_mock
 
         result = await deep_research_langchain.invoke(messages)
 
         mock_websearch.search.assert_not_called()
-        assert result[0] == "final_report"
+        assert result[0] == return_value
 
 
 @pytest.mark.asyncio
@@ -149,8 +176,12 @@ async def test_full_invoke_flow_with_multiple_actions(deep_research_langchain, m
     ]
 
     with (
-        patch("apex.services.deep_research.deep_research_langchain.PromptTemplate") as mock_prompt_template,
-        patch("apex.services.deep_research.deep_research_langchain.StrOutputParser"),
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_agent_chain"
+        ) as mock_build_agent_chain,
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_final_chain"
+        ) as mock_build_final_chain,
     ):
         agent_chain = AsyncMock()
         agent_chain.ainvoke.side_effect = [
@@ -164,7 +195,11 @@ async def test_full_invoke_flow_with_multiple_actions(deep_research_langchain, m
             ),
             '{"thought": "complete", "final_answer": "final_report"}',
         ]
-        mock_prompt_template.return_value.__or__.return_value.__or__.return_value = agent_chain
+        mock_build_agent_chain.return_value = agent_chain
+
+        final_chain_mock = AsyncMock()
+        final_chain_mock.ainvoke.return_value = "final_report"
+        mock_build_final_chain.return_value = final_chain_mock
 
         result = await deep_research_langchain.invoke(messages)
 
@@ -186,15 +221,23 @@ async def test_full_invoke_flow_with_multiple_actions(deep_research_langchain, m
 async def test_invoke_with_python_repl(deep_research_langchain):
     """Agent chooses python_repl then produces final answer."""
     with (
-        patch("apex.services.deep_research.deep_research_langchain.PromptTemplate") as mock_prompt_template,
-        patch("apex.services.deep_research.deep_research_langchain.StrOutputParser"),
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_agent_chain"
+        ) as mock_build_agent_chain,
+        patch(
+            "apex.services.deep_research.deep_research_langchain.DeepResearchLangchain._build_final_chain"
+        ) as mock_build_final_chain,
     ):
         agent_chain = AsyncMock()
         agent_chain.ainvoke.side_effect = [
             ('{"thought": "compute needed", "action": {"tool": "python_repl", "input": {"code": "print(1+1)"}}}'),
             '{"thought": "done", "final_answer": "final_answer"}',
         ]
-        mock_prompt_template.return_value.__or__.return_value.__or__.return_value = agent_chain
+        mock_build_agent_chain.return_value = agent_chain
+
+        final_chain_mock = AsyncMock()
+        final_chain_mock.ainvoke.return_value = "final_answer"
+        mock_build_final_chain.return_value = final_chain_mock
 
         result = await deep_research_langchain.invoke([{"role": "user", "content": "q"}])
 
