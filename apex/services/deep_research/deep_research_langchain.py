@@ -256,7 +256,7 @@ Research Report:
                         "model": getattr(self.research_model, "model_name", "unknown"),
                         "thought": thought,
                         "action": {"tool": "websearch", "query": query, "max_results": max_results},
-                        "observation": observation_text[:1000],
+                        "observation": observation_text[:1200],
                     }
                 )
                 continue
@@ -290,7 +290,7 @@ Research Report:
                         "model": getattr(self.research_model, "model_name", "unknown"),
                         "thought": thought,
                         "action": {"tool": "python_repl", "code": code[:1000]},
-                        "observation": observation_text[:1000],
+                        "observation": observation_text[:1200],
                     }
                 )
                 continue
