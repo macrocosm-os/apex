@@ -37,6 +37,8 @@ dependencies = [
     "wandb>=0.21.1",
     "ruff>=0.12.5",
     "langchain-experimental>=0.3.4",
+    "bittensor-drand>=1.0.0",
+    "bittensor-wallet>=4.0.0",
 ]
 
 
