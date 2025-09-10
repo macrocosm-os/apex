@@ -171,7 +171,7 @@ Research Report:
         collected_sources: list[dict[str, str]] = []
         seen_urls: set[str] = set()
 
-        agent_chain = self._build_agent_chain()
+        agent_chain = await self._build_agent_chain()
 
         while step_index < max_iterations:
             logger.debug(f"Starting deep researcher {step_index + 1}/{max_iterations} step")
@@ -202,17 +202,18 @@ Research Report:
 
             # Final answer branch
             if "final_answer" in parsed:
-                logger.debug("Early-stopping deep research due to the final answer")
                 final_answer = str(parsed.get("final_answer", ""))
                 reasoning_traces.append(
                     {
                         "step": f"iteration-{step_index}",
                         "model": getattr(self.research_model, "model_name", "unknown"),
                         "thought": thought,
-                        "final_answer": final_answer,
+                        "observation": final_answer,
                     }
                 )
-                return final_answer, self.tool_history, reasoning_traces
+                logger.debug("Early-stopping deep research due to the final answer")
+                # return final_answer, self.tool_history, reasoning_traces
+                break
 
             # Action branch (only websearch supported)
             action = parsed.get("action") or {}
@@ -305,19 +306,9 @@ Research Report:
             )
             notes.append("Agent returned an unsupported action. Use the websearch tool or provide final_answer.")
 
-        # Fallback: if loop ends without final answer, ask final model to synthesize from notes
+        # If loop ends without final answer, ask final model to synthesize from notes.
         logger.debug("Generating final answer")
-        final_prompt = PromptTemplate(
-            input_variables=["question", "notes", "sources"],
-            template=(
-                self._FINAL_ANSWER_INST + "Do NOT use JSON, or any other structured data format.\n"
-                "Question:\n{question}\n\n"
-                "Notes:\n{notes}\n\n"
-                "Sources:\n{sources}\n\n"
-                "Research Report:"
-            ),
-        )
-        final_chain = final_prompt | self.final_model | StrOutputParser()
+        final_chain = await self._build_final_chain()
 
         final_report: str = await self._try_invoke(
             final_chain,
@@ -336,6 +327,19 @@ Research Report:
         )
         return final_report, self.tool_history, reasoning_traces
 
+    async def _build_final_chain(self) -> RunnableSerializable[dict[str, Any], str]:
+        final_prompt = PromptTemplate(
+            input_variables=["question", "notes", "sources"],
+            template=(
+                self._FINAL_ANSWER_INST + "Do NOT use JSON, or any other structured data format. Provide \n"
+                "Question:\n{question}\n\n"
+                "Notes:\n{notes}\n\n"
+                "Sources:\n{sources}\n\n"
+                "Research Report:"
+            ),
+        )
+        return final_prompt | self.final_model | StrOutputParser()
+
     def _render_sources(self, collected_sources: list[dict[str, str]], max_items: int = 12) -> str:
         if not collected_sources:
             return "(none)"
@@ -352,7 +356,7 @@ Research Report:
         clipped = notes[-max_items:]
         return "\n".join(f"- {item}" for item in clipped)
 
-    def _build_agent_chain(self) -> RunnableSerializable[dict[str, Any], str]:
+    async def _build_agent_chain(self) -> RunnableSerializable[dict[str, Any], str]:
         prompt = PromptTemplate(
             input_variables=["question", "notes", "sources"],
             template=(
@@ -380,19 +384,20 @@ Research Report:
                 "- action.input: for python_repl -> {{code: string}}\n\n"
                 "2) Final answer step:\n"
                 "- thought: string\n"
-                "- final_answer: string (use plain text for final answer, not a JSON)\n\n"
+                "- final_answer: string\n\n"
                 "In every step, make 'thought' a detailed paragraph (120-200 words) that:\n"
                 "- Summarizes what is known and unknown so far\n"
                 "- Justifies the chosen next action or decision not to act\n"
                 "- Evaluates evidence quality and cites source numbers when applicable\n"
                 "- Identifies risks, uncertainties, and alternative hypotheses\n\n"
+                "Respond with JSON only during deep research steps, "
+                "final answer must be always in a plain text formatted as a research report, with sections:\n"
                 "Executive Summary, Key Findings, Evidence, Limitations, Conclusion.\n"
                 "Use inline numeric citations like [1], [2] that refer to Sources.\n"
                 "Include a final section titled 'Sources' listing the numbered citations.\n\n"
                 "Question:\n{question}\n\n"
                 "Notes and observations so far:\n{notes}\n\n"
                 "Sources (use these for citations):\n{sources}\n\n"
-                "Respond with JSON always, except for final_anwer (use plain text)."
             ),
         )
         return prompt | self.research_model | StrOutputParser()
