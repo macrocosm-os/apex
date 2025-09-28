@@ -29,6 +29,7 @@ class LoggerWandb:
                 self.run = wandb.init(
                     entity="macrocosmos",
                     project=project,
+                    settings=wandb.Settings(x_disable_stats=True),
                     config={
                         "hotkey": async_chain.wallet.hotkey.ss58_address,
                         "netuid": async_chain.netuid,
