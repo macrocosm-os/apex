@@ -116,7 +116,7 @@ class AsyncChain:
             subtensor = await self.subtensor()
             netuid = 1
             owner_hotkey = await subtensor.query_subtensor("SubnetOwnerHotkey", params=[netuid])
-            owner_uid = await metagraph.hotkeys.index(owner_hotkey)
+            owner_uid = metagraph.hotkeys.index(owner_hotkey)
             logger.info(f"Burning to {owner_hotkey} hotkey, {owner_uid} UID")
             uids: list[int] = [owner_uid]
             weights: list[float] = [1.0]
