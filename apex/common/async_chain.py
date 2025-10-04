@@ -110,6 +110,32 @@ class AsyncChain:
     def network(self) -> list[str]:
         return self._network
 
+    async def full_burn(self) -> bool:
+        try:
+            metagraph = await self.metagraph()
+            subtensor = await self.subtensor()
+            netuid = 1
+            owner_hotkey = await subtensor.query_subtensor("SubnetOwnerHotkey", params=[netuid])
+            owner_uid = metagraph.hotkeys.index(owner_hotkey)
+            logger.info(f"Burning to {owner_hotkey} hotkey, {owner_uid} UID")
+            uids: list[int] = [owner_uid]
+            weights: list[float] = [1.0]
+            success, message = await subtensor.set_weights(
+                self.wallet,
+                netuid,
+                uids,
+                weights,
+                version_key=__spec_version__,
+                wait_for_inclusion=True,
+                wait_for_finalization=True,
+            )
+            if not success:
+                print(f"Failed to apply full burn: {message}")
+            return bool(success)
+        except Exception as exc:
+            logger.exception(f"Error during full burn: {exc}")
+            return False
+
     async def set_weights(self, rewards: dict[str, float]) -> bool:
         try:
             metagraph = await self.metagraph()
@@ -138,7 +164,7 @@ class AsyncChain:
             if not success:
                 logger.error(f"Error during weight set: {err}")
             return bool(success)
-        except BaseException as exc:
+        except Exception as exc:
             logger.exception(f"Error during weight set: {exc}")
             return False
 
