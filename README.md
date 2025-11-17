@@ -24,6 +24,35 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
 
 ---
 
+## Dashboard
+
+To see the latest competitions and rankings right from your terminal, open the dashboard after installing the CLI:
+
+```bash
+apex dashboard
+```
+
+NOTE: you'll first need to link your wallet using `apex link`. If you don't have a wallet, follow the Miner Guide below.
+
+## Miner Guide
+
+To get started run `./intall_cli.sh` and follow the instructions.
+
+Example miner's solutions are located at: [shared/competition/src/competition](shared/competition/src/competition) look for `miner_solution.py` files in each competition.
+
+*WARNING: Example solutions are only for educational purposes, it won't produce any yields and as a result the registration fee will be lost.*
+
+### Participate
+
+1. Register on Apex subnet:
+
+    - Create a wallet and hotkey: [Bittensor official docs](https://docs.learnbittensor.org/keys/working-with-keys)
+    - Register your hotkey: `btcli s register --wallet.name <WALLET> --wallet.hotkey <HOTKEY> --netuid 1 --network finney`.
+
+2. Link your wallet by running `apex link` (choose your registered hotkey).
+
+3. For submission, run: `apex submit` (choose file location of your solution, competition and round id).
+
 ## Run Validator
 
 1. **Clone the repository:**
@@ -32,80 +61,12 @@ Subnet 1 is the most intelligent inference model on Bittensor. As the first agen
    cd apex
    ```
 
+2. **Install UV**
 
-2. **Prepare config file:**
+3. **Setup `.env`**
+   Copy `.env.template` to `.env` and fill in your wallet details
+
+3. **Start the validator**
    ```bash
-   cp config/mainnet.yaml.example config/mainnet.yaml
-   # Fill in the required values in config/mainnet.yaml
+   ./start_validator.sh
    ```
-
-3. **[Recommended] Run validator with auto-updater:**
-   ```bash
-   python scripts/autoupdater.py -c config/mainnet.yaml
-   ```
-
-4. **[Alternative #1] Run validator with pm2 and auto-updater:**
-   ```bash
-   bash scripts/autoupdater_pm2.sh
-   ```
-
-5. **[Alternative #2] Install dependencies and run validator without auto-updater:**
-   ```bash
-   uv venv --python 3.11 && uv pip install '.[dev]' && python validator.py -c config/mainnet.yaml
-   ```
-
-## Run Testnet Validator
-
-1. Prepare config file:
-   ```bash
-   cp config/testnet.yaml.example config/testnet.yaml
-   # Fill in the required values in config/testnet.yaml
-   ```
-
-2. Install dependencies and run validator:
-   ```bash
-   uv venv --python 3.11 && uv pip install '.[dev]' && python validator.py -c config/testnet.yaml
-   ```
-
-## Base Miner (for showcase purposes only)
-```bash
-# DO NOT run it on mainnet (finney)
-python miner.py
-```
-
-## Description
-Apex structure:
-```
-.
-└── Apex/
-    ├── apex/
-    │   ├── common/  # Common files used across project.
-    │   ├── validator/  # Validator related stuff.
-    │   └── services/  # Service modules used by validator.
-    ├── config/  # Config files for validator.
-    ├── scripts/  # Scripts.
-    ├── tests/  # Unit tests.
-    └── .github/  # Github actions CI/CD.
-```
-
-## Development
-
-### Add packages
-```bash
-uv add new-package
-uv lock
-```
-
-### Test mode: Pool of predefined UIDs
-
-One can define a pool of UIDs which will be queried, ignoring all others UIDs in the metagraph.
-
-Modify config file, with current example only UIDs 1 and 2 will be queried on localhost with 8081 and 8082 ports
-respectively:
-```
-miner_sampler:
-  kwargs:
-    available_uids: [1, 2]
-    # Optionally override axon addresses:
-    available_addresses: ["http://0.0.0.0:8081", "http://0.0.0.0:8082"]
-```

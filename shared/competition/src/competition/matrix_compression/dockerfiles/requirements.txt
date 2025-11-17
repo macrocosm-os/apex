@@ -1,0 +1,15 @@
+# Core scientific computing libraries for matrix compression
+numpy>=1.24.0
+scipy>=1.11.0
+
+# Logging (used in the project)
+loguru>=0.7.0
+
+# Async support
+asyncio-mqtt>=0.16.0
+
+# Command-line argument parsing
+argparse>=1.4.0
+
+# Data validation library
+pydantic>=2.11.3
