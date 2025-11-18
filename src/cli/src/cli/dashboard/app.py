@@ -16,6 +16,8 @@ from cli.dashboard.screens.competition_detail_screen import (
     BackToCompetitions,
     RefreshCompetitionDetail,
     RefreshCompetitionData,
+    LoadSubmissionsPage,
+    FilterSortSubmissions,
 )
 from cli.dashboard.screens.loading_modal import LoadingModal
 from cli.dashboard.screens.submission_detail_screen import SubmissionDetailScreen, BackToCompetitionDetail
@@ -84,12 +86,15 @@ class DashboardApp(App):
                 self.current_submissions = []
 
             # Push the competition detail screen
-            competition_detail_screen = CompetitionDetailScreen(self.current_competition, self.current_submissions)
+            pagination = submissions_response.pagination if submissions_response else None
+            competition_detail_screen = CompetitionDetailScreen(
+                self.current_competition, self.current_submissions, pagination
+            )
             self.push_screen(competition_detail_screen)
         except Exception as e:
             console.print(f"[red]Failed to load submissions: {e}[/red]")
             # Still show the competition detail screen without submissions
-            competition_detail_screen = CompetitionDetailScreen(self.current_competition, [])
+            competition_detail_screen = CompetitionDetailScreen(self.current_competition, [], None)
             self.push_screen(competition_detail_screen)
 
     async def load_competition(self, competition_id: int) -> CompetitionResponse | None:
@@ -123,7 +128,14 @@ class DashboardApp(App):
             console.print(f"[red]Failed to load competition: {e}[/red]")
             return None
 
-    async def load_submissions(self, competition_id: int) -> SubmissionResponse | None:
+    async def load_submissions(
+        self,
+        competition_id: int,
+        start_idx: int = 0,
+        count: int = 10,
+        filter_mode: str = "all",
+        sort_mode: str = "score",
+    ) -> SubmissionResponse | None:
         """Load submissions for the selected competition."""
         try:
             config = Config.load_config()
@@ -140,9 +152,11 @@ class DashboardApp(App):
                 keypair = load_keypair_from_file(config.hotkey_file_path)
                 req = SubmissionRequest(
                     competition_id=competition_id,
-                    hotkey=keypair.ss58_address,
-                    start_idx=0,
-                    count=10,
+                    hotkey=keypair.ss58_address if filter_mode == "hotkey" else None,
+                    start_idx=start_idx,
+                    count=count,
+                    filter_mode=filter_mode,
+                    sort_mode=sort_mode,
                 )
 
                 response = await client._make_request(
@@ -188,8 +202,19 @@ class DashboardApp(App):
                 self.pop_screen()
                 return
 
-            # Load fresh submissions
-            submissions_response = await self.load_submissions(competition_id)
+            # Get current filter and sort mode from the screen
+            current_screen = self.screen
+            filter_mode = (
+                "hotkey"
+                if (isinstance(current_screen, CompetitionDetailScreen) and current_screen.show_only_mine)
+                else "all"
+            )
+            sort_mode = current_screen.sort_mode if isinstance(current_screen, CompetitionDetailScreen) else "score"
+
+            # Load fresh submissions with current filter/sort settings
+            submissions_response = await self.load_submissions(
+                competition_id, filter_mode=filter_mode, sort_mode=sort_mode
+            )
             fresh_submissions = submissions_response.submissions if submissions_response else []
 
             # Update current data
@@ -200,12 +225,12 @@ class DashboardApp(App):
             self.pop_screen()
 
             # Get the current screen (should be CompetitionDetailScreen) and post message to it
-            current_screen = self.screen
+            pagination = submissions_response.pagination if submissions_response else None
             if isinstance(current_screen, CompetitionDetailScreen):
-                current_screen.post_message(RefreshCompetitionData(fresh_competition, fresh_submissions))
+                current_screen.post_message(RefreshCompetitionData(fresh_competition, fresh_submissions, pagination))
             else:
                 # Fallback: post to app (though this shouldn't happen)
-                self.post_message(RefreshCompetitionData(fresh_competition, fresh_submissions))
+                self.post_message(RefreshCompetitionData(fresh_competition, fresh_submissions, pagination))
 
             console.print(
                 f"[green]Refreshed competition {competition_id} with {len(fresh_submissions)} submissions[/green]"
@@ -213,6 +238,149 @@ class DashboardApp(App):
 
         except Exception as e:
             console.print(f"[red]Failed to refresh competition: {e}[/red]")
+            # Dismiss loading modal on error
+            self.pop_screen()
+
+    def on_load_submissions_page(self, event: LoadSubmissionsPage) -> None:
+        """Handle load submissions page request."""
+        console.print(
+            f"[yellow]DEBUG: on_load_submissions_page called with competition_id={event.competition_id}, start_idx={event.start_idx}[/yellow]"
+        )
+
+        # Get the current screen before pushing the modal
+        current_screen = self.screen
+        console.print(f"[yellow]DEBUG: current_screen type: {type(current_screen)}[/yellow]")
+
+        # Show loading modal
+        loading_modal = LoadingModal("Loading submissions page...")
+        self.push_screen(loading_modal)
+
+        # Load submissions page asynchronously, passing the screen reference
+        self.set_timer(
+            0.1, lambda: self.load_submissions_page_async(event.competition_id, event.start_idx, current_screen)
+        )
+
+    def on_filter_sort_submissions(self, event: FilterSortSubmissions) -> None:
+        """Handle filter/sort submissions request."""
+        # Get the current screen before pushing the modal
+        current_screen = self.screen
+
+        # Show loading modal
+        loading_modal = LoadingModal("Loading filtered/sorted submissions...")
+        self.push_screen(loading_modal)
+
+        # Load submissions with filter/sort asynchronously (always start at page 1)
+        self.set_timer(
+            0.1,
+            lambda: self.load_filter_sort_submissions_async(
+                event.competition_id, event.filter_mode, event.sort_mode, current_screen
+            ),
+        )
+
+    async def load_submissions_page_async(self, competition_id: int, start_idx: int, target_screen=None) -> None:
+        """Load a specific page of submissions asynchronously."""
+        try:
+            console.print(
+                f"[yellow]DEBUG: load_submissions_page_async called with competition_id={competition_id}, start_idx={start_idx}[/yellow]"
+            )
+
+            # Get current filter and sort mode from the screen
+            # Use target_screen if provided, otherwise get from screen stack after popping modal
+            if target_screen is None:
+                # Fallback: dismiss loading modal first to get back to the target screen
+                self.pop_screen()
+                target_screen = self.screen
+            else:
+                console.print(f"[yellow]DEBUG: Using provided target_screen: {type(target_screen)}[/yellow]")
+
+            if isinstance(target_screen, CompetitionDetailScreen):
+                if target_screen.show_only_mine:
+                    filter_mode = "hotkey"
+                elif target_screen.show_only_top:
+                    filter_mode = "top_score"
+                else:
+                    filter_mode = "all"
+            else:
+                filter_mode = "all"
+            sort_mode = target_screen.sort_mode if isinstance(target_screen, CompetitionDetailScreen) else "score"
+            console.print(f"[yellow]DEBUG: filter_mode={filter_mode}, sort_mode={sort_mode}[/yellow]")
+
+            # Load submissions for the requested page
+            submissions_response = await self.load_submissions(
+                competition_id, start_idx=start_idx, count=10, filter_mode=filter_mode, sort_mode=sort_mode
+            )
+            fresh_submissions = submissions_response.submissions if submissions_response else []
+            pagination = submissions_response.pagination if submissions_response else None
+            console.print(
+                f"[yellow]DEBUG: Loaded {len(fresh_submissions)} submissions, pagination={pagination}[/yellow]"
+            )
+
+            # Dismiss loading modal (if we haven't already in the fallback case above)
+            if target_screen is not None:
+                self.pop_screen()
+
+            # Post message to the target screen
+            if isinstance(target_screen, CompetitionDetailScreen):
+                console.print("[yellow]DEBUG: Posting RefreshCompetitionData to CompetitionDetailScreen[/yellow]")
+                target_screen.post_message(
+                    RefreshCompetitionData(self.current_competition, fresh_submissions, pagination)
+                )
+            else:
+                console.print("[yellow]DEBUG: Fallback: posting RefreshCompetitionData to app[/yellow]")
+                # Fallback: post to app (though this shouldn't happen)
+                self.post_message(RefreshCompetitionData(self.current_competition, fresh_submissions, pagination))
+
+            console.print(
+                f"[green]Loaded page starting at index {start_idx} with {len(fresh_submissions)} submissions[/green]"
+            )
+
+        except Exception as e:
+            console.print(f"[red]Failed to load submissions page: {e}[/red]")
+            import traceback
+
+            console.print(f"[red]Traceback: {traceback.format_exc()}[/red]")
+            # Dismiss loading modal on error
+            self.pop_screen()
+
+    async def load_filter_sort_submissions_async(
+        self, competition_id: int, filter_mode: str, sort_mode: str, target_screen=None
+    ) -> None:
+        """Load submissions with filter/sort applied, starting at page 1."""
+        try:
+            # Always start at page 1 (start_idx=0) when filtering or sorting
+            submissions_response = await self.load_submissions(
+                competition_id, start_idx=0, count=10, filter_mode=filter_mode, sort_mode=sort_mode
+            )
+            fresh_submissions = submissions_response.submissions if submissions_response else []
+            pagination = submissions_response.pagination if submissions_response else None
+
+            # Dismiss loading modal
+            self.pop_screen()
+
+            # Use target_screen if provided, otherwise get from current screen
+            if target_screen is None:
+                target_screen = self.screen
+
+            # Update the screen's filter/sort state to match what we requested
+            if isinstance(target_screen, CompetitionDetailScreen):
+                target_screen.show_only_mine = filter_mode == "hotkey"
+                target_screen.show_only_top = filter_mode == "top_score"
+                target_screen.sort_mode = sort_mode
+                target_screen.post_message(
+                    RefreshCompetitionData(self.current_competition, fresh_submissions, pagination)
+                )
+            else:
+                # Fallback: post to app (though this shouldn't happen)
+                self.post_message(RefreshCompetitionData(self.current_competition, fresh_submissions, pagination))
+
+            filter_text = "filtered" if filter_mode == "hotkey" else "all"
+            sort_text = sort_mode
+            console.print(
+                f"[green]Loaded {len(fresh_submissions)} submissions ({filter_text}, sorted by {sort_text})[/green]"
+            )
+
+        except Exception as e:
+            console.print(f"[red]Failed to load filtered/sorted submissions: {e}[/red]")
             # Dismiss loading modal on error
             self.pop_screen()
 

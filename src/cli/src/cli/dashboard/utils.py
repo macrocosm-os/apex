@@ -81,3 +81,14 @@ def get_reveal_status(reveal_at: datetime | None, compact: bool = False) -> str:
             return "👁" if compact else "👁  [green]Visible[/green]"
         else:
             return "🔒" if compact else "🔒 [orange]Locked[/orange]"
+
+
+def get_top_score_status(top_score: bool, hotkey: str, top_scorer_hotkey: str, compact: bool = False) -> str:
+    """Get the top score status indicator based on top_score and hotkey."""
+    if top_score:
+        if hotkey == top_scorer_hotkey:
+            return "🏆" if compact else "🏆 [green]Current Top Scorer[/green]"
+        else:
+            return "🥈" if compact else "🥈 [orange]Previous Top Scorer[/orange]"
+    else:
+        return "[red]✗[/red]" if compact else "[red][bold]✗[/bold] Not a Top Scorer[/red]"

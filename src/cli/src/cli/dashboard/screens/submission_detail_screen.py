@@ -10,10 +10,10 @@ from rich.json import JSON
 from rich.syntax import Syntax
 
 from datetime import datetime, timezone
-from common.models.api.submission import SubmissionResponse, SubmissionDetail, FileRequest
+from common.models.api.submission import SubmissionRecord, SubmissionDetail, FileRequest
 from common.models.api.code import CodeRequest
 from common.models.api.competition import CompetitionRecord
-from cli.dashboard.utils import log_success, log_error, get_state, get_reveal_status
+from cli.dashboard.utils import log_success, log_error, get_state, get_reveal_status, get_top_score_status
 from cli.dashboard.time_utils import format_datetime
 from cli.utils.client import Client
 from cli.utils.config import Config
@@ -86,7 +86,7 @@ class SubmissionDetailScreen(Screen):
         Binding("enter", "select_file", "Select File"),
     ]
 
-    def __init__(self, submission: SubmissionResponse) -> None:
+    def __init__(self, submission: SubmissionRecord) -> None:
         super().__init__()
         self.submission = submission
         self.submission_detail: SubmissionDetail | None = None
@@ -109,7 +109,9 @@ class SubmissionDetailScreen(Screen):
                         classes="file_explorer",
                     )
                 with Vertical(classes="right_panel"):
-                    yield ScrollableContainer(RichLog(classes="file_display"), classes="metadata_container")
+                    yield ScrollableContainer(
+                        RichLog(classes="file_display", markup=True), classes="metadata_container"
+                    )
             yield Log(id="log")
         yield Footer()
 
@@ -205,10 +207,8 @@ class SubmissionDetailScreen(Screen):
         """Show detailed view of the submission."""
         sub = self.submission
 
-        if sub.top_score:
-            top_score = "[green bold]✓ Yes[/green bold]"
-        else:
-            top_score = "[red bold]✗ No[/red bold]"
+        top_scorer_hotkey = self.competition.top_scorer_hotkey if self.competition else None
+        top_score = get_top_score_status(sub.top_score, sub.hotkey, top_scorer_hotkey or "")
 
         error_msg = f"[red]{sub.eval_error}[/red]" if sub.eval_error and not sub.eval_error == "Success" else "None"
 

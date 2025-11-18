@@ -6,11 +6,11 @@ from textual.widgets import DataTable, Static, Header, Footer, Log
 from textual.binding import Binding
 from textual.message import Message
 
-from common.models.api.competition import CompetitionResponse
-from common.models.api.submission import SubmissionResponse
-from cli.dashboard.utils import log_success, log_debug, get_state, get_reveal_status
+from common.models.api.competition import CompetitionRecord
+from common.models.api.submission import SubmissionRecord, SubmissionPagination
+from cli.dashboard.utils import log_success, log_debug, get_state, get_reveal_status, get_top_score_status
 from cli.dashboard.time_utils import format_datetime, get_age
-from cli.dashboard.widgets import RoundDetailsWidget
+from cli.dashboard.widgets.round_details import RoundDetailsWidget
 from cli.utils.config import Config
 from cli.utils.wallet import load_keypair_from_file
 
@@ -76,6 +76,12 @@ class CompetitionDetailScreen(Screen):
     .submissions-table {
         /* Table will size to content, no fixed height */
     }
+
+    .pagination-info {
+        height: 1;
+        margin-top: 1;
+        text-align: center;
+    }
     """
 
     BINDINGS = [
@@ -85,17 +91,27 @@ class CompetitionDetailScreen(Screen):
         Binding("enter", "select_submission", "Select Submission"),
         Binding("l", "toggle_log", "Toggle Log"),
         Binding("r", "refresh", "Refresh"),
-        Binding("f", "toggle_filter", "Filter Mine"),
+        Binding("m", "toggle_filter", "Filter Mine"),
+        Binding("t", "filter_top", "Filter Top"),
         Binding("s", "toggle_sort", "Sort"),
+        Binding("n", "next_page", "Next Page"),
+        Binding("p", "prev_page", "Previous Page"),
     ]
 
-    def __init__(self, competition: CompetitionResponse, submissions: list[SubmissionResponse] = None) -> None:
+    def __init__(
+        self,
+        competition: CompetitionRecord,
+        submissions: list[SubmissionRecord] = None,
+        pagination: SubmissionPagination = None,
+    ) -> None:
         super().__init__()
         self.competition = competition
         self.submissions = submissions or []
+        self.pagination = pagination
         self.selected_submission_index = 0
         self.round_widget = None
         self.show_only_mine = False
+        self.show_only_top = False
         self.user_hotkey = None
         self.sort_mode = "score"  # "score" or "time"
 
@@ -225,13 +241,8 @@ class CompetitionDetailScreen(Screen):
         )
 
         # Submissions section
-        # Sort submissions first
-        sorted_submissions = self._sort_submissions(self.submissions.copy())
-
-        # Filter submissions if show_only_mine is True
-        filtered_submissions = sorted_submissions
-        if self.show_only_mine and self.user_hotkey:
-            filtered_submissions = [sub for sub in sorted_submissions if sub.hotkey == self.user_hotkey]
+        # Submissions are already filtered and sorted by the API, so use them directly
+        filtered_submissions = self.submissions
 
         # Determine current round number and end date
         current_round = comp.curr_round.round_number if comp.curr_round else comp.curr_round_number
@@ -256,14 +267,7 @@ class CompetitionDetailScreen(Screen):
                     elif sub.eval_score < comp.top_score_value and sub.top_score:
                         score = f"[bold orange]{score}[/bold orange]"
 
-                top_score = ""
-                if sub.top_score:
-                    if sub.hotkey == comp.top_scorer_hotkey:
-                        top_score = "[green bold]✓[/green bold]"
-                    else:
-                        top_score = "[orange bold]⚡[/orange bold]"
-                else:
-                    top_score = "[red bold]✗[/red bold]"
+                top_score = get_top_score_status(sub.top_score, sub.hotkey, comp.top_scorer_hotkey, compact=True)
 
                 # Get reveal status emoji and text
                 reveal_status = get_reveal_status(sub.reveal_at, compact=True)
@@ -316,22 +320,53 @@ class CompetitionDetailScreen(Screen):
             self.set_timer(0.1, lambda: submissions_table.focus())
 
             # Update submissions title to show filter and sort status
-            filter_status = " [dim yellow](Filtered: Mine Only)[/dim yellow]" if self.show_only_mine else ""
+            if self.show_only_mine:
+                filter_status = " [dim yellow](Filtered: Mine Only)[/dim yellow]"
+            elif self.show_only_top:
+                filter_status = " [dim yellow](Filtered: Top Scores)[/dim yellow]"
+            else:
+                filter_status = ""
             sort_status = f" [dim cyan](Sorted: {'Score' if self.sort_mode == 'score' else 'Time'})[/dim cyan]"
-            detail_section = ScrollableContainer(
+
+            # Calculate pagination info
+            pagination_info = ""
+            if self.pagination:
+                current_page = (self.pagination.start_idx // self.pagination.count) + 1
+                total_pages = (
+                    (self.pagination.total + self.pagination.count - 1) // self.pagination.count
+                    if self.pagination.total > 0
+                    else 1
+                )
+                pagination_info = f" [dim]Page {current_page} of {total_pages}[/dim]"
+
+            # Build container children
+            container_children = [
                 Static(
                     f"[bold]Submissions[/bold]{filter_status}{sort_status} [dim]Use arrow keys to navigate, Enter to select[/dim]",
                     classes="submissions-title",
                 ),
                 submissions_table,
+            ]
+            if pagination_info:
+                container_children.append(Static(pagination_info, classes="pagination-info"))
+
+            detail_section = ScrollableContainer(
+                *container_children,
                 classes="submissions-section",
             )
         else:
             # Show appropriate message based on filter and sort state
-            filter_status = " [dim yellow](Filtered: Mine Only)[/dim yellow]" if self.show_only_mine else ""
+            if self.show_only_mine:
+                filter_status = " [dim yellow](Filtered: Mine Only)[/dim yellow]"
+            elif self.show_only_top:
+                filter_status = " [dim yellow](Filtered: Top Score)[/dim yellow]"
+            else:
+                filter_status = ""
             sort_status = f" [dim cyan](Sorted: {'Score' if self.sort_mode == 'score' else 'Time'})[/dim cyan]"
             if self.show_only_mine and self.user_hotkey:
                 message = f"[bold]Submissions[/bold]{filter_status}{sort_status}\n[yellow]No submissions found matching your hotkey[/yellow]"
+            elif self.show_only_top:
+                message = f"[bold]Submissions[/bold]{filter_status}{sort_status}\n[yellow]No top score submissions found[/yellow]"
             else:
                 message = (
                     f"[bold]Submissions[/bold]{sort_status}\n[yellow]No submissions found for this competition[/yellow]"
@@ -359,11 +394,8 @@ class CompetitionDetailScreen(Screen):
         log_widget = self.query_one("#log")
         log_debug(log_widget, f"Row selected: {row_index}")
 
-        # Get sorted and filtered submissions list
-        sorted_submissions = self._sort_submissions(self.submissions.copy())
-        filtered_submissions = sorted_submissions
-        if self.show_only_mine and self.user_hotkey:
-            filtered_submissions = [sub for sub in sorted_submissions if sub.hotkey == self.user_hotkey]
+        # Submissions are already filtered and sorted by the API
+        filtered_submissions = self.submissions
 
         # Add this line to also trigger the selection logic
         if 0 <= row_index < len(filtered_submissions):
@@ -397,7 +429,14 @@ class CompetitionDetailScreen(Screen):
             log_debug(log_widget, "Cannot filter: No hotkey found. Please run 'apex link' to link your wallet.")
             return
 
+        # Toggle the filter state
         self.show_only_mine = not self.show_only_mine
+        # Reset top filter when toggling mine filter
+        self.show_only_top = False
+
+        # Determine filter_mode for API call
+        filter_mode = "hotkey" if self.show_only_mine else "all"
+
         log_widget = self.query_one("#log")
         filter_status = "enabled" if self.show_only_mine else "disabled"
         log_success(
@@ -405,10 +444,30 @@ class CompetitionDetailScreen(Screen):
             f"Filter {'enabled' if self.show_only_mine else 'disabled'}: Showing {'only your' if self.show_only_mine else 'all'} submissions",
         )
 
-        # Refresh the display
-        self.show_competition_detail()
+        # Trigger API call with filter_mode and current sort_mode, resetting to page 1
+        self.app.post_message(FilterSortSubmissions(self.competition.id, filter_mode, self.sort_mode))
 
-    def _sort_submissions(self, submissions: list[SubmissionResponse]) -> list[SubmissionResponse]:
+    def action_filter_top(self) -> None:
+        """Toggle filter to show only top score submissions."""
+        # Toggle the filter state
+        self.show_only_top = not self.show_only_top
+        # Reset mine filter when toggling top filter
+        self.show_only_mine = False
+
+        # Determine filter_mode for API call
+        filter_mode = "top_score" if self.show_only_top else "all"
+
+        log_widget = self.query_one("#log")
+        filter_status = "enabled" if self.show_only_top else "disabled"
+        log_success(
+            log_widget,
+            f"Top filter {'enabled' if self.show_only_top else 'disabled'}: Showing {'only top score' if self.show_only_top else 'all'} submissions",
+        )
+
+        # Trigger API call with filter_mode and current sort_mode, resetting to page 1
+        self.app.post_message(FilterSortSubmissions(self.competition.id, filter_mode, self.sort_mode))
+
+    def _sort_submissions(self, submissions: list[SubmissionRecord]) -> list[SubmissionRecord]:
         """Sort submissions based on the current sort mode.
 
         Args:
@@ -419,7 +478,7 @@ class CompetitionDetailScreen(Screen):
         """
         if self.sort_mode == "score":
             # Sort by score (descending), then by submit time (most recent first)
-            def sort_key(sub: SubmissionResponse) -> tuple:
+            def sort_key(sub: SubmissionRecord) -> tuple:
                 # Use a large negative number for None scores so they sort last
                 score = sub.eval_score if sub.eval_score is not None else float("-inf")
                 # Use epoch time for comparison, None becomes very old timestamp (sorts last)
@@ -430,7 +489,7 @@ class CompetitionDetailScreen(Screen):
 
         else:  # sort_mode == "time"
             # Sort by submit time (most recent first)
-            def sort_key(sub: SubmissionResponse) -> float:
+            def sort_key(sub: SubmissionRecord) -> float:
                 # Use epoch time for comparison, None becomes very old timestamp (sorts last)
                 submit_time = sub.submit_at.timestamp() if sub.submit_at else float("-inf")
                 # Negate for descending order (most recent first)
@@ -446,25 +505,66 @@ class CompetitionDetailScreen(Screen):
         sort_mode_name = "Score" if self.sort_mode == "score" else "Time"
         log_success(log_widget, f"Sort mode changed to: {sort_mode_name}")
 
-        # Refresh the display
-        self.show_competition_detail()
+        # Determine filter_mode for API call
+        if self.show_only_mine:
+            filter_mode = "hotkey"
+        elif self.show_only_top:
+            filter_mode = "top_score"
+        else:
+            filter_mode = "all"
 
-    def refresh_data(self, competition: CompetitionResponse, submissions: list[SubmissionResponse]) -> None:
+        # Trigger API call with sort_mode and current filter_mode, resetting to page 1
+        self.post_message(FilterSortSubmissions(self.competition.id, filter_mode, self.sort_mode))
+
+    def refresh_data(
+        self,
+        competition: CompetitionRecord,
+        submissions: list[SubmissionRecord],
+        pagination: SubmissionPagination = None,
+    ) -> None:
         """Update the screen with fresh competition and submission data."""
         self.competition = competition
         self.submissions = submissions or []
+        self.pagination = pagination
         self.show_competition_detail()
         # The RoundDetailsWidget will automatically update with new data
 
     def on_refresh_competition_data(self, event: "RefreshCompetitionData") -> None:
         """Handle refresh competition data message."""
-        self.refresh_data(event.competition, event.submissions)
+        self.refresh_data(event.competition, event.submissions, event.pagination)
+
+    def action_next_page(self) -> None:
+        """Load the next page of submissions."""
+        if not self.pagination or not self.pagination.has_more:
+            log_widget = self.query_one("#log")
+            log_debug(log_widget, "No next page available")
+            return
+
+        log_widget = self.query_one("#log")
+        log_success(log_widget, "Loading next page...")
+        # Post message to app level to ensure it's handled
+        self.app.post_message(
+            LoadSubmissionsPage(self.competition.id, self.pagination.start_idx + self.pagination.count)
+        )
+
+    def action_prev_page(self) -> None:
+        """Load the previous page of submissions."""
+        if not self.pagination or self.pagination.start_idx == 0:
+            log_widget = self.query_one("#log")
+            log_debug(log_widget, "No previous page available")
+            return
+
+        log_widget = self.query_one("#log")
+        log_success(log_widget, "Loading previous page...")
+        new_start_idx = max(0, self.pagination.start_idx - self.pagination.count)
+        # Post message to app level to ensure it's handled
+        self.app.post_message(LoadSubmissionsPage(self.competition.id, new_start_idx))
 
 
 class SubmissionSelected(Message):
     """Message sent when a submission is selected."""
 
-    def __init__(self, submission: SubmissionResponse) -> None:
+    def __init__(self, submission: SubmissionRecord) -> None:
         self.submission = submission
         super().__init__()
 
@@ -486,7 +586,32 @@ class RefreshCompetitionDetail(Message):
 class RefreshCompetitionData(Message):
     """Message sent to update competition detail screen with fresh data."""
 
-    def __init__(self, competition: CompetitionResponse, submissions: list[SubmissionResponse]) -> None:
+    def __init__(
+        self,
+        competition: CompetitionRecord,
+        submissions: list[SubmissionRecord],
+        pagination: SubmissionPagination = None,
+    ) -> None:
         self.competition = competition
         self.submissions = submissions
+        self.pagination = pagination
+        super().__init__()
+
+
+class LoadSubmissionsPage(Message):
+    """Message sent to load a specific page of submissions."""
+
+    def __init__(self, competition_id: int, start_idx: int) -> None:
+        self.competition_id = competition_id
+        self.start_idx = start_idx
+        super().__init__()
+
+
+class FilterSortSubmissions(Message):
+    """Message sent to filter/sort submissions with API call."""
+
+    def __init__(self, competition_id: int, filter_mode: str, sort_mode: str) -> None:
+        self.competition_id = competition_id
+        self.filter_mode = filter_mode
+        self.sort_mode = sort_mode
         super().__init__()
