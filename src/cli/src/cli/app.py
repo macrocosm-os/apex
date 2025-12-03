@@ -11,7 +11,10 @@ from cli.utils.client import Client
 
 
 console = Console()
-app = typer.Typer(help="Apex CLI — interact with competitions and submissions.")
+app = typer.Typer(
+    help="Apex CLI — interact with competitions and submissions.",
+    add_completion=False,
+)
 app.command("link")(link)
 app.command("submit")(submit)
 app.command("dashboard")(dashboard)

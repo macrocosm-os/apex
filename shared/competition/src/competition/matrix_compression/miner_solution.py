@@ -1,5 +1,4 @@
-# Miner submission template - implement your compression algorithm here
-
+# Baseline submission just saves the array as-is
 import numpy as np
 import base64
 from pydantic import BaseModel
@@ -14,6 +13,15 @@ class CompressionInputDataSchema(BaseModel):
 class DecompressionInputDataSchema(BaseModel):
     data_to_decompress_base64: str
     expected_output_filepath: str
+
+
+class MatrixCompressTaskSchema(BaseModel):
+    task_name: str
+    input: CompressionInputDataSchema | DecompressionInputDataSchema
+
+
+class MatrixCompressEvalInputDataSchema(BaseModel):
+    tasks: list[MatrixCompressTaskSchema]
 
 
 def compress(input_data: CompressionInputDataSchema) -> None:
@@ -69,13 +77,16 @@ def main():
 
     if args.compress:
         with open(args.input_file, "r") as f:
-            input_data = CompressionInputDataSchema.model_validate_json(f.read())
+            input_data = MatrixCompressEvalInputDataSchema.model_validate_json(f.read())
 
-        compress(input_data=input_data)
+        for task in input_data.tasks:
+            compress(input_data=task.input)
     elif args.decompress:
         with open(args.input_file, "r") as f:
-            input_data = DecompressionInputDataSchema.model_validate_json(f.read())
-        decompress(input_data=input_data)
+            input_data = MatrixCompressEvalInputDataSchema.model_validate_json(f.read())
+
+        for task in input_data.tasks:
+            decompress(input_data=task.input)
     else:
         parser.print_help()
 

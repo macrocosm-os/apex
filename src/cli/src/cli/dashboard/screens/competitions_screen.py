@@ -32,6 +32,8 @@ class CompetitionsScreen(Screen):
         Binding("q", "quit", "Quit"),
         Binding("enter", "select_item", "Select"),
         Binding("l", "toggle_log", "Toggle Log"),
+        Binding("k", "cursor_up", "Up", show=False),
+        Binding("j", "cursor_down", "Down", show=False),
     ]
 
     def __init__(self, competitions: list[CompetitionResponse]) -> None:
@@ -98,6 +100,16 @@ class CompetitionsScreen(Screen):
             log_widget.display = False
         else:
             log_widget.display = True
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up (vim-style k)."""
+        table = self.query_one(DataTable)
+        table.action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down (vim-style j)."""
+        table = self.query_one(DataTable)
+        table.action_cursor_down()
 
     def _format_round_details(self, comp) -> str:
         """Format round details for display in the table."""

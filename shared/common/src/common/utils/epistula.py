@@ -2,11 +2,8 @@ import json
 import time
 from hashlib import sha256
 from math import ceil
-import traceback
 from typing import Any, Optional
-from fastapi import HTTPException, Header
-from loguru import logger
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from bittensor_wallet import Keypair
 import uuid
 from common import settings as common_settings
@@ -27,11 +24,13 @@ class EpistulaError(BaseModel):
 
 
 class EpistulaHeaders(BaseModel):
-    timestamp: str = Header(default=str(time.time()), alias="Epistula-Timestamp")
-    signed_by: str = Header(..., alias="Epistula-Signed-By")
-    request_signature: str = Header(..., alias="Epistula-Request-Signature")
-    request_id: str = Header(default_factory=lambda: str(uuid.uuid4()), alias=HEADER_REQUEST_ID)
-    spec_version: str = Header(default=int(0), alias="X-Spec-Version")
+    model_config = ConfigDict(populate_by_name=True)
+
+    timestamp: str = Field(default_factory=lambda: str(time.time()), alias="Epistula-Timestamp")
+    signed_by: str = Field(..., alias="Epistula-Signed-By")
+    request_signature: str = Field(..., alias="Epistula-Request-Signature")
+    request_id: str = Field(default_factory=lambda: str(uuid.uuid4()), alias=HEADER_REQUEST_ID)
+    spec_version: str = Field(default="0", alias="X-Spec-Version")
 
     def verify_signature_v2(self, body: bytes, now: float, timeout: int):
         """
@@ -42,39 +41,31 @@ class EpistulaHeaders(BaseModel):
             now: The current time
             timeout: The timeout in milliseconds
 
-        Returns:
-            None if the signature is valid, otherwise an error message
+        Raises:
+            ValueError: If the signature is invalid
         """
-        try:
-            if not isinstance(self.request_signature, str):
-                raise ValueError("Invalid Signature")
+        if not isinstance(self.request_signature, str):
+            raise ValueError("Invalid Signature")
 
-            timestamp = int(float(self.timestamp))
-            if not isinstance(timestamp, int):
-                raise ValueError("Invalid Timestamp")
+        timestamp = int(float(self.timestamp))
+        if not isinstance(timestamp, int):
+            raise ValueError("Invalid Timestamp")
 
-            if not isinstance(self.signed_by, str):
-                raise ValueError("Invalid Sender key")
+        if not isinstance(self.signed_by, str):
+            raise ValueError("Invalid Sender key")
 
-            if not isinstance(body, bytes):
-                raise ValueError("Body is not of type bytes")
+        if not isinstance(body, bytes):
+            raise ValueError("Body is not of type bytes")
 
-            keypair = Keypair(ss58_address=self.signed_by)
+        keypair = Keypair(ss58_address=self.signed_by)
 
-            if timestamp + timeout < now:
-                raise ValueError("Request is too stale")
-            message = f"{sha256(body).hexdigest()}.{self.timestamp}."
+        if timestamp + timeout < now:
+            raise ValueError("Request is too stale")
+        message = f"{sha256(body).hexdigest()}.{self.timestamp}."
 
-            verified = keypair.verify(message, self.request_signature)
-            if not verified:
-                raise ValueError("Signature Mismatch")
-
-        except ValueError as e:
-            logger.error("signature_verification_failed", error=e)
-            raise HTTPException(status_code=400, detail=EpistulaError(error=str(e)).model_dump())
-        except Exception as e:
-            logger.error("signature_verification_failed", error=traceback.format_exc())
-            return str(e)
+        verified = keypair.verify(message, self.request_signature)
+        if not verified:
+            raise ValueError("Signature Mismatch")
 
 
 def generate_header(

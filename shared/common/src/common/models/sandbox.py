@@ -86,8 +86,12 @@ class SandboxMetrics(BaseModel):
     execution_time: float = 0
     cpu_usage_seconds: float = 0
     gpu_usage_seconds: float = 0
-    network_usage_mb: float = 0
-    io_usage_mb: float = 0
+    network_usage_mb: float = 0  # Total network (rx + tx) for backwards compatibility
+    network_rx_mb: float = 0  # Network receive only
+    network_tx_mb: float = 0  # Network transmit only
+    io_usage_mb: float = 0  # Total I/O (read + write) for backwards compatibility
+    io_read_mb: float = 0  # I/O read only
+    io_write_mb: float = 0  # I/O write only
     max_memory_mb: float = 0
     max_gpu_memory_mb: float = 0
     max_cpu_percent: float = 0

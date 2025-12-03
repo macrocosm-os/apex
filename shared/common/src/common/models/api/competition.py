@@ -36,6 +36,7 @@ class CompetitionRecord(BaseModel):
     ptype: str
     ctype: str
     baseline_score: float
+    baseline_raw_score: float
     incentive_weight: float
     burn_factor: float
     burn_factor_reset_at: Optional[datetime] = None
@@ -51,6 +52,7 @@ class CompetitionRecord(BaseModel):
     curr_top_score_id: Optional[int] = None
     top_score_value: Optional[float] = None
     top_scorer_hotkey: Optional[str] = None
+    score_to_beat: Optional[float] = None
 
 
 class CompetitionResponse(BaseModel):

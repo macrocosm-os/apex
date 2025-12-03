@@ -12,6 +12,9 @@ from common.settings import ORCHESTRATOR_SCHEMA, ORCHESTRATOR_HOST, ORCHESTRATOR
 
 class Client:
     def __init__(self, hotkey_file_path: str, timeout: float = 60.0):
+        print(f"ORCHESTRATOR_SCHEMA: {ORCHESTRATOR_SCHEMA}")
+        print(f"ORCHESTRATOR_HOST: {ORCHESTRATOR_HOST}")
+        print(f"ORCHESTRATOR_PORT: {ORCHESTRATOR_PORT}")
         if ORCHESTRATOR_SCHEMA == "https":
             self.url = f"{ORCHESTRATOR_SCHEMA}://{ORCHESTRATOR_HOST}"
         else:

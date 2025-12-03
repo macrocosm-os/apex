@@ -5,7 +5,7 @@ from typing import Optional
 
 class SubmitRequest(BaseModel):
     competition_id: int
-    round_number: int
+    round_number: int = 0
     raw_code: str
 
 
@@ -15,6 +15,8 @@ class SubmissionRequest(BaseModel):
     hotkey: Optional[str] = None
     start_idx: int = 0
     count: int = 10
+    filter_mode: str = "all"
+    sort_mode: str = "score"
 
 
 class SubmissionRecord(BaseModel):
@@ -40,6 +42,7 @@ class SubmissionDetail(BaseModel):
     eval_metadata: dict | None = None
     eval_file_paths: dict | None = None
     code_path: str | None = None
+    round_number: int
 
 
 class SubmissionPagination(BaseModel):

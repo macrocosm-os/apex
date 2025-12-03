@@ -41,14 +41,22 @@ def link():
         if wallets:
             options = {}
             for wallet in wallets:
-                # read the coldkeypub.txt file and get the first 8 characters of the ss58 address
-                with open(Path(wallet_location) / wallet / "coldkeypub.txt", "r") as f:
-                    try:
-                        coldkey = json.load(f)["ss58Address"]
-                    except Exception:
+                try:
+                    # read the coldkeypub.txt file and get the first 8 characters of the ss58 address
+                    wallet_path = Path(wallet_location) / wallet
+                    if not wallet_path.is_dir():
                         continue
-                key_name = f"{wallet.ljust(20)} [{coldkey[:8]}]"
-                options[key_name] = [wallet, coldkey]
+
+                    coldkeypub_path = wallet_path / "coldkeypub.txt"
+                    if not coldkeypub_path.exists():
+                        continue
+
+                    with open(coldkeypub_path, "r") as f:
+                        coldkey = json.load(f)["ss58Address"]
+                    key_name = f"{wallet.ljust(20)} [{coldkey[:8]}]"
+                    options[key_name] = [wallet, coldkey]
+                except Exception:
+                    continue
             wallet_choice = interactive_select(options, "Select your coldkey wallet")
             wallet_name, coldkey = wallet_choice
             if not wallet_name:
@@ -62,13 +70,13 @@ def link():
             options = {}
             for hotkey_name in hotkeys:
                 # read the hotkey.txt file and get the first 8 characters of the ss58 address
-                with open(Path(wallet_location) / wallet_name / "hotkeys" / hotkey_name, "r") as f:
-                    try:
+                try:
+                    with open(Path(wallet_location) / wallet_name / "hotkeys" / hotkey_name, "r") as f:
                         hotkey = json.load(f)["ss58Address"]
-                    except Exception:
-                        continue
-                key_name = f"{hotkey_name.ljust(20)} [{hotkey[:8]}]"
-                options[key_name] = [hotkey_name, hotkey]
+                    key_name = f"{hotkey_name.ljust(20)} [{hotkey[:8]}]"
+                    options[key_name] = [hotkey_name, hotkey]
+                except Exception:
+                    continue
             hotkey_choice = interactive_select(options, "Select which hotkey to use")
             hotkey_name, hotkey = hotkey_choice
             if not hotkey_name:

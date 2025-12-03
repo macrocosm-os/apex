@@ -51,7 +51,7 @@ class RemotePlayer(BaseModel):
     name: Name
     base_url: str
     last_result: Optional[Dict] = None  # last result for THIS player's previous shot
-    ships: List[Ship] = Field(default_factory=list)
+    ships: Dict[str, Ship] = Field(default_factory=dict)
     shot_history: Set[Coord] = Field(default_factory=set)
 
 

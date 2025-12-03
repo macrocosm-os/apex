@@ -96,12 +96,14 @@ class CompetitionDetailScreen(Screen):
         Binding("s", "toggle_sort", "Sort"),
         Binding("n", "next_page", "Next Page"),
         Binding("p", "prev_page", "Previous Page"),
+        Binding("k", "cursor_up", "Up", show=False),
+        Binding("j", "cursor_down", "Down", show=False),
     ]
 
     def __init__(
         self,
         competition: CompetitionRecord,
-        submissions: list[SubmissionRecord] = None,
+        submissions: list[SubmissionRecord] | None = None,
         pagination: SubmissionPagination = None,
     ) -> None:
         super().__init__()
@@ -153,6 +155,7 @@ class CompetitionDetailScreen(Screen):
 [dim]Process Type:[/dim] {comp.ptype}
 [dim]Competition Type:[/dim] {comp.ctype}
 [dim]Baseline Score:[/dim] {comp.baseline_score}
+[dim]Baseline Raw Score:[/dim] {comp.baseline_raw_score}
 [dim]Incentive Weight:[/dim] {comp.incentive_weight}
 
 [bold underline]Timeline:[/bold underline]
@@ -200,6 +203,9 @@ class CompetitionDetailScreen(Screen):
         # Format top score with 0.8 precision
         top_score_str = f"{comp.top_score_value:.7f}" if comp.top_score_value is not None else "N/A"
 
+        # Format score_to_beat with 7 decimal places
+        score_to_beat_str = f"{comp.score_to_beat:.7f}" if comp.score_to_beat is not None else "N/A"
+
         # Format top scorer hotkey (first 8 chars only)
         top_scorer_str = comp.top_scorer_hotkey[:8] if comp.top_scorer_hotkey else "N/A"
 
@@ -218,7 +224,8 @@ class CompetitionDetailScreen(Screen):
 
         # Left container content
         top_score_left_content = f"""[dim]Top Scorer:[/dim] {top_scorer_str}
-[dim]Top Score:[/dim] {top_score_str}"""
+[dim]Top Score:[/dim] {top_score_str}
+[dim]Score to Beat:[/dim] {score_to_beat_str}"""
 
         # Right container content
         top_score_right_content = f"""[dim]Age:[/dim] {top_scorer_age}
@@ -273,7 +280,7 @@ class CompetitionDetailScreen(Screen):
                 reveal_status = get_reveal_status(sub.reveal_at, compact=True)
 
                 # Format version as v1, v2, etc.
-                version_str = f"v{sub.version}" if sub.version else "N/A"
+                version_str = f"v{sub.version}" if sub.version is not None else "N/A"
 
                 # Calculate age using compact format
                 age_str = get_age(sub.submit_at, compact=True)
@@ -559,6 +566,16 @@ class CompetitionDetailScreen(Screen):
         new_start_idx = max(0, self.pagination.start_idx - self.pagination.count)
         # Post message to app level to ensure it's handled
         self.app.post_message(LoadSubmissionsPage(self.competition.id, new_start_idx))
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up (vim-style k)."""
+        table = self.query_one("#submissions_table", DataTable)
+        table.action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down (vim-style j)."""
+        table = self.query_one("#submissions_table", DataTable)
+        table.action_cursor_down()
 
 
 class SubmissionSelected(Message):

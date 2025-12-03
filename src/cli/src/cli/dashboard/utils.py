@@ -49,6 +49,8 @@ def get_state(state: str, compact: bool = False) -> str:
         "scored": ("🟢", "[green]scored[/green]"),
         "completed": ("🏁", "[bold blue]completed[/bold blue]"),
         "stale": ("🟡", "[yellow]stale[/yellow]"),
+        "replaced": ("🗑️ ", "[orange]replaced[/orange]"),
+        "evaluation": ("⏳", "[orange]evaluation[/orange]"),
     }
     emoji, colored = mapping.get(state, ("🔴", f"[red]{state}[/red]"))
     return emoji if compact else f"{emoji} {colored}"

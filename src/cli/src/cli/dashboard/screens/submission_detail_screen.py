@@ -17,6 +17,7 @@ from cli.dashboard.utils import log_success, log_error, get_state, get_reveal_st
 from cli.dashboard.time_utils import format_datetime
 from cli.utils.client import Client
 from cli.utils.config import Config
+from cli.dashboard.widgets.download import show_download_dialog
 
 console = Console()
 
@@ -84,6 +85,9 @@ class SubmissionDetailScreen(Screen):
         Binding("backspace", "back", "Back"),
         Binding("l", "toggle_log", "Toggle Log"),
         Binding("enter", "select_file", "Select File"),
+        Binding("d", "download_code", "Download Code"),
+        Binding("k", "cursor_up", "Up", show=False),
+        Binding("j", "cursor_down", "Down", show=False),
     ]
 
     def __init__(self, submission: SubmissionRecord) -> None:
@@ -225,6 +229,7 @@ class SubmissionDetailScreen(Screen):
                     end_at = end_at.replace(tzinfo=timezone.utc)
                 # Lock if round hasn't ended yet
                 log_status = f"{format_datetime(end_at, include_seconds=True)} {get_reveal_status(end_at)}"
+        version = f"v{sub.version}" if sub.version > 0 else f"v{sub.version} [dim](Auto)[/dim]"
 
         detail_content = f"""[bold cyan]Submission Details[/bold cyan]
 
@@ -233,7 +238,7 @@ class SubmissionDetailScreen(Screen):
 [dim]Round Number:[/dim] {sub.round_number}
 [dim]State:[/dim] {get_state(sub.state)}
 [dim]Hotkey:[/dim] {sub.hotkey}
-[dim]Version:[/dim] {sub.version}
+[dim]Version:[/dim] {version}
 [dim]Top Score:[/dim] {top_score}
 
 [bold underline]Scores:[/bold underline]
@@ -468,14 +473,29 @@ class SubmissionDetailScreen(Screen):
         """Go back to competition detail."""
         self.post_message(BackToCompetitionDetail())
 
+    def action_download_code(self) -> None:
+        """Download the code file for this submission."""
+        log_widget = self.query_one("#log")
+        show_download_dialog(
+            screen=self,
+            submission=self.submission,
+            submission_detail=self.submission_detail,
+            log_widget=log_widget,
+            notify_callback=self.notify,
+        )
+
+    def action_cursor_up(self) -> None:
+        """Move cursor up (vim-style k)."""
+        table = self.query_one("#file_explorer", DataTable)
+        table.action_cursor_up()
+
+    def action_cursor_down(self) -> None:
+        """Move cursor down (vim-style j)."""
+        table = self.query_one("#file_explorer", DataTable)
+        table.action_cursor_down()
+
 
 class BackToCompetitionDetail(Message):
     """Message sent when user wants to go back to competition detail."""
-
-    pass
-
-
-class BackToCompetitions(Message):
-    """Message sent when user wants to go back to competitions list."""
 
     pass
