@@ -18,7 +18,7 @@ TEST_MODE = os.getenv("TEST_MODE") == "True"
 BITTENSOR = os.getenv("BITTENSOR") == "True"
 NETUID = int(os.getenv("NETUID", 1))
 NETWORK = os.getenv("NETWORK", "finney")
-OWNER_UID = 395
+OWNER_UID = 248
 
 # Orchestrator
 if ENV == "local":
