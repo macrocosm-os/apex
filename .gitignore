@@ -1,38 +1,13 @@
-*.log
-requirements.txt
-**/*.ipynb
-debug/
-debug_rewards.jsonl
-results.db*
-sn13_db.db*
-sn13.db*
-avante_prompts/
-*_cache
-.geminiignore
-config/*
-!config/*.example
-drafts/
-
-# Byte-compiled / optimized / DLL files
+*.csv
+*/losses*.csv
+*/activation_stats*.csv
+.gradio/
+*.pt
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
-.DS_Store
-**/.DS_Store
-
-# Project-specific
-results.db
-*.npy
-*.npz
-
-# C extensions
 *.so
-
-# local testing notebooks
-local/
-notebooks/
-
-# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -46,76 +21,84 @@ parts/
 sdist/
 var/
 wheels/
-share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
+.env*
+weights_log.csv
+*weight_cache*
+# UV package manager
+.uv/
+.venv/
+venv/
+ENV/
 
-# PyInstaller
-*.manifest
-*.spec
+# Jupyter Notebook
+.ipynb_checkpoints
+notebooks/*
+*.ipynb
 
-# Installer logs
-pip-log.txt
-pip-delete-this-directory.txt
+# Distribution / packaging
+.Python
+env/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 
 # Unit test / coverage reports
 htmlcov/
 .tox/
-.nox/
 .coverage
 .coverage.*
 .cache
 nosetests.xml
 coverage.xml
 *.cover
-*.py,cover
 .hypothesis/
-.pytest_cache/
-cover/
 
-# PyBuilder
-.pybuilder/
-target/
-
-# Jupyter Notebook
-.ipynb_checkpoints
-
-# IPython
-profile_default/
-ipython_config.py
-
-# Environments
-.env
-.env.api
-.env.miner
-.env.validator
-.venv
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-
-# mypy
-.mypy_cache/
-.dmypy.json
-dmypy.json
-
-# Pyre type checker
-.pyre/
-
-# pytype static type analyzer
-.pytype/
-
-# Cython debug symbols
-cython_debug/
-
-# PyCharm
+# IDE
 .idea/
+.vscode/
+*.swp
+*.swo
 
-# VS Code
-.vscode
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
-wandb/
+# Activation storage
+activation_cache/
+activation_log.csv
+losses/
+*.csv
+*.log
+*.json
+*.pt
+*.csv
+*.log
+*.json
+*.pt
+validated_activations/
+
+# Bittensor wallets
+~/
+.bittensor/
+
+# Generated docker compose files
+compose.miners.yaml
+compose.validators.yaml

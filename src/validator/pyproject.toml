@@ -1,0 +1,25 @@
+[project]
+name = "validator"
+version = "0.1.0"
+description = "Apex Validator"
+authors = [{ name = "Macrocosmos.ai" }]
+readme = "README.md"
+dependencies = [
+    "aiohttp>=3.9.0",
+    "common",
+    "bittensor==9.9.0",
+    "tenacity>=9.1.2",
+    "torch==2.4.*",
+]
+requires-python = ">=3.12"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv.sources]
+common = { workspace = true }
+subnet = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/validator"]

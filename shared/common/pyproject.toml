@@ -1,0 +1,32 @@
+[project]
+name = "common"
+version = "0.1.0"
+description = "Common shared dependencies"
+authors = [{ name = "Macrocosmos.ai" }]
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "dotenv>=0.9.9",
+    "loguru>=0.7.3",
+    "pydantic>=2.11.3",
+    "requests>=2.31.0",
+    "pytest>=8.4.1",
+    "pytest-asyncio>=1.0.0",
+    "pytest-mock>=3.14.1",
+    "bittensor-wallet>=4.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+asyncio_mode = "auto"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/common"]
