@@ -43,6 +43,7 @@ class SubmissionDetail(BaseModel):
     eval_file_paths: dict | None = None
     code_path: str | None = None
     round_number: int
+    reveal_at: Optional[datetime] = None
 
 
 class SubmissionPagination(BaseModel):

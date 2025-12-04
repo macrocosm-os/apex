@@ -41,9 +41,11 @@ class MinerRanksResponse(BaseModel):
     curr_top_scorer_hotkey: Optional[str] = None
     miners: list[MinerRankRecord]
     pagination: RanksPagination
+    total_submissions: int
 
 
 class MinerRanksCache(BaseModel):
     comp_row: dict
     miners: list[MinerRankRecord]
     scaled_incentive: float
+    total_submissions: int

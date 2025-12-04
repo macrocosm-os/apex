@@ -56,6 +56,7 @@ class CompetitionDetailsResponse(BaseModel):
     rounds: List[RoundAnnotation]
     # Top scores pagination.
     pagination: SubmissionPagination
+    total_submissions: int
 
 
 class CompetitionDetailsCache(BaseModel):
@@ -65,3 +66,4 @@ class CompetitionDetailsCache(BaseModel):
     score_to_beat: float
     all_scores: List[ScorePoint]
     rounds: List[RoundAnnotation]
+    total_submissions: int
