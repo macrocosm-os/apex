@@ -1,6 +1,6 @@
 [project]
 name = "competition"
-version = "4.0.0"
+version = "4.0.1"
 description = "Competition shared dependencies"
 authors = [{ name = "Macrocosmos.ai" }]
 readme = "README.md"
