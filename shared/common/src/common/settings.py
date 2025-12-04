@@ -11,6 +11,7 @@ if not load_dotenv(dotenv_path=COMMON_DOTENV_PATH):
 # System
 MOCK = os.getenv("MOCK") == "True"  # initialize with mock competition
 ENV = os.getenv("ENV", "prod")
+SB_PREFIX = os.getenv("SB_PREFIX", "main")
 LOG_FILE_ENABLED = os.getenv("LOG_FILE_ENABLED") == "True"
 TEST_MODE = os.getenv("TEST_MODE") == "True"
 
