@@ -284,6 +284,8 @@ class Validator(HealthServerMixin):
 
         try:
             uids, scores = zip(*weights.items())
+            uids = np.array(uids)
+            scores = np.array(scores)
 
             # Check if scores contains any NaN values
             if np.isnan(scores).any():
