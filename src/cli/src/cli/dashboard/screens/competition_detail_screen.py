@@ -274,7 +274,7 @@ class CompetitionDetailScreen(Screen):
                     elif sub.eval_score < comp.top_score_value and sub.top_score:
                         score = f"[bold orange]{score}[/bold orange]"
 
-                top_score = get_top_score_status(sub.top_score, sub.hotkey, comp.top_scorer_hotkey, compact=True)
+                top_score = get_top_score_status(sub.top_score, sub.id, comp.curr_top_score_id, compact=True)
 
                 # Get reveal status emoji and text
                 reveal_status = get_reveal_status(sub.reveal_at, compact=True)

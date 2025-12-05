@@ -211,8 +211,8 @@ class SubmissionDetailScreen(Screen):
         """Show detailed view of the submission."""
         sub = self.submission
 
-        top_scorer_hotkey = self.competition.top_scorer_hotkey if self.competition else None
-        top_score = get_top_score_status(sub.top_score, sub.hotkey, top_scorer_hotkey or "")
+        curr_top_score_id = self.competition.curr_top_score_id if self.competition else None
+        top_score = get_top_score_status(sub.top_score, sub.id, curr_top_score_id)
 
         error_msg = f"[red]{sub.eval_error}[/red]" if sub.eval_error and not sub.eval_error == "Success" else "None"
 
