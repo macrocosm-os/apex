@@ -2,7 +2,6 @@ import asyncio
 import time
 
 import bittensor as bt
-import torch
 import numpy as np
 from loguru import logger
 from bittensor_wallet import Wallet
@@ -284,43 +283,24 @@ class Validator(HealthServerMixin):
             return
 
         try:
-            # Convert global weights to tensor, Global state of scores is on the orchestrator
-            scores = torch.zeros(len(self.metagraph.uids), dtype=torch.float32)
-            for uid, weight in weights.items():
-                scores[uid] = weight
+            uids, scores = zip(*weights.items())
 
             # Check if scores contains any NaN values
-            if torch.isnan(scores).any():
+            if np.isnan(scores).any():
                 logger.warning("Scores contain NaN values. Replacing with 0.")
-                scores = torch.nan_to_num(scores, 0)
+                scores = np.nan_to_num(scores, 0)
 
             # Check if we have any non-zero scores
-            if torch.sum(scores) == 0:
+            if np.sum(scores) == 0:
                 logger.warning("All scores are zero, skipping weight submission")
                 return
 
-            # Normalize weights
-            raw_weights = torch.nn.functional.normalize(scores, p=1, dim=0)
-
-            # Fetch the burn factor from the weights
-            try:
-                burn_factor = next(
-                    (weight for uid, weight in weights.items() if uid == common_settings.OWNER_UID), None
-                )
-            except Exception as e:
-                logger.warning(f"Error fetching burn factor: {e}")
-                burn_factor = None
-            if burn_factor is None:
-                burn_factor = 0
-
-            # Process the raw weights to final_weights via subtensor limitations
             (
                 processed_weight_uids,
                 processed_weights,
             ) = bt.utils.weight_utils.process_weights_for_netuid(
-                uids=self.metagraph.uids,
-                weights=raw_weights.detach().cpu().float().numpy(force=True).astype(np.float32),
-                # weights=raw_weights.cpu().numpy(force=True).astype(np.float32),
+                uids=uids,
+                weights=scores,
                 netuid=int(common_settings.NETUID),
                 subtensor=self.subtensor,
                 metagraph=self.metagraph,

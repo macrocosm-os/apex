@@ -1,6 +1,6 @@
 [project]
 name = "validator"
-version = "4.0.1"
+version = "4.0.2"
 description = "Apex Validator"
 authors = [{ name = "Macrocosmos.ai" }]
 readme = "README.md"
@@ -9,7 +9,6 @@ dependencies = [
     "common",
     "bittensor==9.9.0",
     "tenacity>=9.1.2",
-    "torch==2.4.*",
 ]
 requires-python = ">=3.12"
 

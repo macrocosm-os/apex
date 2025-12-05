@@ -66,31 +66,39 @@ def get_reveal_status(reveal_at: datetime | None, compact: bool = False) -> str:
     if reveal_at is None:
         return "🔒" if compact else "🔒 [orange]Locked[/orange]"
 
-    # Handle timezone-aware and naive datetimes
-    if reveal_at.tzinfo is not None:
-        from datetime import timezone
+    from datetime import timezone
 
-        now = datetime.now(timezone.utc)
+    # Always use UTC for comparison to ensure consistency
+    now = datetime.now(timezone.utc)
+
+    # Handle timezone-aware and naive datetimes
+    # If naive, assume it's UTC (consistent with check_code_available)
+    if reveal_at.tzinfo is not None:
         # Convert reveal_at to UTC if needed for comparison
         reveal_at_utc = reveal_at.astimezone(timezone.utc)
-        if reveal_at_utc < now:
-            return "👁" if compact else "👁  [green]Visible[/green]"
-        else:
-            return "🔒" if compact else "🔒 [orange]Locked[/orange]"
     else:
-        now = datetime.now()
-        if reveal_at < now:
-            return "👁" if compact else "👁  [green]Visible[/green]"
-        else:
-            return "🔒" if compact else "🔒 [orange]Locked[/orange]"
+        # Treat naive datetime as UTC
+        reveal_at_utc = reveal_at.replace(tzinfo=timezone.utc)
+
+    if reveal_at_utc < now:
+        return "👁" if compact else "👁 [green]Visible[/green]"
+    else:
+        return "🔒" if compact else "🔒 [orange]Locked[/orange]"
 
 
-def get_top_score_status(top_score: bool, hotkey: str, top_scorer_hotkey: str, compact: bool = False) -> str:
-    """Get the top score status indicator based on top_score and hotkey."""
-    if top_score:
-        if hotkey == top_scorer_hotkey:
-            return "🏆" if compact else "🏆 [green]Current Top Scorer[/green]"
-        else:
-            return "🥈" if compact else "🥈 [orange]Previous Top Scorer[/orange]"
+def get_top_score_status(
+    top_score: bool, submission_id: int | None, curr_top_score_id: int | None, compact: bool = False
+) -> str:
+    """Get the top score status indicator based on top_score and submission ID.
+
+    Only the submission matching curr_top_score_id gets the gold cup.
+    Previous top scorers (top_score=True but different ID) get silver medal.
+    """
+    # Check if this is the current top scorer by comparing submission IDs
+    if curr_top_score_id is not None and submission_id == curr_top_score_id:
+        return "🏆" if compact else "🏆 [green]Current Top Scorer[/green]"
+    # If not current top scorer, check if it was ever a top scorer
+    elif top_score:
+        return "🥈" if compact else "🥈 [orange]Previous Top Scorer[/orange]"
     else:
         return "[red]✗[/red]" if compact else "[red][bold]✗[/bold] Not a Top Scorer[/red]"
