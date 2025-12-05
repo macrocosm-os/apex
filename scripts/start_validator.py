@@ -101,10 +101,11 @@ def stop_validator_process(process: subprocess.Popen) -> None:
         process.terminate()
         try:
             process.wait(timeout=10)
-            log.info("Validator stopped gracefully")
+            log.info("Validator stopped.")
         except subprocess.TimeoutExpired:
             log.warning("Validator did not stop gracefully, killing...")
             process.kill()
+            process.wait()
 
 
 def remote_has_updates() -> bool:
@@ -170,7 +171,6 @@ def main(args: list[str], autoupdate: bool = True) -> None:
 
                 log.info("Checking for updates...")
                 if remote_has_updates():
-                    latest_version = get_version()
                     log.info("Updates detected: %s -> new version", current_version)
 
                     stop_validator_process(validator_process)
