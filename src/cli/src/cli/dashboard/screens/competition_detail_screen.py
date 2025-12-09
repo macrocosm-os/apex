@@ -248,8 +248,7 @@ class CompetitionDetailScreen(Screen):
         )
 
         # Submissions section
-        # Submissions are already filtered and sorted by the API, so use them directly
-        filtered_submissions = self.submissions
+        filtered_submissions = self._sort_submissions(self.submissions)
 
         # Determine current round number and end date
         current_round = comp.curr_round.round_number if comp.curr_round else comp.curr_round_number
@@ -267,7 +266,7 @@ class CompetitionDetailScreen(Screen):
                     if sub.hotkey == comp.top_scorer_hotkey
                     else sub.hotkey[:8]
                 )
-                score = f"{sub.eval_score:.7f}" if sub.eval_score else "N/A"
+                score = f"{sub.eval_score:.7f}" if sub.eval_score is not None else "N/A"
                 if comp.top_score_value is not None and sub.eval_score is not None:
                     if sub.eval_score >= comp.top_score_value:
                         score = f"[bold green]{score}[/bold green]"
@@ -401,7 +400,7 @@ class CompetitionDetailScreen(Screen):
         log_widget = self.query_one("#log")
         log_debug(log_widget, f"Row selected: {row_index}")
 
-        # Submissions are already filtered and sorted by the API
+        # Submissions are already sorted by the backend - do NOT re-sort as it breaks pagination
         filtered_submissions = self.submissions
 
         # Add this line to also trigger the selection logic
@@ -484,15 +483,16 @@ class CompetitionDetailScreen(Screen):
             Sorted list of submissions
         """
         if self.sort_mode == "score":
-            # Sort by score (descending), then by submit time (most recent first)
+            # Sort by round (descending), then by score (descending)
             def sort_key(sub: SubmissionRecord) -> tuple:
+                # Use round_number (descending), None rounds sort last
+                round_num = sub.round_number if sub.round_number is not None else float("-inf")
                 # Use a large negative number for None scores so they sort last
                 score = sub.eval_score if sub.eval_score is not None else float("-inf")
-                # Use epoch time for comparison, None becomes very old timestamp (sorts last)
                 submit_time = sub.submit_at.timestamp() if sub.submit_at else float("-inf")
-                # Negate score for descending order, negate time for descending (most recent first)
-                # None scores become inf (sorts last), None times become inf (sorts last)
-                return (-score, -submit_time)
+                # Negate round for descending order, negate score for descending order
+                # None rounds become inf (sorts last), None scores become inf (sorts last)
+                return (-round_num, -score, submit_time)
 
         else:  # sort_mode == "time"
             # Sort by submit time (most recent first)
