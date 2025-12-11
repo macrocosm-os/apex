@@ -1,95 +1,107 @@
-# Baseline submission just saves the array as-is
 import numpy as np
-import base64
-from pydantic import BaseModel
-import io
+import uvicorn
+import argparse
+from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi.responses import Response
+import traceback
+import zstd
 
 
-class CompressionInputDataSchema(BaseModel):
-    data_to_compress_base64: str
-    expected_output_filepath: str
+def compress_data(data: bytes) -> bytes:
+    # Miner to improve this function
+    try:
+        if not data:
+            raise ValueError("Empty data received")
+        compressed = zstd.compress(data, 3)
+        return compressed
+    except Exception as e:
+        raise ValueError(f"Compression failed: {str(e)}") from e
 
 
-class DecompressionInputDataSchema(BaseModel):
-    data_to_decompress_base64: str
-    expected_output_filepath: str
+def decompress_data(data: bytes) -> bytes:
+    # Miner to improve this function
+    try:
+        if not data:
+            raise ValueError("Empty data received")
+        decompressed = zstd.decompress(data)
+        return decompressed
+    except Exception as e:
+        raise ValueError(f"Decompression failed: {str(e)}") from e
 
 
-class MatrixCompressTaskSchema(BaseModel):
-    task_name: str
-    input: CompressionInputDataSchema | DecompressionInputDataSchema
+def _validate(data: bytes) -> dict:
+    # Validate that data compresses and decompresses correctly
+    # Returns: (is_valid, compression_efficiency, cosine_similarity)
+    input_array = np.frombuffer(data, dtype=np.uint8)
+    compressed = compress_data(data)
+    decompressed = decompress_data(compressed)
+    output_array = np.frombuffer(decompressed, dtype=np.uint8)
 
-
-class MatrixCompressEvalInputDataSchema(BaseModel):
-    tasks: list[MatrixCompressTaskSchema]
-
-
-def compress(input_data: CompressionInputDataSchema) -> None:
-    """
-    Compress an activation array to disk with sparsity-aware quantization.
-    Implement your compression algorithm here.
-    """
-    # TODO: Implement your compression algorithm
-    # This is a placeholder that just saves the array as-is
-
-    # Decode the base64 data back to numpy array inline
-    arr_bytes = base64.b64decode(input_data.data_to_compress_base64)
-    buffer = io.BytesIO(arr_bytes)
-    arr = np.load(buffer, allow_pickle=False)
-
-    # Placeholder: just save the array as a simple numpy file
-    np.save(input_data.expected_output_filepath, arr)
-
-
-def decompress(input_data: DecompressionInputDataSchema) -> None:
-    """
-    Decompress data from base64 encoded compressed blob.
-    Implement your decompression algorithm here.
-    """
-    # TODO: Implement your decompression algorithm
-    # This is a placeholder that just loads the array as-is
-
-    # Decode the base64 compressed data
-    blob = base64.b64decode(input_data.data_to_decompress_base64)
-
-    # Placeholder: assume the blob is a numpy array saved directly
-    buffer = io.BytesIO(blob)
-    arr = np.load(buffer, allow_pickle=False)
-
-    # Write the decompressed result to the output file path
-    buffer = io.BytesIO()
-    np.save(buffer, arr, allow_pickle=False)
-    buffer.seek(0)
-    result_bytes = buffer.getvalue()
-
-    with open(input_data.expected_output_filepath, "wb") as f:
-        f.write(result_bytes)
-
-
-def main():
-    import argparse
-
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--compress", action="store_true")
-    parser.add_argument("--decompress", action="store_true")
-    parser.add_argument("--input-file", type=str)
-    args = parser.parse_args()
-
-    if args.compress:
-        with open(args.input_file, "r") as f:
-            input_data = MatrixCompressEvalInputDataSchema.model_validate_json(f.read())
-
-        for task in input_data.tasks:
-            compress(input_data=task.input)
-    elif args.decompress:
-        with open(args.input_file, "r") as f:
-            input_data = MatrixCompressEvalInputDataSchema.model_validate_json(f.read())
-
-        for task in input_data.tasks:
-            decompress(input_data=task.input)
+    is_valid = np.array_equal(input_array, output_array)
+    compression_efficiency = 1 - (len(compressed) / len(data))
+    a = input_array.astype(np.float64)
+    b = output_array.astype(np.float64)
+    if np.linalg.norm(a) == 0:
+        if np.linalg.norm(b) == 0:
+            cosine_similarity = 1.0
+        else:
+            cosine_similarity = 0.0
     else:
-        parser.print_help()
+        cosine_similarity = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+    return {
+        "is_valid": is_valid,
+        "compression_efficiency": compression_efficiency,
+        "cosine_similarity": float(cosine_similarity),
+    }
+
+
+def make_app() -> FastAPI:
+    app = FastAPI(title="Matrix Compression Miner API")
+
+    @app.get("/health")
+    def health():
+        return {"status": "healthy"}
+
+    @app.post("/compress")
+    async def compress(file: UploadFile = File(...)):
+        try:
+            data = await file.read()
+            if not data:
+                raise HTTPException(status_code=400, detail="No data received in file")
+            # Log data info for debugging (first 50 bytes)
+            print(f"DEBUG: Received {len(data)} bytes, first 50 bytes: {data[:50].hex()}")
+            compressed = compress_data(data)
+            return Response(content=compressed, media_type="application/octet-stream")
+        except HTTPException:
+            raise
+        except Exception as e:
+            error_detail = f"{str(e)}\n{traceback.format_exc()}"
+            print(f"ERROR in /compress: {error_detail}")
+            raise HTTPException(status_code=500, detail=error_detail)
+
+    @app.post("/decompress")
+    async def decompress(file: UploadFile = File(...)):
+        try:
+            data = await file.read()
+            if not data:
+                raise HTTPException(status_code=400, detail="No data received in file")
+            # Log data info for debugging (first 50 bytes)
+            print(f"DEBUG: Received {len(data)} bytes, first 50 bytes: {data[:50].hex()}")
+            decompressed = decompress_data(data)
+            return Response(content=decompressed, media_type="application/octet-stream")
+        except HTTPException:
+            raise
+        except Exception as e:
+            error_detail = f"{str(e)}\n{traceback.format_exc()}"
+            print(f"ERROR in /decompress: {error_detail}")
+            raise HTTPException(status_code=500, detail=error_detail)
+
+    return app
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--port", type=int, default=8080)
+    parser.add_argument("--host", type=str, default="0.0.0.0")
+    args = parser.parse_args()
+    uvicorn.run(make_app(), host=args.host, port=args.port, log_level="info")
