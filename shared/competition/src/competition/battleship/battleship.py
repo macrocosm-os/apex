@@ -6,8 +6,8 @@
 # second run the validator client in a third terminal
 #     python battleship.py --p1 http://localhost:8001 --p2 http://localhost:8002 --console
 
-# To replay a match:
-#     python battleship.py --replay ../../../../../worker-data/match_21db0542-9e3d-4dd7-b7eb-60e7ce9dc748.log --console
+# To replay a game:
+#     python battleship.py --replay ../../../../../worker-data/game_21db0542-9e3d-4dd7-b7eb-60e7ce9dc748.json --console
 
 
 from typing import Dict, Set, Tuple, Optional, List, Any
@@ -48,6 +48,7 @@ class Ship(BaseModel):
 
 
 class RemotePlayer(BaseModel):
+    id: str
     name: Name
     base_url: str
     last_result: Optional[Dict] = None  # last result for THIS player's previous shot
@@ -55,7 +56,8 @@ class RemotePlayer(BaseModel):
     shot_history: Set[Coord] = Field(default_factory=set)
 
 
-class MatchResult(BaseModel):
+class GameResult(BaseModel):
+    name: str | None = None
     game_id: str
     winner: Name | None = None
     loser: Name | None = None
@@ -267,7 +269,10 @@ class Validator:
         return False
 
 
-def run_match(
+def run_game(
+    name: str,
+    p1_id: str,
+    p2_id: str,
     p1_url: str,
     p2_url: str,
     size: int = 10,
@@ -279,7 +284,7 @@ def run_match(
     shot_timeout_in_seconds: int = 1,
     starting_player: str = "p1",
     console_mode: bool = False,
-) -> MatchResult:
+) -> GameResult:
     """
     Validator as a *client*:
       - Calls each player's server to get their board.
@@ -290,9 +295,18 @@ def run_match(
     sess = requests.Session()
     game_id = str(uuid.uuid4())
 
-    p1 = RemotePlayer(name=Name.PLAYER_1, base_url=p1_url)
-    p2 = RemotePlayer(name=Name.PLAYER_2, base_url=p2_url)
-    match_result = MatchResult(game_id=game_id, winner=None, loser=None, turns=0, game_result="", p1=p1, p2=p2)
+    p1 = RemotePlayer(id=p1_id, name=Name.PLAYER_1, base_url=p1_url)
+    p2 = RemotePlayer(id=p2_id, name=Name.PLAYER_2, base_url=p2_url)
+    game_result = GameResult(
+        name=name,
+        game_id=game_id,
+        winner=None,
+        loser=None,
+        turns=0,
+        game_result="",
+        p1=p1,
+        p2=p2,
+    )
 
     # Health check players
     start_time = time.time()
@@ -308,16 +322,16 @@ def run_match(
             break
         if time.time() - start_time > startup_health_check_timeout_in_seconds:
             if not p1_ok:
-                match_result.winner = Name.PLAYER_2 if p2_ok else None
-                match_result.loser = Name.PLAYER_1
-                match_result.game_result = (
+                game_result.winner = Name.PLAYER_2 if p2_ok else None
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = (
                     f"Player 1 health check failed after {startup_health_check_timeout_in_seconds:.2f} seconds"
                 )
-                return match_result
+                return game_result
             if not p2_ok:
-                match_result.winner = Name.PLAYER_1 if p1_ok else None
-                match_result.loser = Name.PLAYER_2
-                match_result.game_result = (
+                game_result.winner = Name.PLAYER_1 if p1_ok else None
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = (
                     f"Player 2 health check failed after {startup_health_check_timeout_in_seconds:.2f} seconds"
                 )
         time.sleep(1)
@@ -328,30 +342,30 @@ def run_match(
         board1 = BoardManager.from_payload(b1_payload)
         p1.ships = board1.ships
     except requests.Timeout:
-        match_result.winner = Name.PLAYER_2
-        match_result.loser = Name.PLAYER_1
-        match_result.game_result = "Player 1 board generation timed out"
-        return match_result
+        game_result.winner = Name.PLAYER_2
+        game_result.loser = Name.PLAYER_1
+        game_result.game_result = "Player 1 board generation timed out"
+        return game_result
     except Exception as e:
-        match_result.winner = Name.PLAYER_2
-        match_result.loser = Name.PLAYER_1
-        match_result.game_result = "Player 1 board generation threw an exception"
-        return match_result
+        game_result.winner = Name.PLAYER_2
+        game_result.loser = Name.PLAYER_1
+        game_result.game_result = "Player 1 board generation threw an exception"
+        return game_result
 
     try:
         b2_payload = fetch_board(sess, p2.base_url, game_id, size, timeout=board_generation_timeout_in_seconds)
         board2 = BoardManager.from_payload(b2_payload)
         p2.ships = board2.ships
     except requests.Timeout:
-        match_result.winner = Name.PLAYER_1
-        match_result.loser = Name.PLAYER_2
-        match_result.game_result = "Player 2 board generation timed out"
-        return match_result
+        game_result.winner = Name.PLAYER_1
+        game_result.loser = Name.PLAYER_2
+        game_result.game_result = "Player 2 board generation timed out"
+        return game_result
     except Exception as e:
-        match_result.winner = Name.PLAYER_1
-        match_result.loser = Name.PLAYER_2
-        match_result.game_result = "Player 2 board generation threw an exception"
-        return match_result
+        game_result.winner = Name.PLAYER_1
+        game_result.loser = Name.PLAYER_2
+        game_result.game_result = "Player 2 board generation threw an exception"
+        return game_result
 
     # Validate
     v = Validator(
@@ -362,20 +376,20 @@ def run_match(
     ok1, reasons1 = v.validate_board(board1, strict_names_and_lengths=True)
     ok2, reasons2 = v.validate_board(board2, strict_names_and_lengths=True)
     if not ok1 and not ok2:
-        match_result.winner = None
-        match_result.loser = None
-        match_result.game_result = f"Player 1: {reasons1}\nPlayer 2: {reasons2}"
-        return match_result
+        game_result.winner = None
+        game_result.loser = None
+        game_result.game_result = f"Player 1: {reasons1}\nPlayer 2: {reasons2}"
+        return game_result
     if not ok1 and ok2:
-        match_result.winner = Name.PLAYER_2
-        match_result.loser = Name.PLAYER_1
-        match_result.game_result = f"Player 1: {reasons1}"
-        return match_result
+        game_result.winner = Name.PLAYER_2
+        game_result.loser = Name.PLAYER_1
+        game_result.game_result = f"Player 1: {reasons1}"
+        return game_result
     if not ok2 and ok1:
-        match_result.winner = Name.PLAYER_1
-        match_result.loser = Name.PLAYER_2
-        match_result.game_result = f"Player 2: {reasons2}"
-        return match_result
+        game_result.winner = Name.PLAYER_1
+        game_result.loser = Name.PLAYER_2
+        game_result.game_result = f"Player 2: {reasons2}"
+        return game_result
 
     # Game loop
     if starting_player == "p1":
@@ -422,26 +436,26 @@ def run_match(
             x, y = ask_next_move(sess, current.base_url, game_id, previous_result, timeout=shot_timeout_in_seconds)
         except requests.Timeout:
             if current == p1:
-                match_result.winner = Name.PLAYER_2
-                match_result.loser = Name.PLAYER_1
-                match_result.game_result = "Player 1 shot timed out"
-                return match_result
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = "Player 1 shot timed out"
+                return game_result
             else:
-                match_result.winner = Name.PLAYER_1
-                match_result.loser = Name.PLAYER_2
-                match_result.game_result = "Player 2 shot timed out"
-                return match_result
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = "Player 2 shot timed out"
+                return game_result
         except Exception as e:
             if current == p1:
-                match_result.winner = Name.PLAYER_2
-                match_result.loser = Name.PLAYER_1
-                match_result.game_result = "Player 1 shot threw an exception"
-                return match_result
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = "Player 1 shot threw an exception"
+                return game_result
             else:
-                match_result.winner = Name.PLAYER_1
-                match_result.loser = Name.PLAYER_2
-                match_result.game_result = "Player 2 shot threw an exception"
-                return match_result
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = "Player 2 shot threw an exception"
+                return game_result
 
         # Enforce bounds & no-repeat (validator-side guard)
         if not (0 <= x < size and 0 <= y < size):
@@ -465,11 +479,11 @@ def run_match(
                 print("\033[2J\033[H", end="")
                 print(render())
                 print(f"\nWinner: {winner} in {turn} turns. (Loser: {loser})")
-            match_result.winner = winner
-            match_result.loser = loser
-            match_result.turns = turn
-            match_result.game_result = f"{winner.value} won"
-            return match_result
+            game_result.winner = winner
+            game_result.loser = loser
+            game_result.turns = turn
+            game_result.game_result = f"{winner.value} won"
+            return game_result
 
         # Turn switch
         if repeat_on_hit and hit:
@@ -625,6 +639,9 @@ def replay_from_log(
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Validator client for remote Battleship")
+    parser.add_argument("--game-name", default="default")
+    parser.add_argument("--p1-id", default="p1")
+    parser.add_argument("--p2-id", default="p2")
     parser.add_argument("--p1", default="http://127.0.0.1:8001")
     parser.add_argument("--p2", default="http://127.0.0.1:8002")
     parser.add_argument("--size", type=int, default=10)
@@ -638,7 +655,10 @@ if __name__ == "__main__":
     if args.replay:
         replay_from_log(args.replay, console_mode=args.console, delay_seconds=args.speed)
     else:
-        run_match(
+        run_game(
+            name=args.match_name,
+            p1_id=args.p1_id,
+            p2_id=args.p2_id,
             p1_url=args.p1,
             p2_url=args.p2,
             size=args.size,
