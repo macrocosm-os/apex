@@ -2,6 +2,7 @@ from textual.app import ComposeResult
 from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Static, Input, Button
+from textual.events import Key
 
 
 class InputModal(ModalScreen[str | None]):
@@ -76,3 +77,9 @@ class InputModal(ModalScreen[str | None]):
     def on_input_submitted(self, event: Input.Submitted) -> None:
         """Handle input submission (Enter key)."""
         self.dismiss(event.value)
+
+    def on_key(self, event: Key) -> None:
+        """Handle key presses."""
+        if event.key == "escape":
+            event.stop()
+            self.dismiss(None)

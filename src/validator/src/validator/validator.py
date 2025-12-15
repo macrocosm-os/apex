@@ -95,36 +95,34 @@ class Validator(HealthServerMixin):
                 logger.debug("VALIDATOR: WEIGHT LOOP RUNNING")
                 if await ValidatorAPIClient.check_orchestrator_health(hotkey=self.wallet.hotkey):
                     logger.debug("VALIDATOR: GETTING GLOBAL MINER SCORES")
-                    global_weights: dict | None = await ValidatorAPIClient.get_global_miner_scores(
-                        hotkey=self.wallet.hotkey
-                    )
+                    scores: dict | None = await ValidatorAPIClient.get_global_miner_scores(hotkey=self.wallet.hotkey)
 
-                    if not global_weights or not isinstance(global_weights, dict):
+                    if not scores or not isinstance(scores, dict):
                         raise Exception("No global weights received from orchestrator")
 
-                    if "error_name" in global_weights:
-                        logger.error(f"Error getting global weights: {global_weights['error_name']}")
-                        global_weights = {}
+                    if "error_name" in scores:
+                        logger.error(f"Error getting global weights: {scores['error_name']}")
+                        scores = {}
                     else:
-                        global_weights = SubnetScores.model_validate(global_weights)
+                        subnet_scores = SubnetScores.model_validate(scores)
 
-                        logger.debug(f"VALIDATOR: GLOBAL MINER SCORES: {global_weights}")
+                        logger.debug(f"VALIDATOR: GLOBAL MINER SCORES: {subnet_scores}")
 
                         # Safer type conversion
                         try:
-                            global_weights = {int(m.uid): m.weight for m in global_weights.miner_scores}
+                            weights = {int(m.uid): m.weight for m in subnet_scores.miner_scores}
                         except (ValueError, TypeError) as e:
                             logger.error(f"Invalid UID in global_weights: {e}")
-                            global_weights = {}
+                            weights = {}
 
                 else:
                     logger.warning("Orchestrator is not healthy, skipping weight submission")
-                    global_weights = {}
+                    weights = {}
 
                 # Submit global weights to Bittensor
-                if len(global_weights) > 0:
-                    logger.debug(f"Received global weights: {global_weights}")
-                    await self.set_weights(weights=global_weights)
+                if len(weights) > 0:
+                    logger.debug(f"Received global weights: {weights}")
+                    await self.set_weights(weights=weights)
                 else:
                     logger.warning("No global weights received, temporarily copying weights from the chain")
                     await self.set_weights(weights=self.copy_weights_from_chain())
