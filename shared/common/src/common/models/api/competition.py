@@ -53,6 +53,8 @@ class CompetitionRecord(BaseModel):
     top_score_value: Optional[float] = None
     top_scorer_hotkey: Optional[str] = None
     score_to_beat: Optional[float] = None
+    total_submissions: int = 0
+    image_url: Optional[str] = None
 
 
 class CompetitionResponse(BaseModel):

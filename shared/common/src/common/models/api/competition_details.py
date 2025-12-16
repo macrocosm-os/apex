@@ -22,6 +22,7 @@ class CompetitionInfo(BaseModel):
     burn_factor: float
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
+    image_url: Optional[str] = None
 
 
 class RoundInfo(BaseModel):

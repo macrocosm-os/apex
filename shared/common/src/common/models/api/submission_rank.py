@@ -9,6 +9,7 @@ class SubmissionRankRequest(BaseModel):
     start_idx: int = 0
     count: int = 100
     hotkey: Optional[str] = None
+    round_number: Optional[int] = None
 
 
 class SubmissionRankMiner(BaseModel):
@@ -30,9 +31,11 @@ class SubmissionRankResponse(BaseModel):
     curr_top_scorer_hotkey: Optional[str] = None
     miners: list[SubmissionRankMiner]
     pagination: SubmissionPagination
+    total_submissions: int
 
 
 class SubmissionRankCache(BaseModel):
     comp_row: dict
     miners: list[SubmissionRankMiner]
     scaled_incentive: float
+    total_submissions: int
