@@ -99,6 +99,70 @@ def ask_next_move(
     return int(d["x"]), int(d["y"])
 
 
+class Board:
+    """Own board model. Coordinates are 0‑based (x, y). x = col, y = row."""
+
+    def __init__(self, size: int = 10, ships_spec: Optional[Dict[str, int]] = None, seed: Optional[int] = None):
+        self.size = size
+        self.ships_spec = ships_spec or DEFAULT_SHIPS
+        self.ships: Dict[str, Ship] = {}
+        self.occupied: Dict[Coord, str] = {}  # cell -> ship name
+        self.misses: Set[Coord] = set()  # track missed shots
+        self.rng = random.Random(seed)
+
+    def in_bounds(self, x: int, y: int) -> bool:
+        return 0 <= x < self.size and 0 <= y < self.size
+
+    def _can_place(self, coords: List[Coord]) -> bool:
+        return all(self.in_bounds(x, y) and (x, y) not in self.occupied for x, y in coords)
+
+    def _all_valid_positions(self, length: int) -> List[List[Coord]]:
+        """Enumerate every valid, non-overlapping placement for a ship of 'length'."""
+        positions: List[List[Coord]] = []
+        # Horizontal placements
+        for y in range(self.size):
+            for x in range(self.size - length + 1):
+                coords = [(x + i, y) for i in range(length)]
+                if self._can_place(coords):
+                    positions.append(coords)
+        # Vertical placements
+        for x in range(self.size):
+            for y in range(self.size - length + 1):
+                coords = [(x, y + i) for i in range(length)]
+                if self._can_place(coords):
+                    positions.append(coords)
+        return positions
+
+    def place_ships_randomly(self, max_tries: int = 1000) -> None:
+        """Place all ships randomly with restart-backtracking to avoid dead-ends."""
+        spec_items = sorted(self.ships_spec.items(), key=lambda kv: kv[1], reverse=True)
+        for _ in range(max_tries):
+            self.ships.clear()
+            self.occupied.clear()
+            success = True
+            for name, length in spec_items:
+                positions = self._all_valid_positions(length)
+                if not positions:
+                    success = False
+                    break
+                choice = self.rng.choice(positions)
+                ship = Ship(name=name, length=length, cells=set(choice))
+                self.ships[name] = ship
+                for cell in choice:
+                    self.occupied[cell] = name
+            if success:
+                return
+        raise RuntimeError("Failed to place ships after many attempts; try a larger board or different seed.")
+
+    # ---- Serialization helpers for remote play ----
+    def to_payload(self) -> Dict[str, Any]:
+        ships_payload = []
+        for name, ship in self.ships.items():
+            cells = sorted(list(ship.cells))
+            ships_payload.append({"name": name, "cells": cells})
+        return {"size": self.size, "ships": ships_payload}
+
+
 class BoardManager:
     """Own board model. Coordinates are 0‑based (x, y). x = col, y = row."""
 
@@ -367,7 +431,16 @@ def run_game(
         game_result.game_result = "Player 2 board generation threw an exception"
         return game_result
 
-    # Validate
+    # Ignore the miner's board and generate a random board for both players
+    # which will be obscured from both players
+    p1_board = Board()
+    p1_board.place_ships_randomly()
+    p2_board = Board()
+    p2_board.place_ships_randomly()
+    board1 = BoardManager.from_payload(p1_board.to_payload())
+    board2 = BoardManager.from_payload(p2_board.to_payload())
+
+    # Validate boards
     v = Validator(
         size=size,
         ships_spec=ships_spec or DEFAULT_SHIPS,
@@ -459,9 +532,29 @@ def run_game(
 
         # Enforce bounds & no-repeat (validator-side guard)
         if not (0 <= x < size and 0 <= y < size):
-            raise SystemExit(f"{current.name} proposed out-of-bounds shot {(x, y)}.")
-        # if (x, y) in current.shot_history:
-        #     raise SystemExit(f"{current.name} repeated shot {(x, y)}. A player must never repeat a shot.")
+            if current == p1:
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = f"Player 1 proposed out-of-bounds shot {(x, y)}."
+                return game_result
+            else:
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = f"Player 2 proposed out-of-bounds shot {(x, y)}."
+                return game_result
+
+        # Enforce no-repeat (validator-side guard)
+        if (x, y) in current.shot_history:
+            if current == p1:
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = f"Player 1 duplicated a shot at {(x, y)}."
+                return game_result
+            else:
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = f"Player 2 duplicated a shot at {(x, y)}."
+                return game_result
         current.shot_history.add((x, y))
 
         # Apply shot to opponent's board

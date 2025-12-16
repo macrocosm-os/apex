@@ -6,6 +6,7 @@ class MinerRanksRequest(BaseModel):
     competition_id: int
     start_idx: int = 0
     count: int = 50
+    round_number: Optional[int] = None
 
 
 class MinerRankRecord(BaseModel):
