@@ -40,3 +40,6 @@ else:
 
 # Scoring
 SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "0.01"))
+
+# Competition settings
+DEFAULT_BASE_BURN_RATE = 0.9
