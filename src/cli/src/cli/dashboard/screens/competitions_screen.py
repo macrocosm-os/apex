@@ -55,14 +55,33 @@ class CompetitionsScreen(Screen):
         log_widget.display = False
         log_success(log_widget, "Dashboard started")
         table = self.query_one(DataTable)
-        table.add_columns("ID", "Name", "State", "Type", "Package", "Round Details", "Top Score")
+        table.add_columns(
+            "ID",
+            "Name",
+            "State",
+            "Type",
+            "Package",
+            "Round Details",
+            "Top Score",
+            "Alloc. Emission",
+            "Min Burn",
+            "Max Emissions",
+        )
 
         # Enable row selection events
         table.cursor_type = "row"
 
+        # Total weight for emission allocation
+        total_weight = sum(comp.incentive_weight for comp in self.competitions)
+
         for comp in self.competitions:
             # Create enhanced round details
             round_details = self._format_round_details(comp)
+
+            # Calculate emission metrics
+            emission_allocation = (comp.incentive_weight / total_weight * 100) if total_weight > 0 else 0
+            min_burn = comp.base_burn_rate * 100
+            max_emissions = (1 - comp.base_burn_rate) * emission_allocation
 
             table.add_row(
                 str(comp.id),
@@ -72,6 +91,9 @@ class CompetitionsScreen(Screen):
                 comp.pkg,
                 round_details,
                 f"{comp.top_score_value:.2f}" if comp.top_score_value else "N/A",
+                f"{emission_allocation:.1f}%",
+                f"{min_burn:.0f}%",
+                f"{max_emissions:.1f}%",
             )
 
         # Table cursor will be at row 0 by default

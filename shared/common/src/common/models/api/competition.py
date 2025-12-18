@@ -2,6 +2,7 @@ from datetime import datetime
 from pydantic import BaseModel
 from typing import Optional
 
+from common.settings import DEFAULT_BASE_BURN_RATE
 from common.models.api.submission import SubmissionPagination
 
 
@@ -55,6 +56,7 @@ class CompetitionRecord(BaseModel):
     score_to_beat: Optional[float] = None
     total_submissions: int = 0
     image_url: Optional[str] = None
+    base_burn_rate: float = DEFAULT_BASE_BURN_RATE
 
 
 class CompetitionResponse(BaseModel):
