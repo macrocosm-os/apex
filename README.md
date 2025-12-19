@@ -31,7 +31,7 @@ See validator docs for an overview on validator setup.
 
 **[Matrix Compression](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/current-competitions)**: A lossless compression competition to enable the acceleration of transfering activations across IOTA. 
 
-**[Battleship](https://docs.macrocosmos.ai/subnets/subnet-1-apex/current-competitions#id-2.-battleship)**: A strategy game competition in which miners compete to win sink ships on a 10x10 grid in as few turns as possible. A Bittensor twist on the classic 1931 game. 
+**[Battleship](https://docs.macrocosmos.ai/subnets/subnet-1-apex/current-competitions#id-2.-battleship)**: A strategy game competition in which miners compete to sink ships on a 10x10 grid in as few turns as possible. A Bittensor twist on the classic 1931 game. 
 
 ### Feedback, Questions, and Support
 Visit the SN1 channel in the [Macrocosmos Discord server](https://discord.gg/vdyz4JZ9Ww) or the [Bittensor Discord server](https://discord.gg/GtgHWakpDs) to chat, ask questions, submit feedback, and more. 
