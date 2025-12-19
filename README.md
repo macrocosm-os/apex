@@ -16,7 +16,7 @@
 
 # Apex Guide
 
-### Overview
+### [Overview](https://docs.macrocosmos.ai/subnets/subnet-1-apex)
 Subnet 1 Apex subnet drives algorithmic innovation across diverse problem domains. Each pursuit of the best solution takes place within a **Competition**, which consists of multiple **Rounds** of evaluation where participants (miners) submit their Python-based algorithms through the Apex CLI and earn rewards based on their performance. Validators continuously evaluate these submissions, scoring them against benchmarks and  distributing blockchain-based rewards to miners whose solutions perform best, creating a trustless incentive mechanism that encourages innovation and optimization across various computational challenges.
 
 ### [Miner Docs](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup)
@@ -30,6 +30,8 @@ See validator docs for an overview on validator setup.
 ### [Current Competitions](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/current-competitions)
 
 **[Matrix Compression](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/current-competitions)**: A lossless compression competition to enable the acceleration of transfering activations across IOTA. 
+
+**[Battleship](https://docs.macrocosmos.ai/subnets/subnet-1-apex/current-competitions#id-2.-battleship)**: A strategy game competition in which miners compete to win sink ships on a 10x10 grid in as few turns as possible. A Bittensor twist on the classic 1931 game. 
 
 ### Feedback, Questions, and Support
 Visit the SN1 channel in the [Macrocosmos Discord server](https://discord.gg/vdyz4JZ9Ww) or the [Bittensor Discord server](https://discord.gg/GtgHWakpDs) to chat, ask questions, submit feedback, and more. 
