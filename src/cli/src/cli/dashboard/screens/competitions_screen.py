@@ -32,16 +32,13 @@ class CompetitionsScreen(Screen):
         Binding("q", "quit", "Quit"),
         Binding("enter", "select_item", "Select"),
         Binding("l", "toggle_log", "Toggle Log"),
-        Binding("c", "toggle_completed", "Show Completed"),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("j", "cursor_down", "Down", show=False),
     ]
 
     def __init__(self, competitions: list[CompetitionResponse]) -> None:
         super().__init__()
-        self.all_competitions = competitions
-        self.show_completed = False
-        self.competitions = self._filter_competitions()
+        self.competitions = competitions
 
     def compose(self) -> ComposeResult:
         """Compose the screen."""
@@ -74,38 +71,22 @@ class CompetitionsScreen(Screen):
         # Enable row selection events
         table.cursor_type = "row"
 
-        # Populate the table with filtered competitions
-        self._populate_table()
-
-        # Table cursor will be at row 0 by default
-        table.focus()
-        table.cursor_coordinate = (0, 0)
-
-    def _populate_table(self) -> None:
-        """Populate the table with current filtered competitions."""
-        table = self.query_one(DataTable)
-
-        # Total weight for emission allocation (only active competitions contribute to emissions)
-        total_weight = sum(comp.incentive_weight for comp in self.all_competitions if comp.state == "active")
+        # Total weight for emission allocation
+        total_weight = sum(comp.incentive_weight for comp in self.competitions)
 
         for comp in self.competitions:
             # Create enhanced round details
             round_details = self._format_round_details(comp)
 
             # Calculate emission metrics
-            if comp.state != "active":
-                emission_allocation = 0
-                min_burn = 0
-                max_emissions = 0
-            else:
-                emission_allocation = (comp.incentive_weight / total_weight * 100) if total_weight > 0 else 0
-                min_burn = comp.base_burn_rate * 100
-                max_emissions = (1 - comp.base_burn_rate) * emission_allocation
+            emission_allocation = (comp.incentive_weight / total_weight * 100) if total_weight > 0 else 0
+            min_burn = comp.base_burn_rate * 100
+            max_emissions = (1 - comp.base_burn_rate) * emission_allocation
 
             table.add_row(
                 str(comp.id),
                 comp.name[:30] + "..." if len(comp.name) > 30 else comp.name,
-                get_state(comp.state),
+                comp.state,
                 comp.ctype,
                 comp.pkg,
                 round_details,
@@ -114,6 +95,10 @@ class CompetitionsScreen(Screen):
                 f"{min_burn:.0f}%",
                 f"{max_emissions:.1f}%",
             )
+
+        # Table cursor will be at row 0 by default
+        table.focus()
+        table.cursor_coordinate = (0, 0)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Handle row selection."""
@@ -147,28 +132,6 @@ class CompetitionsScreen(Screen):
         """Move cursor down (vim-style j)."""
         table = self.query_one(DataTable)
         table.action_cursor_down()
-
-    def action_toggle_completed(self) -> None:
-        """Toggle display of completed competitions."""
-        self.show_completed = not self.show_completed
-        self.competitions = self._filter_competitions()
-
-        # Refresh the table
-        table = self.query_one(DataTable)
-        table.clear()
-        self._populate_table()
-        if self.competitions:
-            table.cursor_coordinate = (0, 0)
-
-        log_widget = self.query_one("#log")
-        status = "showing" if self.show_completed else "hiding"
-        log_success(log_widget, f"Now {status} completed competitions")
-
-    def _filter_competitions(self) -> list:
-        """Filter competitions based on show_completed toggle."""
-        if self.show_completed:
-            return self.all_competitions
-        return [c for c in self.all_competitions if c.state != "completed"]
 
     def _format_round_details(self, comp) -> str:
         """Format round details for display in the table."""

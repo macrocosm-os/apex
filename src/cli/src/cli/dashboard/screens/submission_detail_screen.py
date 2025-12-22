@@ -279,10 +279,7 @@ class SubmissionDetailScreen(Screen):
         log_widget = self.query_one("#log")
         log_success(log_widget, f"Setting up file explorer for submission {self.submission.id}")
 
-        # Add Eval Metadata row first (shows metadata when selected)
-        file_table.add_row("Eval", "metadata.json")
-
-        # Add code file (from submission detail)
+        # Add code file first (from submission detail)
         if self.submission_detail and self.submission_detail.code_path:
             filename = os.path.basename(self.submission_detail.code_path)
             file_table.add_row("Code", filename)
@@ -296,8 +293,7 @@ class SubmissionDetailScreen(Screen):
             )
             for file_type, file_paths in self.submission_detail.eval_file_paths.items():
                 if isinstance(file_paths, list):
-                    sorted_file_paths = sorted(file_paths)
-                    for file_path in sorted_file_paths:
+                    for file_path in file_paths:
                         filename = os.path.basename(file_path) if isinstance(file_path, str) else str(file_path)
                         file_table.add_row(file_type.title(), filename)
                         self.file_paths[(file_type.title(), filename)] = file_path
@@ -312,8 +308,7 @@ class SubmissionDetailScreen(Screen):
             log_success(log_widget, f"Using fallback submission eval_file_paths: {self.submission.eval_file_paths}")
             for file_type, file_paths in self.submission.eval_file_paths.items():
                 if isinstance(file_paths, list):
-                    sorted_file_paths = sorted(file_paths)
-                    for file_path in sorted_file_paths:
+                    for file_path in file_paths:
                         filename = os.path.basename(file_path) if isinstance(file_path, str) else str(file_path)
                         file_table.add_row(file_type.title(), filename)
                         self.file_paths[(file_type.title(), filename)] = file_path
@@ -340,13 +335,6 @@ class SubmissionDetailScreen(Screen):
             row_data = table.get_row_at(row_index)
             if len(row_data) >= 2:
                 file_type, filename = row_data[0], row_data[1]
-
-                # Handle Eval Metadata row specially
-                if file_type == "Eval":
-                    log_success(log_widget, "Selected Evaluation Metadata")
-                    self.show_metadata()
-                    return
-
                 file_key = (file_type, filename)
 
                 if file_key in self.file_paths:
@@ -453,13 +441,6 @@ class SubmissionDetailScreen(Screen):
 
     def show_metadata(self) -> None:
         """Show the evaluation metadata in JSON format with syntax highlighting."""
-        # Hide battleship widget if present
-        if self.battleship_widget:
-            try:
-                self.battleship_widget.display = False
-            except Exception:
-                pass
-
         metadata = None
 
         # Use submission detail metadata if available
@@ -469,9 +450,7 @@ class SubmissionDetailScreen(Screen):
             # Fallback to original submission data
             metadata = self.submission.eval_metadata
 
-        # Show and update the RichLog widget
         metadata_widget = self.query_one(".file_display", RichLog)
-        metadata_widget.display = True
         metadata_widget.clear()
 
         if metadata:
@@ -479,7 +458,7 @@ class SubmissionDetailScreen(Screen):
             rich_json = JSON.from_data(metadata, indent=2)
             metadata_widget.write(rich_json)
         else:
-            metadata_widget.write("[dim]No evaluation metadata available[/dim]")
+            metadata_widget.write("[dim]Select a file from the file explorer to view its contents[/dim]")
 
     def action_select_file(self) -> None:
         """Handle Enter key press to select the currently highlighted file."""
@@ -492,14 +471,6 @@ class SubmissionDetailScreen(Screen):
                 row_data = file_table.get_row_at(row_index)
                 if len(row_data) >= 2:
                     file_type, filename = row_data[0], row_data[1]
-
-                    # Handle Eval Metadata row specially
-                    if file_type == "Eval":
-                        log_widget = self.query_one("#log")
-                        log_success(log_widget, "Selected Evaluation Metadata")
-                        self.show_metadata()
-                        return
-
                     file_key = (file_type, filename)
 
                     log_widget = self.query_one("#log")
@@ -568,16 +539,11 @@ class SubmissionDetailScreen(Screen):
     def is_battleship_history_file(self, data: dict) -> bool:
         """Check if the content is a battleship history file (JSON with battleship log structure)."""
         try:
-            # Solo mode format: p1 with shot_history, board with ships, no p2
+            # Check if it has the structure of a battleship log file
+            # Should have p1, p2, game_id, and board_size or inferrable board size
             has_p1 = "p1" in data and isinstance(data["p1"], dict)
-            has_board = "board" in data and isinstance(data["board"], dict)
-            has_board_ships = has_board and "ships" in data.get("board", {})
-            has_p1_shots = has_p1 and "shot_history" in data.get("p1", {})
-            is_solo_format = has_p1 and has_board_ships and has_p1_shots
-
-            # Legacy duel format: p1 and p2 each with ships and shot_history
             has_p2 = "p2" in data and isinstance(data["p2"], dict)
-            has_duel_ships = (
+            has_ships = (
                 has_p1
                 and has_p2
                 and "ships" in data.get("p1", {})
@@ -585,10 +551,8 @@ class SubmissionDetailScreen(Screen):
                 and isinstance(data["p1"]["ships"], dict)
                 and isinstance(data["p2"]["ships"], dict)
             )
-            has_duel_shots = "shot_history" in data.get("p1", {}) and "shot_history" in data.get("p2", {})
-            is_duel_format = has_p1 and has_p2 and has_duel_ships and has_duel_shots
-
-            return is_solo_format or is_duel_format
+            has_shot_history = "shot_history" in data.get("p1", {}) and "shot_history" in data.get("p2", {})
+            return has_p1 and has_p2 and has_ships and has_shot_history
         except Exception as _:
             return False
 

@@ -18,11 +18,8 @@ from cli.dashboard.screens.competition_detail_screen import (
     RefreshCompetitionData,
     LoadSubmissionsPage,
     FilterSortSubmissions,
-    FindSubmission,
-    FindByHotkey,
 )
 from cli.dashboard.screens.loading_modal import LoadingModal
-from cli.dashboard.screens.alert_modal import AlertModal
 from cli.dashboard.screens.submission_detail_screen import SubmissionDetailScreen, BackToCompetitionDetail
 
 console = Console()
@@ -138,7 +135,6 @@ class DashboardApp(App):
         count: int = 10,
         filter_mode: str = "all",
         sort_mode: str = "score",
-        hotkey: str | None = None,
     ) -> SubmissionResponse | None:
         """Load submissions for the selected competition."""
         try:
@@ -152,19 +148,11 @@ class DashboardApp(App):
                 from common.models.api.submission import SubmissionRequest
                 from cli.utils.wallet import load_keypair_from_file
 
-                hotkey_for_filter = None
-                if filter_mode == "hotkey":
-                    if hotkey is not None:
-                        # Use inputted hotkey (for substring search)
-                        hotkey_for_filter = hotkey
-                    else:
-                        # User's own hotkey (for "show only mine")
-                        keypair = load_keypair_from_file(config.hotkey_file_path)
-                        hotkey_for_filter = keypair.ss58_address
-
+                # Create query parameters
+                keypair = load_keypair_from_file(config.hotkey_file_path)
                 req = SubmissionRequest(
                     competition_id=competition_id,
-                    hotkey=hotkey_for_filter,
+                    hotkey=keypair.ss58_address if filter_mode == "hotkey" else None,
                     start_idx=start_idx,
                     count=count,
                     filter_mode=filter_mode,
@@ -285,30 +273,8 @@ class DashboardApp(App):
         self.set_timer(
             0.1,
             lambda: self.load_filter_sort_submissions_async(
-                event.competition_id, event.filter_mode, event.sort_mode, current_screen, event.hotkey
+                event.competition_id, event.filter_mode, event.sort_mode, current_screen
             ),
-        )
-
-    def on_find_submission(self, event: FindSubmission) -> None:
-        """Handle find submission request."""
-        # Show loading modal
-        loading_modal = LoadingModal("Finding submission...")
-        self.push_screen(loading_modal)
-
-        self.set_timer(0.1, lambda: self.find_submission_async(event.submission_id, event.competition_id))
-
-    def on_find_by_hotkey(self, event: FindByHotkey) -> None:
-        """Handle find by hotkey request."""
-        # Get the current screen before pushing the modal
-        current_screen = self.screen
-
-        # Show loading modal
-        loading_modal = LoadingModal("Searching by hotkey...")
-        self.push_screen(loading_modal)
-
-        self.set_timer(
-            0.1,
-            lambda: self.find_by_hotkey_async(event.hotkey_substring, event.competition_id, current_screen),
         )
 
     async def load_submissions_page_async(self, competition_id: int, start_idx: int, target_screen=None) -> None:
@@ -327,28 +293,21 @@ class DashboardApp(App):
             else:
                 console.print(f"[yellow]DEBUG: Using provided target_screen: {type(target_screen)}[/yellow]")
 
-            filter_mode = "all"
-            hotkey_for_filter = None
-
             if isinstance(target_screen, CompetitionDetailScreen):
-                if target_screen.hotkey_filter:
-                    filter_mode = "hotkey"
-                    hotkey_for_filter = target_screen.hotkey_filter
-                elif target_screen.show_only_mine:
+                if target_screen.show_only_mine:
                     filter_mode = "hotkey"
                 elif target_screen.show_only_top:
                     filter_mode = "top_score"
+                else:
+                    filter_mode = "all"
+            else:
+                filter_mode = "all"
             sort_mode = target_screen.sort_mode if isinstance(target_screen, CompetitionDetailScreen) else "score"
             console.print(f"[yellow]DEBUG: filter_mode={filter_mode}, sort_mode={sort_mode}[/yellow]")
 
             # Load submissions for the requested page
             submissions_response = await self.load_submissions(
-                competition_id,
-                start_idx=start_idx,
-                count=10,
-                filter_mode=filter_mode,
-                sort_mode=sort_mode,
-                hotkey=hotkey_for_filter,
+                competition_id, start_idx=start_idx, count=10, filter_mode=filter_mode, sort_mode=sort_mode
             )
             fresh_submissions = submissions_response.submissions if submissions_response else []
             pagination = submissions_response.pagination if submissions_response else None
@@ -384,13 +343,13 @@ class DashboardApp(App):
             self.pop_screen()
 
     async def load_filter_sort_submissions_async(
-        self, competition_id: int, filter_mode: str, sort_mode: str, target_screen=None, hotkey: str | None = None
+        self, competition_id: int, filter_mode: str, sort_mode: str, target_screen=None
     ) -> None:
         """Load submissions with filter/sort applied, starting at page 1."""
         try:
             # Always start at page 1 (start_idx=0) when filtering or sorting
             submissions_response = await self.load_submissions(
-                competition_id, start_idx=0, count=10, filter_mode=filter_mode, sort_mode=sort_mode, hotkey=hotkey
+                competition_id, start_idx=0, count=10, filter_mode=filter_mode, sort_mode=sort_mode
             )
             fresh_submissions = submissions_response.submissions if submissions_response else []
             pagination = submissions_response.pagination if submissions_response else None
@@ -404,12 +363,9 @@ class DashboardApp(App):
 
             # Update the screen's filter/sort state to match what we requested
             if isinstance(target_screen, CompetitionDetailScreen):
-                target_screen.show_only_mine = filter_mode == "hotkey" and hotkey is None
+                target_screen.show_only_mine = filter_mode == "hotkey"
                 target_screen.show_only_top = filter_mode == "top_score"
                 target_screen.sort_mode = sort_mode
-                # Preserve hotkey_filter if one was provided
-                if hotkey is not None:
-                    target_screen.hotkey_filter = hotkey
                 target_screen.post_message(
                     RefreshCompetitionData(self.current_competition, fresh_submissions, pagination)
                 )
@@ -427,115 +383,6 @@ class DashboardApp(App):
             console.print(f"[red]Failed to load filtered/sorted submissions: {e}[/red]")
             # Dismiss loading modal on error
             self.pop_screen()
-
-    async def find_submission_async(self, submission_id: int, current_competition_id: int) -> None:
-        """Find a specific submission by ID asynchronously."""
-        try:
-            config = Config.load_config()
-            if not config.hotkey_file_path:
-                console.print(
-                    "[red]No hotkey file path found. Please run `apex link` to link your wallet and hotkey.[/red]"
-                )
-                self.pop_screen()
-                return
-
-            async with Client(config.hotkey_file_path, timeout=config.timeout) as client:
-                from common.models.api.submission import SubmissionRequest
-
-                req = SubmissionRequest(submission_id=submission_id)
-
-                response = await client._make_request(
-                    method="GET",
-                    path="/miner/submission",
-                    params=req.model_dump(),
-                )
-                submissions_response = SubmissionResponse.model_validate(response.json())
-
-                # Dismiss loading modal
-                self.pop_screen()
-
-                if submissions_response.submissions:
-                    submission = submissions_response.submissions[0]
-
-                    # Check if submission belongs to the current competition
-                    if submission.competition_id != current_competition_id:
-                        target_competition = next(
-                            (c for c in self.competitions if c.id == submission.competition_id), None
-                        )
-                        competition_name = (
-                            target_competition.name if target_competition else f"ID {submission.competition_id}"
-                        )
-                        message = f"Submission {submission_id} belongs to competition '{competition_name}'. Please search in that competition."
-                        self.push_screen(AlertModal(title="Wrong Competition", message=message))
-                        return
-
-                    # Found the submission in the current competition - navigate to detail screen
-                    submission_detail_screen = SubmissionDetailScreen(submission)
-                    self.push_screen(submission_detail_screen)
-                else:
-                    # Not found - show alert modal
-                    self.push_screen(AlertModal(title="Not Found", message=f"Submission {submission_id} not found."))
-
-        except Exception as e:
-            # Dismiss loading modal on error
-            self.pop_screen()
-            # Show error in alert modal
-            self.push_screen(AlertModal(title="Error", message=f"Failed to find submission: {e}"))
-
-    async def find_by_hotkey_async(self, hotkey_substring: str, competition_id: int, target_screen=None) -> None:
-        """Find submissions by hotkey substring (always starts at page 1)."""
-        try:
-            # Use server-side ILIKE filtering for hotkey substring search
-            submissions_response = await self.load_submissions(
-                competition_id,
-                start_idx=0,
-                count=10,
-                filter_mode="hotkey",
-                sort_mode="score",
-                hotkey=hotkey_substring,
-            )
-
-            if not submissions_response:
-                self.pop_screen()
-                self.push_screen(AlertModal(title="Error", message="Failed to load submissions."))
-                return
-
-            # Dismiss loading modal
-            self.pop_screen()
-
-            if not submissions_response.submissions:
-                self.push_screen(
-                    AlertModal(
-                        title="No Results",
-                        message=f"No submissions found with hotkey containing '{hotkey_substring}'.",
-                    )
-                )
-                return
-
-            # Update the screen with filtered results
-            if target_screen is None:
-                target_screen = self.screen
-
-            if isinstance(target_screen, CompetitionDetailScreen):
-                target_screen.show_only_mine = False
-                target_screen.show_only_top = False
-                target_screen.hotkey_filter = hotkey_substring
-                target_screen.post_message(
-                    RefreshCompetitionData(
-                        self.current_competition, submissions_response.submissions, submissions_response.pagination
-                    )
-                )
-            else:
-                self.post_message(
-                    RefreshCompetitionData(
-                        self.current_competition, submissions_response.submissions, submissions_response.pagination
-                    )
-                )
-
-        except Exception as e:
-            # Dismiss loading modal on error
-            self.pop_screen()
-            self.push_screen(AlertModal(title="Error", message=f"Failed to search by hotkey: {e}"))
 
 
 def run_dashboard(competitions: list[CompetitionResponse]) -> None:

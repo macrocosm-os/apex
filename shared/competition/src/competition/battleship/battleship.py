@@ -57,16 +57,14 @@ class RemotePlayer(BaseModel):
 
 
 class GameResult(BaseModel):
-    """Result for a solo battleship game."""
-
     name: str | None = None
     game_id: str
+    winner: Name | None = None
+    loser: Name | None = None
     turns: int = 0
-    max_turns: int
     game_result: str = ""
     p1: RemotePlayer
-    board: Dict[str, Any]
-    board_size: int
+    p2: RemotePlayer
 
 
 def health_check(session: requests.Session, player_url: str, timeout: int = 1) -> bool:
@@ -78,7 +76,7 @@ def health_check(session: requests.Session, player_url: str, timeout: int = 1) -
         return False
 
 
-def init_board(session: requests.Session, player_url: str, game_id: str, size: int, timeout: int = 1):
+def fetch_board(session: requests.Session, player_url: str, game_id: str, size: int, timeout: int = 1):
     resp = session.post(
         f"{player_url}/board",
         json={"game_id": game_id, "size": size, "ships_spec": DEFAULT_SHIPS},
@@ -338,208 +336,254 @@ class Validator:
 def run_game(
     name: str,
     p1_id: str,
+    p2_id: str,
     p1_url: str,
+    p2_url: str,
     size: int = 10,
-    max_turns: int = 100,
     ships_spec: Optional[Dict[str, int]] = None,
+    repeat_on_hit: bool = False,
     enforce_no_touching: bool = False,
     startup_health_check_timeout_in_seconds: int = 10,
     board_generation_timeout_in_seconds: int = 1,
     shot_timeout_in_seconds: int = 1,
+    starting_player: str = "p1",
     console_mode: bool = False,
-    seed: int = 42,
 ) -> GameResult:
     """
-    Solo validator:
-      - Calls the player's server for health and board setup (for protocol compatibility).
-      - Generates a hidden random board locally.
-      - Asks the player for shots until all ships are sunk or the max turn limit is hit.
+    Validator as a *client*:
+      - Calls each player's server to get their board.
+      - Validates boards locally.
+      - Alternates calling /result (for prior shot) and /next-move (for new shot).
+      - Applies shots to the opponent's board and declares the winner.
     """
     sess = requests.Session()
     game_id = str(uuid.uuid4())
 
     p1 = RemotePlayer(id=p1_id, name=Name.PLAYER_1, base_url=p1_url)
-    max_turns = max_turns
+    p2 = RemotePlayer(id=p2_id, name=Name.PLAYER_2, base_url=p2_url)
+    game_result = GameResult(
+        name=name,
+        game_id=game_id,
+        winner=None,
+        loser=None,
+        turns=0,
+        game_result="",
+        p1=p1,
+        p2=p2,
+    )
 
-    # Health check player
+    # Health check players
     start_time = time.time()
+    p1_ok = False
+    p2_ok = False
     while True:
-        p1_ok = health_check(sess, p1.base_url, timeout=1)
-        if p1_ok:
+        if not p1_ok:
+            p1_ok = health_check(sess, p1.base_url, timeout=1)
+        if not p2_ok:
+            p2_ok = health_check(sess, p2.base_url, timeout=1)
+
+        if p1_ok and p2_ok:
             break
         if time.time() - start_time > startup_health_check_timeout_in_seconds:
-            return GameResult(
-                name=name,
-                game_id=game_id,
-                turns=0,
-                max_turns=max_turns,
-                game_result=f"Player health check failed after {startup_health_check_timeout_in_seconds:.2f} seconds",
-                p1=p1,
-                board={"ships": {}, "misses": []},
-                board_size=size,
-            )
+            if not p1_ok:
+                game_result.winner = Name.PLAYER_2 if p2_ok else None
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = (
+                    f"Player 1 health check failed after {startup_health_check_timeout_in_seconds:.2f} seconds"
+                )
+                return game_result
+            if not p2_ok:
+                game_result.winner = Name.PLAYER_1 if p1_ok else None
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = (
+                    f"Player 2 health check failed after {startup_health_check_timeout_in_seconds:.2f} seconds"
+                )
         time.sleep(1)
 
-    # Ask the player to create/return its board to establish game session state.
+    # Fetch boards (players are servers)
     try:
-        init_board(
-            sess,
-            p1.base_url,
-            game_id,
-            size,
-            timeout=board_generation_timeout_in_seconds,
-        )
+        b1_payload = fetch_board(sess, p1.base_url, game_id, size, timeout=board_generation_timeout_in_seconds)
+        board1 = BoardManager.from_payload(b1_payload)
+        p1.ships = board1.ships
     except requests.Timeout:
-        return GameResult(
-            name=name,
-            game_id=game_id,
-            turns=0,
-            max_turns=max_turns,
-            game_result="Player board generation timed out",
-            p1=p1,
-            board={"ships": {}, "misses": []},
-            board_size=size,
-        )
+        game_result.winner = Name.PLAYER_2
+        game_result.loser = Name.PLAYER_1
+        game_result.game_result = "Player 1 board generation timed out"
+        return game_result
     except Exception as e:
-        return GameResult(
-            name=name,
-            game_id=game_id,
-            turns=0,
-            max_turns=max_turns,
-            game_result=f"Player board generation failed: {e}",
-            p1=p1,
-            board={"ships": {}, "misses": []},
-            board_size=size,
-        )
+        game_result.winner = Name.PLAYER_2
+        game_result.loser = Name.PLAYER_1
+        game_result.game_result = "Player 1 board generation threw an exception"
+        return game_result
 
-    # Hidden target board
-    hidden_board = Board(size=size, ships_spec=ships_spec or DEFAULT_SHIPS, seed=seed)
-    hidden_board.place_ships_randomly()
-    target_board = BoardManager.from_payload(hidden_board.to_payload())
+    try:
+        b2_payload = fetch_board(sess, p2.base_url, game_id, size, timeout=board_generation_timeout_in_seconds)
+        board2 = BoardManager.from_payload(b2_payload)
+        p2.ships = board2.ships
+    except requests.Timeout:
+        game_result.winner = Name.PLAYER_1
+        game_result.loser = Name.PLAYER_2
+        game_result.game_result = "Player 2 board generation timed out"
+        return game_result
+    except Exception as e:
+        game_result.winner = Name.PLAYER_1
+        game_result.loser = Name.PLAYER_2
+        game_result.game_result = "Player 2 board generation threw an exception"
+        return game_result
 
-    # Validate board (sanity check)
+    # Ignore the miner's board and generate a random board for both players
+    # which will be obscured from both players
+    p1_board = Board()
+    p1_board.place_ships_randomly()
+    p2_board = Board()
+    p2_board.place_ships_randomly()
+    board1 = BoardManager.from_payload(p1_board.to_payload())
+    board2 = BoardManager.from_payload(p2_board.to_payload())
+
+    # Validate boards
     v = Validator(
         size=size,
         ships_spec=ships_spec or DEFAULT_SHIPS,
         enforce_no_touching=enforce_no_touching,
     )
-    ok, reasons = v.validate_board(target_board, strict_names_and_lengths=True)
-    if not ok:
-        return GameResult(
-            name=name,
-            game_id=game_id,
-            turns=0,
-            max_turns=max_turns,
-            game_result=f"Validator board invalid: {reasons}",
-            p1=p1,
-            board={"ships": {}, "misses": []},
-            board_size=size,
-        )
+    ok1, reasons1 = v.validate_board(board1, strict_names_and_lengths=True)
+    ok2, reasons2 = v.validate_board(board2, strict_names_and_lengths=True)
+    if not ok1 and not ok2:
+        game_result.winner = None
+        game_result.loser = None
+        game_result.game_result = f"Player 1: {reasons1}\nPlayer 2: {reasons2}"
+        return game_result
+    if not ok1 and ok2:
+        game_result.winner = Name.PLAYER_2
+        game_result.loser = Name.PLAYER_1
+        game_result.game_result = f"Player 1: {reasons1}"
+        return game_result
+    if not ok2 and ok1:
+        game_result.winner = Name.PLAYER_1
+        game_result.loser = Name.PLAYER_2
+        game_result.game_result = f"Player 2: {reasons2}"
+        return game_result
+
+    # Game loop
+    if starting_player == "p1":
+        current, opponent = p1, p2
+        target_board = board2
+    else:
+        current, opponent = p2, p1
+        target_board = board1
 
     turn = 0
 
-    def board_to_log(board: BoardManager) -> Dict[str, Any]:
-        ships_payload = {}
-        for name, ship in board.ships.items():
-            ships_payload[name] = {
-                "cells": sorted(list(ship.cells)),
-                "hits": sorted(list(ship.hits)),
-            }
-        return {"ships": ships_payload, "misses": sorted(list(board.misses))}
+    def render():
+        lines = [
+            f"Game ID: {game_id}",
+            f"Turn: {turn}",
+            f"Next: {current.name}",
+            "",
+            f"--- {p1.name} Board (self-view) ---",
+            board1.render(reveal=True),
+            "",
+            f"--- {p2.name} Board (self-view) ---",
+            board2.render(reveal=True),
+        ]
+        return "\n".join(lines)
 
-    while turn < max_turns:
+    while True:
         if console_mode:
-            print("\033[2J\033[H", end="")
-            print(f"Game ID: {game_id}\nTurn: {turn}\nNext: {p1.name}\n")
-            print("--- Target Board (hidden) ---")
-            print(target_board.render(reveal=True))
+            print("\033[2J\033[H", end="")  # clear + home
+            print(render())
             time.sleep(0.3)
 
         turn += 1
 
+        # Send result of the *previous* shot to the current shooter (if any)
         previous_result = None
-        if p1.last_result is not None:
-            previous_result = {"game_id": game_id, **p1.last_result}
+        if current.last_result is not None:
+            body = {"game_id": game_id, **current.last_result}
+            # We'll instead send the previous result to the next move request
+            # post_result(sess, current.base_url, body)
+            previous_result = body
 
+        # Ask current shooter for next shot
         try:
-            x, y = ask_next_move(sess, p1.base_url, game_id, previous_result, timeout=shot_timeout_in_seconds)
+            x, y = ask_next_move(sess, current.base_url, game_id, previous_result, timeout=shot_timeout_in_seconds)
         except requests.Timeout:
-            return GameResult(
-                name=name,
-                game_id=game_id,
-                turns=turn - 1,
-                max_turns=max_turns,
-                game_result="Shot timed out",
-                p1=p1,
-                board=board_to_log(target_board),
-                board_size=size,
-            )
+            if current == p1:
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = "Player 1 shot timed out"
+                return game_result
+            else:
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = "Player 2 shot timed out"
+                return game_result
         except Exception as e:
-            return GameResult(
-                name=name,
-                game_id=game_id,
-                turns=turn - 1,
-                max_turns=max_turns,
-                game_result=f"Shot threw an exception: {e}",
-                p1=p1,
-                board=board_to_log(target_board),
-                board_size=size,
-            )
+            if current == p1:
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = "Player 1 shot threw an exception"
+                return game_result
+            else:
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = "Player 2 shot threw an exception"
+                return game_result
 
-        # Bounds check
+        # Enforce bounds & no-repeat (validator-side guard)
         if not (0 <= x < size and 0 <= y < size):
-            return GameResult(
-                name=name,
-                game_id=game_id,
-                turns=turn,
-                max_turns=max_turns,
-                game_result=f"Out-of-bounds shot {(x, y)}",
-                p1=p1,
-                board=board_to_log(target_board),
-                board_size=size,
-            )
+            if current == p1:
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = f"Player 1 proposed out-of-bounds shot {(x, y)}."
+                return game_result
+            else:
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = f"Player 2 proposed out-of-bounds shot {(x, y)}."
+                return game_result
 
-        # No repeat shots
-        if (x, y) in p1.shot_history:
-            return GameResult(
-                name=name,
-                game_id=game_id,
-                turns=turn,
-                max_turns=max_turns,
-                game_result=f"Duplicate shot at {(x, y)}",
-                p1=p1,
-                board=board_to_log(target_board),
-                board_size=size,
-            )
-        p1.shot_history.add((x, y))
+        # Enforce no-repeat (validator-side guard)
+        if (x, y) in current.shot_history:
+            if current == p1:
+                game_result.winner = Name.PLAYER_2
+                game_result.loser = Name.PLAYER_1
+                game_result.game_result = f"Player 1 duplicated a shot at {(x, y)}."
+                return game_result
+            else:
+                game_result.winner = Name.PLAYER_1
+                game_result.loser = Name.PLAYER_2
+                game_result.game_result = f"Player 2 duplicated a shot at {(x, y)}."
+                return game_result
+        current.shot_history.add((x, y))
 
-        # Apply shot
+        # Apply shot to opponent's board
         hit, sunk_name = target_board.receive_shot(x, y)
-        p1.last_result = {"x": x, "y": y, "hit": hit, "sunk": sunk_name}
 
+        # Prepare result for *current* shooter (to be delivered at their next turn)
+        current.last_result = {"x": x, "y": y, "hit": hit, "sunk": sunk_name}
+
+        # Victory check
         if target_board.all_ships_sunk():
-            return GameResult(
-                name=name,
-                game_id=game_id,
-                turns=turn,
-                max_turns=max_turns,
-                game_result=f"{Name.PLAYER_1.value} won",
-                p1=p1,
-                board=board_to_log(target_board),
-                board_size=size,
-            )
+            winner = Name.PLAYER_1 if current == p1 else Name.PLAYER_2
+            loser = Name.PLAYER_1 if current == p2 else Name.PLAYER_2
 
-    # Max turns reached
-    return GameResult(
-        name=name,
-        game_id=game_id,
-        turns=max_turns,
-        max_turns=max_turns,
-        game_result=f"Max turns reached ({max_turns}) without sinking all ships",
-        p1=p1,
-        board=board_to_log(target_board),
-        board_size=size,
-    )
+            if console_mode:
+                print("\033[2J\033[H", end="")
+                print(render())
+                print(f"\nWinner: {winner} in {turn} turns. (Loser: {loser})")
+            game_result.winner = winner
+            game_result.loser = loser
+            game_result.turns = turn
+            game_result.game_result = f"{winner.value} won"
+            return game_result
+
+        # Turn switch
+        if repeat_on_hit and hit:
+            continue  # same shooter goes again
+        else:
+            current, opponent = opponent, current
+            target_board = board1 if target_board is board2 else board2
 
 
 # -----------------------------
@@ -557,24 +601,7 @@ def _board_from_log_ships(ships_dict: Dict[str, Any], size: int) -> BoardManager
 
 
 def infer_board_size_from_log(log_obj: Dict[str, Any]) -> int:
-    # Prefer explicit board_size if provided
-    if "board_size" in log_obj:
-        return int(log_obj["board_size"])
-
     maxx = maxy = -1
-
-    # Solo log support: board -> ships
-    board_log = log_obj.get("board")
-    if board_log:
-        for ship in board_log.get("ships", {}).values():
-            for x, y in ship.get("cells", []):
-                maxx = max(maxx, int(x))
-                maxy = max(maxy, int(y))
-        for x, y in board_log.get("misses", []):
-            maxx = max(maxx, int(x))
-            maxy = max(maxy, int(y))
-
-    # Legacy duel log support: p1/p2
     for side_key in ("p1", "p2"):
         side = log_obj.get(side_key, {})
         # ship cells
@@ -605,167 +632,113 @@ def replay_from_log(
     with open(log_path, "r") as f:
         log_obj = json.load(f)
 
-    solo_mode = bool(log_obj.get("board")) and not log_obj.get("p2")
+    # Build boards
+    size = int(log_obj.get("board_size") or infer_board_size_from_log(log_obj))
+    p1_meta = log_obj.get("p1", {})
+    p2_meta = log_obj.get("p2", {})
+    board1 = _board_from_log_ships(p1_meta.get("ships", {}), size=size)
+    board2 = _board_from_log_ships(p2_meta.get("ships", {}), size=size)
 
-    if solo_mode:
-        size = int(log_obj.get("board_size") or infer_board_size_from_log(log_obj))
-        board_log = log_obj.get("board", {})
-        board = _board_from_log_ships(board_log.get("ships", {}), size=size)
-        p1_meta = log_obj.get("p1", {})
-        p1_moves = [(int(x), int(y)) for x, y in p1_meta.get("shot_history", [])]
-        game_id = log_obj.get("game_id", "unknown")
-        max_turns = log_obj.get("max_turns", "?")
-        total_ships = len(board.ships)
-        result_from_log = log_obj.get("game_result")
+    p1_moves = [(int(x), int(y)) for x, y in p1_meta.get("shot_history", [])]
+    p2_moves = [(int(x), int(y)) for x, y in p2_meta.get("shot_history", [])]
 
-        def ships_remaining() -> int:
-            return sum(1 for s in board.ships.values() if not s.is_sunk())
+    game_id = log_obj.get("game_id", "unknown")
+    winner_from_log = log_obj.get("winner")
 
-        def render_solo(turn: int, last_msg: str = "") -> str:
-            sunk_count = total_ships - ships_remaining()
-            lines = [
-                f"Game ID: {game_id}",
-                f"Turn: {turn} / {max_turns}",
-                f"Ships Sunk: {sunk_count} / {total_ships}",
-                "",
-                "--- Target Board ---",
-                board.render(reveal=True),
-            ]
-            if last_msg:
-                lines.append("")
-                lines.append(last_msg)
-            return "\n".join(lines)
+    def render(next_name: str, turn: int, last_msg: str = "") -> str:
+        lines = [
+            f"Game ID: {game_id}",
+            f"Turn: {turn}",
+            f"Next: {next_name}",
+            "",
+            f"--- {Name.PLAYER_1.value} Board (self-view) ---",
+            board1.render(reveal=True),
+            "",
+            f"--- {Name.PLAYER_2.value} Board (self-view) ---",
+            board2.render(reveal=True),
+        ]
+        if last_msg:
+            lines.append("")  # blank line
+            lines.append(last_msg)
+        return "\n".join(lines)
 
-        def _wait():
-            if delay_seconds and delay_seconds > 0:
-                time.sleep(delay_seconds)
-            else:
-                try:
-                    input("Press Enter for next turn (or Ctrl+C to stop)... ")
-                except EOFError:
-                    pass
+    i1 = i2 = 0
+    current = Name.PLAYER_1
+    turn = 0
+    last_msg = ""
 
-        turn = 0
-        last_msg = ""
-        for x, y in p1_moves:
-            if console_mode:
-                print("\033[2J\033[H", end="")
-                print(render_solo(turn=turn, last_msg=last_msg))
-            turn += 1
-            hit, sunk = board.receive_shot(x, y)
-            last_msg = f"Shot {x},{y} -> {'HIT' if hit else 'MISS'}" + (f" - sank {sunk}!" if sunk else "")
-            if board.all_ships_sunk():
+    # helper for pacing
+    def _wait():
+        if delay_seconds and delay_seconds > 0:
+            time.sleep(delay_seconds)
+        else:
+            try:
+                input("Press Enter for next turn (or Ctrl+C to stop)... ")
+            except EOFError:
+                # non-interactive env: just continue
+                pass
+
+    # main loop
+    while True:
+        # show current boards
+        if console_mode:
+            print("\033[2J\033[H", end="")  # clear screen
+            print(render(next_name=current.value, turn=turn, last_msg=last_msg))
+
+        # who shoots
+        if current == Name.PLAYER_1:
+            if i1 >= len(p1_moves):
+                # no more recorded moves for P1; end
+                break
+            x, y = p1_moves[i1]
+            i1 += 1
+            hit, sunk = board2.receive_shot(x, y)
+            last_msg = f"{Name.PLAYER_1.value} shoots {x},{y} -> {'HIT' if hit else 'MISS'}" + (
+                f", sank {sunk}" if sunk else ""
+            )
+            if board2.all_ships_sunk():
                 if console_mode:
                     print("\033[2J\033[H", end="")
-                    print(render_solo(turn=turn, last_msg=last_msg))
-                    print(f"\n🎉 All ships sunk in {turn} turns (limit was {max_turns})!")
+                    print(render(next_name="-", turn=turn + 1, last_msg=last_msg))
+                    print(f"\nWinner: {Name.PLAYER_1.value} in {turn + 1} turns.")
                 break
-            _wait()
-
-        if not console_mode:
-            print(
-                f"Replay complete. Result: {result_from_log or 'unknown'}. Total turns: {log_obj.get('turns', turn)}."
+            current = Name.PLAYER_2
+        else:
+            if i2 >= len(p2_moves):
+                break
+            x, y = p2_moves[i2]
+            i2 += 1
+            hit, sunk = board1.receive_shot(x, y)
+            last_msg = f"{Name.PLAYER_2.value} shoots {x},{y} -> {'HIT' if hit else 'MISS'}" + (
+                f", sank {sunk}" if sunk else ""
             )
-    else:
-        # Legacy duel replay
-        size = int(log_obj.get("board_size") or infer_board_size_from_log(log_obj))
-        p1_meta = log_obj.get("p1", {})
-        p2_meta = log_obj.get("p2", {})
-        board1 = _board_from_log_ships(p1_meta.get("ships", {}), size=size)
-        board2 = _board_from_log_ships(p2_meta.get("ships", {}), size=size)
+            if board1.all_ships_sunk():
+                if console_mode:
+                    print("\033[2J\033[H", end="")
+                    print(render(next_name="-", turn=turn + 1, last_msg=last_msg))
+                    print(f"\nWinner: {Name.PLAYER_2.value} in {turn + 1} turns.")
+                break
+            current = Name.PLAYER_1
 
-        p1_moves = [(int(x), int(y)) for x, y in p1_meta.get("shot_history", [])]
-        p2_moves = [(int(x), int(y)) for x, y in p2_meta.get("shot_history", [])]
+        turn += 1
+        _wait()
 
-        game_id = log_obj.get("game_id", "unknown")
-        result_from_log = log_obj.get("game_result")
-
-        def render(next_name: str, turn: int, last_msg: str = "") -> str:
-            lines = [
-                f"Game ID: {game_id}",
-                f"Turn: {turn}",
-                f"Next: {next_name}",
-                "",
-                f"--- {Name.PLAYER_1.value} Board (self-view) ---",
-                board1.render(reveal=True),
-                "",
-                f"--- {Name.PLAYER_2.value} Board (self-view) ---",
-                board2.render(reveal=True),
-            ]
-            if last_msg:
-                lines.append("")  # blank line
-                lines.append(last_msg)
-            return "\n".join(lines)
-
-        i1 = i2 = 0
-        current = Name.PLAYER_1
-        turn = 0
-        last_msg = ""
-
-        def _wait():
-            if delay_seconds and delay_seconds > 0:
-                time.sleep(delay_seconds)
-            else:
-                try:
-                    input("Press Enter for next turn (or Ctrl+C to stop)... ")
-                except EOFError:
-                    # non-interactive env: just continue
-                    pass
-
-        while True:
-            if console_mode:
-                print("\033[2J\033[H", end="")  # clear screen
-                print(render(next_name=current.value, turn=turn, last_msg=last_msg))
-
-            if current == Name.PLAYER_1:
-                if i1 >= len(p1_moves):
-                    break
-                x, y = p1_moves[i1]
-                i1 += 1
-                hit, sunk = board2.receive_shot(x, y)
-                last_msg = f"{Name.PLAYER_1.value} shoots {x},{y} -> {'HIT' if hit else 'MISS'}" + (
-                    f", sank {sunk}" if sunk else ""
-                )
-                if board2.all_ships_sunk():
-                    if console_mode:
-                        print("\033[2J\033[H", end="")
-                        print(render(next_name="-", turn=turn + 1, last_msg=last_msg))
-                        print(f"\nWinner: {Name.PLAYER_1.value} in {turn + 1} turns.")
-                    break
-                current = Name.PLAYER_2
-            else:
-                if i2 >= len(p2_moves):
-                    break
-                x, y = p2_moves[i2]
-                i2 += 1
-                hit, sunk = board1.receive_shot(x, y)
-                last_msg = f"{Name.PLAYER_2.value} shoots {x},{y} -> {'HIT' if hit else 'MISS'}" + (
-                    f", sank {sunk}" if sunk else ""
-                )
-                if board1.all_ships_sunk():
-                    if console_mode:
-                        print("\033[2J\033[H", end="")
-                        print(render(next_name="-", turn=turn + 1, last_msg=last_msg))
-                        print(f"\nWinner: {Name.PLAYER_2.value} in {turn + 1} turns.")
-                    break
-                current = Name.PLAYER_1
-
-            turn += 1
-            _wait()
-
-        if not console_mode:
-            print(
-                f"Replay complete. Result: {result_from_log or 'unknown'}. Total turns recorded: {log_obj.get('turns', turn)}."
-            )
+    # final line if not in console
+    if not console_mode:
+        print(
+            f"Replay complete. Winner (from log): {winner_from_log}. Total turns recorded: {log_obj.get('turns', turn)}."
+        )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Validator client for remote Battleship")
     parser.add_argument("--game-name", default="default")
     parser.add_argument("--p1-id", default="p1")
+    parser.add_argument("--p2-id", default="p2")
     parser.add_argument("--p1", default="http://127.0.0.1:8001")
+    parser.add_argument("--p2", default="http://127.0.0.1:8002")
     parser.add_argument("--size", type=int, default=10)
-    parser.add_argument("--max-turns", type=int, default=100, help="Max turns before game ends")
+    parser.add_argument("--repeat-on-hit", action="store_true")
     parser.add_argument("--console", action="store_true")
     parser.add_argument("--no-touching", action="store_true", help="Don't allow ships to touch")
     parser.add_argument("--replay", "--replay-log", dest="replay", help="Path to a saved .log (JSON) to replay")
@@ -776,11 +749,13 @@ if __name__ == "__main__":
         replay_from_log(args.replay, console_mode=args.console, delay_seconds=args.speed)
     else:
         run_game(
-            name=args.game_name,
+            name=args.match_name,
             p1_id=args.p1_id,
+            p2_id=args.p2_id,
             p1_url=args.p1,
+            p2_url=args.p2,
             size=args.size,
-            max_turns=args.max_turns,
+            repeat_on_hit=args.repeat_on_hit,
             console_mode=args.console,
             enforce_no_touching=args.no_touching,
         )
