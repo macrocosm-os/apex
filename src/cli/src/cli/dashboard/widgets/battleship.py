@@ -97,18 +97,37 @@ class BoardManager:
 
 def infer_board_size_from_log(log_obj: Dict[str, Any]) -> int:
     """Infer board size from log data."""
+    # Prefer explicit board_size if provided
+    if "board_size" in log_obj:
+        return int(log_obj["board_size"])
+
     maxx = maxy = -1
+
+    # Solo format: board contains ships
+    board_log = log_obj.get("board")
+    if board_log:
+        for ship in board_log.get("ships", {}).values():
+            for x, y in ship.get("cells", []):
+                maxx = max(maxx, int(x))
+                maxy = max(maxy, int(y))
+        for x, y in board_log.get("misses", []):
+            maxx = max(maxx, int(x))
+            maxy = max(maxy, int(y))
+
+    # Check p1 shot history (solo format)
+    p1 = log_obj.get("p1", {})
+    for x, y in p1.get("shot_history", []):
+        maxx = max(maxx, int(x))
+        maxy = max(maxy, int(y))
+
+    # Legacy duel format: p1/p2 contain ships
     for side_key in ("p1", "p2"):
         side = log_obj.get(side_key, {})
-        # ship cells
         for ship in side.get("ships", {}).values():
             for x, y in ship.get("cells", []):
                 maxx = max(maxx, int(x))
                 maxy = max(maxy, int(y))
-        # shots
-        for x, y in side.get("shot_history", []):
-            maxx = max(maxx, int(x))
-            maxy = max(maxy, int(y))
+
     sz = max(maxx, maxy) + 1
     return sz if sz > 0 else 10
 
@@ -137,9 +156,10 @@ class BattleshipWidget(Vertical):
         self.board1: Optional[BoardManager] = None
         self.board2: Optional[BoardManager] = None
         self.p1_moves: list[Coord] = []
-        self.p2_moves: list[Coord] = []
         self.game_id: str = ""
-        self.winner_from_log: Optional[str] = None
+        self.max_turns: int | str = "?"
+        self.total_ships: int = 0
+        self.result_from_log: Optional[str] = None
         self.header_widget: Optional[Static] = None
         self.board1_widget: Optional[Static] = None
         self.board2_widget: Optional[Static] = None
@@ -149,7 +169,6 @@ class BattleshipWidget(Vertical):
         self.is_playing = False
         self.current_turn = 0
         self.i1 = 0
-        self.i2 = 0
         self.current_player = "Player 1"
         self.last_msg = ""
         self.game_over = False
@@ -183,23 +202,23 @@ class BattleshipWidget(Vertical):
     def initialize_game(self) -> None:
         """Initialize the game from log data."""
         try:
-            # Build boards
             size = int(self.log_data.get("board_size") or infer_board_size_from_log(self.log_data))
-            p1_meta = self.log_data.get("p1", {})
-            p2_meta = self.log_data.get("p2", {})
-            self.board1 = BoardManager.from_log_ships(p1_meta.get("ships", {}), size=size)
-            self.board2 = BoardManager.from_log_ships(p2_meta.get("ships", {}), size=size)
 
+            # Solo-only competition: always use the single board + player 1 moves
+            p1_meta = self.log_data.get("p1", {})
+            board_log = self.log_data.get("board", {})
+            self.board1 = BoardManager.from_log_ships(board_log.get("ships", {}), size=size)
+            self.board2 = None  # No opponent board in solo mode
             self.p1_moves = [(int(x), int(y)) for x, y in p1_meta.get("shot_history", [])]
-            self.p2_moves = [(int(x), int(y)) for x, y in p2_meta.get("shot_history", [])]
 
             self.game_id = self.log_data.get("game_id", "unknown")
-            self.winner_from_log = self.log_data.get("winner")
+            self.max_turns = self.log_data.get("max_turns", "?")
+            self.total_ships = len(self.board1.ships) if self.board1 else 0
+            self.result_from_log = self.log_data.get("game_result")
 
             # Reset animation state
             self.current_turn = 0
             self.i1 = 0
-            self.i2 = 0
             self.current_player = "Player 1"
             self.last_msg = ""
             self.game_over = False
@@ -230,13 +249,12 @@ class BattleshipWidget(Vertical):
 
     def save_state_to_history(self) -> None:
         """Save current game state to history for step back functionality."""
-        if not self.board1 or not self.board2:
+        if not self.board1:
             return
         # Deep copy board states
         state = {
             "turn": self.current_turn,
             "i1": self.i1,
-            "i2": self.i2,
             "current_player": self.current_player,
             "last_msg": self.last_msg,
             "game_over": self.game_over,
@@ -244,10 +262,6 @@ class BattleshipWidget(Vertical):
                 name: {"hits": set(ship.hits), "cells": ship.cells} for name, ship in self.board1.ships.items()
             },
             "board1_misses": set(self.board1.misses),
-            "board2_ships": {
-                name: {"hits": set(ship.hits), "cells": ship.cells} for name, ship in self.board2.ships.items()
-            },
-            "board2_misses": set(self.board2.misses),
         }
         self.history.append(state)
 
@@ -255,7 +269,6 @@ class BattleshipWidget(Vertical):
         """Restore game state from history."""
         self.current_turn = state["turn"]
         self.i1 = state["i1"]
-        self.i2 = state["i2"]
         self.current_player = state["current_player"]
         self.last_msg = state["last_msg"]
         self.game_over = state["game_over"]
@@ -266,13 +279,6 @@ class BattleshipWidget(Vertical):
                 if name in self.board1.ships:
                     self.board1.ships[name].hits = set(ship_data["hits"])
             self.board1.misses = set(state["board1_misses"])
-
-        # Restore board2
-        if self.board2:
-            for name, ship_data in state["board2_ships"].items():
-                if name in self.board2.ships:
-                    self.board2.ships[name].hits = set(ship_data["hits"])
-            self.board2.misses = set(state["board2_misses"])
 
     def process_next_move(self, manual_step: bool = False) -> None:
         """Process the next move in the game.
@@ -286,58 +292,25 @@ class BattleshipWidget(Vertical):
         # Save state before making move (for step back)
         self.save_state_to_history()
 
-        # Check if game is over
-        if self.current_player == "Player 1":
-            if self.i1 >= len(self.p1_moves):
-                # Game over
-                self.is_playing = False
-                self.game_over = True
-                self.show_final_state()
-                return
-            x, y = self.p1_moves[self.i1]
-            self.i1 += 1
-            if not self.board2:
-                return
-            hit, sunk = self.board2.receive_shot(x, y)
-            self.last_msg = f"Player 1 shoots {x},{y} -> {'HIT' if hit else 'MISS'}" + (
-                f", sank {sunk}" if sunk else ""
-            )
-            if self.board2.all_ships_sunk():
-                self.is_playing = False
-                self.game_over = True
-                self.current_turn += 1
-                self.update_display()
-                self.show_final_state(f"Winner: Player 1 in {self.current_turn} turns.")
-                return
-            self.current_player = "Player 2"
-        else:
-            if self.i2 >= len(self.p2_moves):
-                # Game over
-                self.is_playing = False
-                self.game_over = True
-                self.show_final_state()
-                return
-            x, y = self.p2_moves[self.i2]
-            self.i2 += 1
-            if not self.board1:
-                return
-            hit, sunk = self.board1.receive_shot(x, y)
-            self.last_msg = f"Player 2 shoots {x},{y} -> {'HIT' if hit else 'MISS'}" + (
-                f", sank {sunk}" if sunk else ""
-            )
-            if self.board1.all_ships_sunk():
-                self.is_playing = False
-                self.game_over = True
-                self.current_turn += 1
-                self.update_display()
-                self.show_final_state(f"Winner: Player 2 in {self.current_turn} turns.")
-                return
-            self.current_player = "Player 1"
+        if self.i1 >= len(self.p1_moves):
+            self.is_playing = False
+            self.game_over = True
+            self.show_final_state()
+            return
 
+        x, y = self.p1_moves[self.i1]
+        self.i1 += 1
+        if not self.board1:
+            return
+        hit, sunk = self.board1.receive_shot(x, y)
+        self.last_msg = f"Shot {x},{y} -> {'HIT' if hit else 'MISS'}" + (f" - sank {sunk}!" if sunk else "")
         self.current_turn += 1
         self.update_display()
-
-        # Schedule next move (only if playing automatically)
+        if self.board1.all_ships_sunk():
+            self.is_playing = False
+            self.game_over = True
+            self.show_final_state(f"All ships sunk in {self.current_turn} turns (limit: {self.max_turns})!")
+            return
         if self.is_playing and not self.game_over and not manual_step:
             self.animation_timer = self.set_timer(self.delay_seconds, self.process_next_move)
 
@@ -346,34 +319,20 @@ class BattleshipWidget(Vertical):
         if not all([self.header_widget, self.board1_widget, self.board2_widget, self.message_widget]):
             return
 
-        if not self.board1 or not self.board2:
+        if not self.board1:
             return
 
-        # Update header
+        ships_sunk = sum(1 for s in self.board1.ships.values() if s.is_sunk())
         header_text = f"[bold cyan]Game ID:[/bold cyan] {self.game_id}\n"
-        header_text += f"[bold cyan]Turn:[/bold cyan] {self.current_turn}\n"
-        header_text += f"[bold cyan]Next:[/bold cyan] {self.current_player}"
+        header_text += f"[bold cyan]Turn:[/bold cyan] {self.current_turn} / {self.max_turns}\n"
+        header_text += f"[bold cyan]Ships Sunk:[/bold cyan] {ships_sunk} / {self.total_ships}"
         self.header_widget.update(header_text)
 
-        # Update boards with submitter/opponent labels
-        if self.submitter_player == 1:
-            board1_label = "submitter"
-            board2_label = "opponent"
-        elif self.submitter_player == 2:
-            board1_label = "opponent"
-            board2_label = "submitter"
-        else:
-            # Fallback to "self-view" if submitter_player is unknown
-            board1_label = "self-view"
-            board2_label = "self-view"
-
-        board1_text = f"[bold]--- Player 1 Board ({board1_label}) ---[/bold]\n"
+        board1_text = "[bold]--- Target Board ---[/bold]\n"
         board1_text += self.board1.render(reveal=True)
         self.board1_widget.update(board1_text)
 
-        board2_text = f"[bold]--- Player 2 Board ({board2_label}) ---[/bold]\n"
-        board2_text += self.board2.render(reveal=True)
-        self.board2_widget.update(board2_text)
+        self.board2_widget.update("[dim]Solo mode: no opponent board[/dim]")
 
         # Update message
         if self.last_msg:
@@ -390,11 +349,11 @@ class BattleshipWidget(Vertical):
         if winner_msg:
             if self.message_widget:
                 self.message_widget.update(f"[bold green]{winner_msg}[/bold green]")
-        elif self.winner_from_log:
+        elif self.result_from_log:
             if self.message_widget:
                 total_turns = self.log_data.get("turns", self.current_turn)
                 self.message_widget.update(
-                    f"[bold green]Replay complete. Winner (from log): {self.winner_from_log}. Total turns: {total_turns}.[/bold green]"
+                    f"[bold green]Replay complete. Result: {self.result_from_log}. Total turns: {total_turns}.[/bold green]"
                 )
 
     def on_unmount(self) -> None:

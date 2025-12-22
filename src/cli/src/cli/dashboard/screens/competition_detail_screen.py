@@ -11,6 +11,7 @@ from common.models.api.submission import SubmissionRecord, SubmissionPagination
 from cli.dashboard.utils import log_success, log_debug, get_state, get_reveal_status, get_top_score_status
 from cli.dashboard.time_utils import format_datetime, get_age
 from cli.dashboard.widgets.round_details import RoundDetailsWidget
+from cli.dashboard.screens.input_modal import InputModal
 from cli.utils.config import Config
 from cli.utils.wallet import load_keypair_from_file
 
@@ -91,6 +92,7 @@ class CompetitionDetailScreen(Screen):
         Binding("enter", "select_submission", "Select Submission"),
         Binding("l", "toggle_log", "Toggle Log"),
         Binding("r", "refresh", "Refresh"),
+        Binding("f", "find_submission", "Find"),
         Binding("m", "toggle_filter", "Filter Mine"),
         Binding("t", "filter_top", "Filter Top"),
         Binding("s", "toggle_sort", "Sort"),
@@ -116,6 +118,7 @@ class CompetitionDetailScreen(Screen):
         self.show_only_top = False
         self.user_hotkey = None
         self.sort_mode = "score"  # "score" or "time"
+        self.hotkey_filter: str | None = None  # hotkey substring filter from 'f' search
 
         # Load user's hotkey from config
         try:
@@ -331,7 +334,9 @@ class CompetitionDetailScreen(Screen):
             self.set_timer(0.1, lambda: submissions_table.focus())
 
             # Update submissions title to show filter and sort status
-            if self.show_only_mine:
+            if self.hotkey_filter:
+                filter_status = f" [dim yellow](Filtered: '{self.hotkey_filter}')[/dim yellow]"
+            elif self.show_only_mine:
                 filter_status = " [dim yellow](Filtered: Mine Only)[/dim yellow]"
             elif self.show_only_top:
                 filter_status = " [dim yellow](Filtered: Top Scores)[/dim yellow]"
@@ -367,14 +372,18 @@ class CompetitionDetailScreen(Screen):
             )
         else:
             # Show appropriate message based on filter and sort state
-            if self.show_only_mine:
+            if self.hotkey_filter:
+                filter_status = f" [dim yellow](Filtered: '{self.hotkey_filter}')[/dim yellow]"
+            elif self.show_only_mine:
                 filter_status = " [dim yellow](Filtered: Mine Only)[/dim yellow]"
             elif self.show_only_top:
                 filter_status = " [dim yellow](Filtered: Top Score)[/dim yellow]"
             else:
                 filter_status = ""
             sort_status = f" [dim cyan](Sorted: {'Score' if self.sort_mode == 'score' else 'Time'})[/dim cyan]"
-            if self.show_only_mine and self.user_hotkey:
+            if self.hotkey_filter:
+                message = f"[bold]Submissions[/bold]{filter_status}{sort_status}\n[yellow]No submissions found matching '{self.hotkey_filter}'[/yellow]"
+            elif self.show_only_mine and self.user_hotkey:
                 message = f"[bold]Submissions[/bold]{filter_status}{sort_status}\n[yellow]No submissions found matching your hotkey[/yellow]"
             elif self.show_only_top:
                 message = f"[bold]Submissions[/bold]{filter_status}{sort_status}\n[yellow]No top score submissions found[/yellow]"
@@ -442,8 +451,9 @@ class CompetitionDetailScreen(Screen):
 
         # Toggle the filter state
         self.show_only_mine = not self.show_only_mine
-        # Reset top filter when toggling mine filter
+        # Reset top filter and hotkey filter when toggling mine filter
         self.show_only_top = False
+        self.hotkey_filter = None
 
         # Determine filter_mode for API call
         filter_mode = "hotkey" if self.show_only_mine else "all"
@@ -462,8 +472,9 @@ class CompetitionDetailScreen(Screen):
         """Toggle filter to show only top score submissions."""
         # Toggle the filter state
         self.show_only_top = not self.show_only_top
-        # Reset mine filter when toggling top filter
+        # Reset mine filter and hotkey filter when toggling top filter
         self.show_only_mine = False
+        self.hotkey_filter = None
 
         # Determine filter_mode for API call
         filter_mode = "top_score" if self.show_only_top else "all"
@@ -517,8 +528,12 @@ class CompetitionDetailScreen(Screen):
         sort_mode_name = "Score" if self.sort_mode == "score" else "Time"
         log_success(log_widget, f"Sort mode changed to: {sort_mode_name}")
 
-        # Determine filter_mode for API call
-        if self.show_only_mine:
+        # Determine filter_mode and hotkey for API call
+        hotkey_for_filter = None
+        if self.hotkey_filter:
+            filter_mode = "hotkey"
+            hotkey_for_filter = self.hotkey_filter
+        elif self.show_only_mine:
             filter_mode = "hotkey"
         elif self.show_only_top:
             filter_mode = "top_score"
@@ -526,7 +541,7 @@ class CompetitionDetailScreen(Screen):
             filter_mode = "all"
 
         # Trigger API call with sort_mode and current filter_mode, resetting to page 1
-        self.post_message(FilterSortSubmissions(self.competition.id, filter_mode, self.sort_mode))
+        self.post_message(FilterSortSubmissions(self.competition.id, filter_mode, self.sort_mode, hotkey_for_filter))
 
     def refresh_data(
         self,
@@ -582,6 +597,36 @@ class CompetitionDetailScreen(Screen):
         table = self.query_one("#submissions_table", DataTable)
         table.action_cursor_down()
 
+    def action_find_submission(self) -> None:
+        """Open modal to search for a submission by ID or hotkey."""
+        self.app.push_screen(
+            InputModal(title="Find Submission", placeholder="Enter submission ID or hotkey..."),
+            self._handle_find_submission_result,
+        )
+
+    def _handle_find_submission_result(self, search_input: str | None) -> None:
+        """Handle the result from the find submission modal."""
+        if search_input is None:
+            return  # User canceled
+
+        search_input = search_input.strip()
+        if not search_input:
+            # Empty input = clear hotkey filter and reload all submissions
+            if self.hotkey_filter:
+                self.hotkey_filter = None
+                log_widget = self.query_one("#log")
+                log_success(log_widget, "Hotkey filter cleared")
+                self.post_message(FilterSortSubmissions(self.competition.id, "all", self.sort_mode))
+            return
+
+        # Check if input is numeric (submission ID) or non-numeric (hotkey substring)
+        if search_input.isdigit():
+            submission_id_int = int(search_input)
+            self.post_message(FindSubmission(submission_id_int, self.competition.id))
+        else:
+            # Hotkey substring search
+            self.post_message(FindByHotkey(search_input, self.competition.id))
+
 
 class SubmissionSelected(Message):
     """Message sent when a submission is selected."""
@@ -632,8 +677,27 @@ class LoadSubmissionsPage(Message):
 class FilterSortSubmissions(Message):
     """Message sent to filter/sort submissions with API call."""
 
-    def __init__(self, competition_id: int, filter_mode: str, sort_mode: str) -> None:
+    def __init__(self, competition_id: int, filter_mode: str, sort_mode: str, hotkey: str | None = None) -> None:
         self.competition_id = competition_id
         self.filter_mode = filter_mode
         self.sort_mode = sort_mode
+        self.hotkey = hotkey
+        super().__init__()
+
+
+class FindSubmission(Message):
+    """Message sent when user wants to find a specific submission by ID."""
+
+    def __init__(self, submission_id: int, competition_id: int) -> None:
+        self.submission_id = submission_id
+        self.competition_id = competition_id
+        super().__init__()
+
+
+class FindByHotkey(Message):
+    """Message sent when user wants to find submissions by hotkey substring."""
+
+    def __init__(self, hotkey_substring: str, competition_id: int) -> None:
+        self.hotkey_substring = hotkey_substring
+        self.competition_id = competition_id
         super().__init__()
