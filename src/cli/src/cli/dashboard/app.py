@@ -21,8 +21,8 @@ from cli.dashboard.screens.competition_detail_screen import (
     FindSubmission,
     FindByHotkey,
 )
-from cli.dashboard.screens.loading_modal import LoadingModal
-from cli.dashboard.screens.alert_modal import AlertModal
+from cli.dashboard.modals.loading_modal import LoadingModal
+from cli.dashboard.modals.alert_modal import AlertModal
 from cli.dashboard.screens.submission_detail_screen import SubmissionDetailScreen, BackToCompetitionDetail
 
 console = Console()
