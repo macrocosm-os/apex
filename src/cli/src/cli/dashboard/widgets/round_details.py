@@ -113,8 +113,10 @@ class RoundDetailsWidget(Vertical):
             self.countdown_label.update(f"[bold green]⏰ Time Remaining:[/bold green] [green]{countdown}[/green]")
 
         burn_factor = self.round_data.get("burn_factor")
+        base_burn_rate = self.round_data.get("base_burn_rate")
         if burn_factor is not None:
             burn_factor_percent = burn_factor * 100
-            self.burn_factor_label.update(f"\n[dim]Burn:[/dim] {burn_factor_percent:.1f}% 🔥")
+            min_burn_str = f" [dim](min burn: {base_burn_rate * 100:.0f}%)[/dim]" if base_burn_rate is not None else ""
+            self.burn_factor_label.update(f"\n[dim]Burn:[/dim] {burn_factor_percent:.1f}% 🔥{min_burn_str}")
         else:
             self.burn_factor_label.update("")

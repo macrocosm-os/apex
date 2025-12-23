@@ -31,7 +31,7 @@ class CompetitionsScreen(Screen):
     BINDINGS = [
         Binding("q", "quit", "Quit"),
         Binding("enter", "select_item", "Select"),
-        Binding("l", "toggle_log", "Toggle Log"),
+        Binding("l", "toggle_log", "Toggle Log", show=False),
         Binding("c", "toggle_completed", "Show Completed"),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("j", "cursor_down", "Down", show=False),
@@ -88,19 +88,26 @@ class CompetitionsScreen(Screen):
         # Total weight for emission allocation (only active competitions contribute to emissions)
         total_weight = sum(comp.incentive_weight for comp in self.all_competitions if comp.state == "active")
 
+        # Calculate max_emissions for each competition and sort by it descending
+        def calc_max_emissions(comp):
+            if comp.state != "active" or total_weight <= 0:
+                return 0
+            emission_allocation = comp.incentive_weight / total_weight * 100
+            return (1 - comp.base_burn_rate) * emission_allocation
+
+        self.competitions = sorted(self.competitions, key=calc_max_emissions, reverse=True)
+
         for comp in self.competitions:
             # Create enhanced round details
             round_details = self._format_round_details(comp)
 
             # Calculate emission metrics
+            max_emissions = calc_max_emissions(comp)
+            emission_allocation = (comp.incentive_weight / total_weight * 100) if total_weight > 0 else 0
+            min_burn = comp.base_burn_rate * 100
             if comp.state != "active":
                 emission_allocation = 0
                 min_burn = 0
-                max_emissions = 0
-            else:
-                emission_allocation = (comp.incentive_weight / total_weight * 100) if total_weight > 0 else 0
-                min_burn = comp.base_burn_rate * 100
-                max_emissions = (1 - comp.base_burn_rate) * emission_allocation
 
             table.add_row(
                 str(comp.id),

@@ -11,7 +11,7 @@ from common.models.api.submission import SubmissionRecord, SubmissionPagination
 from cli.dashboard.utils import log_success, log_debug, get_state, get_reveal_status, get_top_score_status
 from cli.dashboard.time_utils import format_datetime, get_age
 from cli.dashboard.widgets.round_details import RoundDetailsWidget
-from cli.dashboard.screens.input_modal import InputModal
+from cli.dashboard.modals.input_modal import InputModal
 from cli.utils.config import Config
 from cli.utils.wallet import load_keypair_from_file
 
@@ -44,14 +44,14 @@ class CompetitionDetailScreen(Screen):
     }
 
     .round-section {
-        height: 70%;
+        height: 60%;
         border: round $secondary;
         margin: 0;
         padding: 0 1;
     }
 
     .top-score-section {
-        height: 30%;
+        height: 40%;
         border: round $secondary;
         margin: 0;
         padding: 0 1;
@@ -90,8 +90,8 @@ class CompetitionDetailScreen(Screen):
         Binding("escape", "back", "Back"),
         Binding("backspace", "back", "Back"),
         Binding("enter", "select_submission", "Select Submission"),
-        Binding("l", "toggle_log", "Toggle Log"),
-        Binding("r", "refresh", "Refresh"),
+        Binding("l", "toggle_log", "Toggle Log", show=False),
+        Binding("r", "refresh", "Refresh", show=False),
         Binding("f", "find_submission", "Find"),
         Binding("m", "toggle_filter", "Filter Mine"),
         Binding("t", "filter_top", "Filter Top"),
@@ -151,20 +151,19 @@ class CompetitionDetailScreen(Screen):
 
         # Competition header content
         competition_content = f"""[bold cyan]{comp.name}[/bold cyan] - [bold]ID:[/bold] {comp.id}
+{comp.description}
 
-[dim]Description:[/dim] {comp.description}
 [dim]State:[/dim] {get_state(comp.state)}
 [dim]Package:[/dim] {comp.pkg}
 [dim]Process Type:[/dim] {comp.ptype}
 [dim]Competition Type:[/dim] {comp.ctype}
 [dim]Baseline Score:[/dim] {comp.baseline_score}
 [dim]Baseline Raw Score:[/dim] {comp.baseline_raw_score}
-[dim]Incentive Weight:[/dim] {comp.incentive_weight}
 
 [bold underline]Timeline:[/bold underline]
-[dim]Start:[/dim] {format_datetime(comp.start_at, include_seconds=True) if comp.start_at else "Not started"}
-[dim]End:[/dim] {format_datetime(comp.end_at, include_seconds=True) if comp.end_at else "No end date"}
-[dim]Created:[/dim] {format_datetime(comp.created_at, include_seconds=True)}"""
+[dim]Created:[/dim] {format_datetime(comp.created_at, include_seconds=True)}
+[dim]Started:[/dim] {format_datetime(comp.start_at, include_seconds=True) if comp.start_at else "Not started"}
+[dim]Ended:[/dim] {format_datetime(comp.end_at, include_seconds=True) if comp.end_at else "No end date"}"""
 
         # Create round details widget
         round_data = {}
@@ -175,6 +174,7 @@ class CompetitionDetailScreen(Screen):
                 "start_at": comp.curr_round.start_at,
                 "end_at": comp.curr_round.end_at,
                 "burn_factor": comp.burn_factor,
+                "base_burn_rate": comp.base_burn_rate,
             }
         else:
             round_data = {
@@ -183,6 +183,7 @@ class CompetitionDetailScreen(Screen):
                 "start_at": None,
                 "end_at": None,
                 "burn_factor": comp.burn_factor,
+                "base_burn_rate": comp.base_burn_rate,
             }
 
         self.round_widget = RoundDetailsWidget(round_data)
@@ -212,15 +213,15 @@ class CompetitionDetailScreen(Screen):
         # Format top scorer hotkey (first 8 chars only)
         top_scorer_str = comp.top_scorer_hotkey[:8] if comp.top_scorer_hotkey else "N/A"
 
-        # Calculate age of top scorer
-        if top_scorer_submission and top_scorer_submission.submit_at:
-            top_scorer_age = get_age(top_scorer_submission.submit_at, include_seconds=True)
+        # Calculate age of top scorer (time since burn factor was reset)
+        if comp.burn_factor_reset_at:
+            top_scorer_age = get_age(comp.burn_factor_reset_at, include_seconds=True)
         else:
             top_scorer_age = "N/A"
 
-        # Calculate % emissions as factor of ALL competitions
-        if comp.burn_factor is not None:
-            total_weight = sum(c.incentive_weight for c in self.app.competitions)
+        # Calculate % emissions as factor of ACTIVE competitions only
+        if comp.burn_factor is not None and comp.state == "active":
+            total_weight = sum(c.incentive_weight for c in self.app.competitions if c.state == "active")
             if total_weight > 0:
                 emission_allocation = comp.incentive_weight / total_weight
                 emissions_percent = (1 - comp.burn_factor) * emission_allocation * 100

@@ -10,8 +10,8 @@ from cli.dashboard.utils import log_success, log_error
 from cli.utils.client import Client
 from cli.utils.config import Config
 from cli.utils.wallet import load_keypair_from_file
-from cli.dashboard.screens.input_modal import InputModal
-from cli.dashboard.screens.confirm_modal import ConfirmModal
+from cli.dashboard.modals.input_modal import InputModal
+from cli.dashboard.modals.confirm_modal import ConfirmModal
 
 console = Console()
 
