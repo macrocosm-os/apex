@@ -490,6 +490,16 @@ class CompetitionDetailScreen(Screen):
         # Trigger API call with filter_mode and current sort_mode, resetting to page 1
         self.app.post_message(FilterSortSubmissions(self.competition.id, filter_mode, self.sort_mode))
 
+    def get_filter_state(self) -> tuple[str, str | None, str]:
+        """Get the current filter state for API calls."""
+        if self.hotkey_filter:  # substring filter
+            return ("hotkey", self.hotkey_filter, self.sort_mode)
+        elif self.show_only_mine:
+            return ("hotkey", None, self.sort_mode)
+        elif self.show_only_top:
+            return ("top_score", None, self.sort_mode)
+        return ("all", None, self.sort_mode)
+
     def _sort_submissions(self, submissions: list[SubmissionRecord]) -> list[SubmissionRecord]:
         """Sort submissions based on the current sort mode.
 

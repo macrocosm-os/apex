@@ -196,14 +196,16 @@ class DashboardApp(App):
 
     def on_refresh_competition_detail(self, event: RefreshCompetitionDetail) -> None:
         """Handle refresh competition detail request."""
+        current_screen = self.screen
+
         # Show loading modal
         loading_modal = LoadingModal("Refreshing competition details and submissions...")
         self.push_screen(loading_modal)
 
-        # Load fresh data asynchronously
-        self.set_timer(0.1, lambda: self.refresh_competition_async(event.competition_id))
+        # Load fresh data asynchronously, passing the screen reference
+        self.set_timer(0.1, lambda: self.refresh_competition_async(event.competition_id, current_screen))
 
-    async def refresh_competition_async(self, competition_id: int) -> None:
+    async def refresh_competition_async(self, competition_id: int, target_screen=None) -> None:
         """Refresh competition details and submissions asynchronously."""
         try:
             # Load fresh competition details
@@ -214,18 +216,14 @@ class DashboardApp(App):
                 self.pop_screen()
                 return
 
-            # Get current filter and sort mode from the screen
-            current_screen = self.screen
-            filter_mode = (
-                "hotkey"
-                if (isinstance(current_screen, CompetitionDetailScreen) and current_screen.show_only_mine)
-                else "all"
-            )
-            sort_mode = current_screen.sort_mode if isinstance(current_screen, CompetitionDetailScreen) else "score"
+            # Get current filter and sort mode from the target screen
+            filter_mode, hotkey, sort_mode = ("all", None, "score")
+            if isinstance(target_screen, CompetitionDetailScreen):
+                filter_mode, hotkey, sort_mode = target_screen.get_filter_state()
 
             # Load fresh submissions with current filter/sort settings
             submissions_response = await self.load_submissions(
-                competition_id, filter_mode=filter_mode, sort_mode=sort_mode
+                competition_id, filter_mode=filter_mode, sort_mode=sort_mode, hotkey=hotkey
             )
             fresh_submissions = submissions_response.submissions if submissions_response else []
 
@@ -236,10 +234,10 @@ class DashboardApp(App):
             # Dismiss loading modal
             self.pop_screen()
 
-            # Get the current screen (should be CompetitionDetailScreen) and post message to it
+            # Post message to the target screen to update it
             pagination = submissions_response.pagination if submissions_response else None
-            if isinstance(current_screen, CompetitionDetailScreen):
-                current_screen.post_message(RefreshCompetitionData(fresh_competition, fresh_submissions, pagination))
+            if isinstance(target_screen, CompetitionDetailScreen):
+                target_screen.post_message(RefreshCompetitionData(fresh_competition, fresh_submissions, pagination))
             else:
                 # Fallback: post to app (though this shouldn't happen)
                 self.post_message(RefreshCompetitionData(fresh_competition, fresh_submissions, pagination))
@@ -327,18 +325,9 @@ class DashboardApp(App):
             else:
                 console.print(f"[yellow]DEBUG: Using provided target_screen: {type(target_screen)}[/yellow]")
 
-            filter_mode = "all"
-            hotkey_for_filter = None
-
+            filter_mode, hotkey_for_filter, sort_mode = ("all", None, "score")
             if isinstance(target_screen, CompetitionDetailScreen):
-                if target_screen.hotkey_filter:
-                    filter_mode = "hotkey"
-                    hotkey_for_filter = target_screen.hotkey_filter
-                elif target_screen.show_only_mine:
-                    filter_mode = "hotkey"
-                elif target_screen.show_only_top:
-                    filter_mode = "top_score"
-            sort_mode = target_screen.sort_mode if isinstance(target_screen, CompetitionDetailScreen) else "score"
+                filter_mode, hotkey_for_filter, sort_mode = target_screen.get_filter_state()
             console.print(f"[yellow]DEBUG: filter_mode={filter_mode}, sort_mode={sort_mode}[/yellow]")
 
             # Load submissions for the requested page
