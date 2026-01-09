@@ -1,4 +1,5 @@
-from prometheus_client import Counter, Gauge, REGISTRY
+from typing import Optional
+from prometheus_client import Counter, Gauge, REGISTRY, CollectorRegistry
 
 label_names = ["project", "subsystem"]
 
@@ -36,21 +37,27 @@ COMMON_HIST_DURATION_BUKCET = (
 )
 
 
-def GaugeWithParams(metric_name: str, description: str) -> Gauge:
+def GaugeWithParams(metric_name: str, description: str, registry: Optional[CollectorRegistry] = None) -> Gauge:
+    if registry is None:
+        registry = REGISTRY
+
     g = Gauge(
         metric_name,
         description,
         labelnames=label_names,
-        registry=REGISTRY,
+        registry=registry,
     )
     return g
 
 
-def CounterWithParams(metric_name: str, description: str) -> Counter:
+def CounterWithParams(metric_name: str, description: str, registry: Optional[CollectorRegistry] = None) -> Counter:
+    if registry is None:
+        registry = REGISTRY
+
     c = Counter(
         metric_name,
         description,
         labelnames=label_names,
-        registry=REGISTRY,
+        registry=registry,
     )
     return c

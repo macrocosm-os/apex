@@ -32,6 +32,7 @@ class CompetitionsScreen(Screen):
         Binding("q", "quit", "Quit"),
         Binding("enter", "select_item", "Select"),
         Binding("l", "toggle_log", "Toggle Log", show=False),
+        Binding("r", "refresh", "Refresh", show=False),
         Binding("c", "toggle_completed", "Show Completed"),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("j", "cursor_down", "Down", show=False),
@@ -204,6 +205,33 @@ class CompetitionsScreen(Screen):
         details = f"R{round_number} {state_display}\n{progress_indicator} {progress:.0f}%\n{start_str} → {end_str}"
 
         return details
+
+    def action_refresh(self) -> None:
+        """Refresh competitions list."""
+        log_widget = self.query_one("#log")
+        log_success(log_widget, "Refreshing competitions...")
+        self.post_message(RefreshCompetitions())
+
+    def refresh_data(self, competitions: list[CompetitionResponse]) -> None:
+        """Update the screen with fresh competition data."""
+        self.all_competitions = competitions
+        self.competitions = self._filter_competitions()
+
+        # Refresh the table
+        table = self.query_one(DataTable)
+        table.clear()
+        self._populate_table()
+        if self.competitions:
+            table.cursor_coordinate = (0, 0)
+
+        log_widget = self.query_one("#log")
+        log_success(log_widget, f"Refreshed {len(self.competitions)} competitions")
+
+
+class RefreshCompetitions(Message):
+    """Message sent when user wants to refresh competitions list."""
+
+    pass
 
 
 class CompetitionSelected(Message):
