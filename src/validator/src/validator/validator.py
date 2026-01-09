@@ -87,10 +87,8 @@ class Validator(HealthServerMixin):
             try:
                 logger.debug(f"Weight loop iteration {loop_count} starting")
 
-                # Reload the metagraph to get the latest weights, must use lite=False to get the latest weights
-                self.metagraph = bt.metagraph(
-                    netuid=int(common_settings.NETUID), lite=False, network=common_settings.NETWORK
-                )
+                # Sync the metagraph to get the latest weights, must use lite=False to get the latest weights
+                self.metagraph.sync(subtensor=self.subtensor, lite=False)
 
                 logger.debug("VALIDATOR: WEIGHT LOOP RUNNING")
                 if await ValidatorAPIClient.check_orchestrator_health(hotkey=self.wallet.hotkey):
@@ -337,21 +335,21 @@ class Validator(HealthServerMixin):
         Returns:
             dict[int, float]: A dictionary of weights for each miner.
         """
-        meta: bt.metagraph = bt.metagraph(
-            netuid=int(common_settings.NETUID), lite=False, network=common_settings.NETWORK
-        )
-        valid_indices = np.where(meta.validator_permit)[0]
-        valid_weights = meta.weights[valid_indices]
-        valid_stakes = meta.stake[valid_indices]
+        # Sync the existing metagraph instead of creating a new one
+        self.metagraph.sync(subtensor=self.subtensor, lite=False)
+
+        valid_indices = np.where(self.metagraph.validator_permit)[0]
+        valid_weights = self.metagraph.weights[valid_indices]
+        valid_stakes = self.metagraph.stake[valid_indices]
         normalized_stakes = valid_stakes / np.sum(valid_stakes)
         stake_weighted_average = np.dot(normalized_stakes, valid_weights).astype(float).tolist()
 
         # This is for the special case of testnet.
-        if len(meta.uids) == 0:
+        if len(self.metagraph.uids) == 0:
             logger.warning("No valid indices found in metagraph, returning empty weights")
             return {}
 
-        return dict(zip(meta.uids, list(stake_weighted_average)))
+        return dict(zip(self.metagraph.uids, list(stake_weighted_average)))
 
     async def _check_orchestrator_health(self) -> bool:
         """

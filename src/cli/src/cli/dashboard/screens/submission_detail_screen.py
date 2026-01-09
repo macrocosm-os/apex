@@ -87,10 +87,11 @@ class SubmissionDetailScreen(Screen):
         Binding("q", "quit", "Quit"),
         Binding("escape", "back", "Back"),
         Binding("backspace", "back", "Back"),
-        Binding("l", "toggle_log", "Toggle Log"),
+        Binding("l", "toggle_log", "Toggle Log", show=False),
+        Binding("r", "refresh", "Refresh", show=False),
         Binding("enter", "select_file", "Select File"),
         Binding("d", "download_file", "Download File"),
-        Binding("r", "replay_battleship", "Replay Battleship"),
+        Binding("p", "replay_battleship", "Replay"),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("j", "cursor_down", "Down", show=False),
     ]
@@ -523,6 +524,12 @@ class SubmissionDetailScreen(Screen):
         """Go back to competition detail."""
         self.post_message(BackToCompetitionDetail())
 
+    def action_refresh(self) -> None:
+        """Refresh submission details."""
+        log_widget = self.query_one("#log")
+        log_success(log_widget, "Refreshing submission details...")
+        self.post_message(RefreshSubmissionDetail(self.submission.id))
+
     def action_download_file(self) -> None:
         """Download the currently highlighted file from the file explorer."""
         log_widget = self.query_one("#log")
@@ -735,3 +742,11 @@ class BackToCompetitionDetail(Message):
     """Message sent when user wants to go back to competition detail."""
 
     pass
+
+
+class RefreshSubmissionDetail(Message):
+    """Message sent when user wants to refresh submission details."""
+
+    def __init__(self, submission_id: int) -> None:
+        self.submission_id = submission_id
+        super().__init__()
