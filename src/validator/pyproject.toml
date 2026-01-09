@@ -1,6 +1,6 @@
 [project]
 name = "validator"
-version = "4.0.15"
+version = "4.0.16"
 description = "Apex Validator"
 authors = [{ name = "Macrocosmos.ai" }]
 readme = "README.md"
