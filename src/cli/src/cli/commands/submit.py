@@ -151,6 +151,11 @@ def submit(
         resp = asyncio.run(_submit())
         if resp.status_code == 200:
             console.print("[green]✓ Solution submitted successfully![/green]")
+            try:
+                submission_id = resp.json()["submission_id"]
+                console.print(f"[green]  Submission ID: {submission_id}[/green]")
+            except Exception:
+                console.print("[dim]  Submission ID: unavailable[/dim]")
         else:
             console.print(f"\n[red]✗ Submission returned status {resp.status_code}[/red]")
             try:
