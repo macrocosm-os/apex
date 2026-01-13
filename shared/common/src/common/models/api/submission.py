@@ -9,6 +9,10 @@ class SubmitRequest(BaseModel):
     raw_code: str
 
 
+class SubmitResponse(BaseModel):
+    submission_id: int
+
+
 class SubmissionRequest(BaseModel):
     submission_id: Optional[int] = None
     competition_id: Optional[int] = None

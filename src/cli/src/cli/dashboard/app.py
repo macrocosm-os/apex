@@ -9,7 +9,7 @@ from common.models.api.competition import CompetitionResponse
 from common.models.api.submission import SubmissionResponse
 from cli.utils.config import Config
 from cli.utils.client import Client
-from cli.dashboard.screens.competitions_screen import CompetitionsScreen, CompetitionSelected
+from cli.dashboard.screens.competitions_screen import CompetitionsScreen, CompetitionSelected, RefreshCompetitions
 from cli.dashboard.screens.competition_detail_screen import (
     CompetitionDetailScreen,
     SubmissionSelected,
@@ -23,7 +23,11 @@ from cli.dashboard.screens.competition_detail_screen import (
 )
 from cli.dashboard.modals.loading_modal import LoadingModal
 from cli.dashboard.modals.alert_modal import AlertModal
-from cli.dashboard.screens.submission_detail_screen import SubmissionDetailScreen, BackToCompetitionDetail
+from cli.dashboard.screens.submission_detail_screen import (
+    SubmissionDetailScreen,
+    BackToCompetitionDetail,
+    RefreshSubmissionDetail,
+)
 
 console = Console()
 
@@ -525,6 +529,108 @@ class DashboardApp(App):
             # Dismiss loading modal on error
             self.pop_screen()
             self.push_screen(AlertModal(title="Error", message=f"Failed to search by hotkey: {e}"))
+
+    def on_refresh_competitions(self, event: RefreshCompetitions) -> None:
+        """Handle refresh competitions list request."""
+        current_screen = self.screen
+
+        # Show loading modal
+        loading_modal = LoadingModal("Refreshing competitions...")
+        self.push_screen(loading_modal)
+
+        # Load fresh data asynchronously
+        self.set_timer(0.1, lambda: self.refresh_competitions_async(current_screen))
+
+    async def refresh_competitions_async(self, target_screen=None) -> None:
+        """Refresh competitions list asynchronously."""
+        try:
+            config = Config.load_config()
+            if not config.hotkey_file_path:
+                console.print(
+                    "[red]No hotkey file path found. Please run `apex link` to link your wallet and hotkey.[/red]"
+                )
+                self.pop_screen()
+                return
+
+            async with Client(config.hotkey_file_path, timeout=config.timeout) as client:
+                from common.models.api.competition import CompetitionRequest
+
+                competition_request = CompetitionRequest()
+                response = await client._make_request(
+                    method="GET",
+                    path="/miner/competition",
+                    body=competition_request.model_dump(),
+                )
+                competitions_response = CompetitionResponse.model_validate(response.json())
+
+                # Update the competitions list
+                self.competitions = competitions_response.competitions
+                self.pop_screen()
+
+                if isinstance(target_screen, CompetitionsScreen):
+                    target_screen.refresh_data(self.competitions)
+
+                console.print(f"[green]Refreshed {len(self.competitions)} competitions[/green]")
+
+        except Exception as e:
+            console.print(f"[red]Failed to refresh competitions: {e}[/red]")
+            # Dismiss loading modal on error
+            self.pop_screen()
+
+    def on_refresh_submission_detail(self, event: RefreshSubmissionDetail) -> None:
+        """Handle refresh submission detail request."""
+        current_screen = self.screen
+
+        # Show loading modal
+        loading_modal = LoadingModal("Refreshing submission details...")
+        self.push_screen(loading_modal)
+
+        self.set_timer(0.1, lambda: self.refresh_submission_detail_async(event.submission_id, current_screen))
+
+    async def refresh_submission_detail_async(self, submission_id: int, target_screen=None) -> None:
+        """Refresh submission detail asynchronously."""
+        try:
+            config = Config.load_config()
+            if not config.hotkey_file_path:
+                console.print(
+                    "[red]No hotkey file path found. Please run `apex link` to link your wallet and hotkey.[/red]"
+                )
+                self.pop_screen()
+                return
+
+            async with Client(config.hotkey_file_path, timeout=config.timeout) as client:
+                from common.models.api.submission import SubmissionRequest
+
+                req = SubmissionRequest(submission_id=submission_id)
+                response = await client._make_request(
+                    method="GET",
+                    path="/miner/submission",
+                    params=req.model_dump(),
+                )
+                submissions_response = SubmissionResponse.model_validate(response.json())
+
+                # Dismiss loading modal
+                self.pop_screen()
+
+                if submissions_response.submissions:
+                    submission = submissions_response.submissions[0]
+
+                    # Update the target screen with fresh data
+                    if isinstance(target_screen, SubmissionDetailScreen):
+                        target_screen.submission = submission
+                        target_screen.is_loading = True
+                        target_screen.show_submission_detail()
+                        target_screen.show_loading_state()
+                        target_screen.set_timer(0.1, lambda: target_screen.load_submission_detail_async())
+
+                    console.print(f"[green]Refreshed submission {submission_id}[/green]")
+                else:
+                    self.push_screen(AlertModal(title="Error", message=f"Submission {submission_id} not found."))
+
+        except Exception as e:
+            console.print(f"[red]Failed to refresh submission: {e}[/red]")
+            # Dismiss loading modal on error
+            self.pop_screen()
 
 
 def run_dashboard(competitions: list[CompetitionResponse]) -> None:
