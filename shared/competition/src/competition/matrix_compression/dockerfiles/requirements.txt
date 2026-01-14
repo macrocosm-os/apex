@@ -1,3 +1,7 @@
+# PyTorch CPU-only
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.1
+
 # Basic API
 fastapi==0.124.2
 uvicorn==0.38.0
