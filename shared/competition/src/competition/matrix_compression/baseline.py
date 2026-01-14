@@ -1,4 +1,4 @@
-import numpy as np
+import torch
 import uvicorn
 import argparse
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -32,22 +32,30 @@ def decompress_data(data: bytes) -> bytes:
 def _validate(data: bytes) -> dict:
     # Validate that data compresses and decompresses correctly
     # Returns: (is_valid, compression_efficiency, cosine_similarity)
-    input_array = np.frombuffer(data, dtype=np.uint8)
+    # Data represents torch bfloat16 values (2 bytes per element)
+    input_tensor = torch.frombuffer(bytearray(data), dtype=torch.bfloat16)
     compressed = compress_data(data)
     decompressed = decompress_data(compressed)
-    output_array = np.frombuffer(decompressed, dtype=np.uint8)
+    output_tensor = torch.frombuffer(bytearray(decompressed), dtype=torch.bfloat16)
 
-    is_valid = np.array_equal(input_array, output_array)
+    is_valid = torch.equal(input_tensor, output_tensor)
     compression_efficiency = 1 - (len(compressed) / len(data))
-    a = input_array.astype(np.float64)
-    b = output_array.astype(np.float64)
-    if np.linalg.norm(a) == 0:
-        if np.linalg.norm(b) == 0:
+
+    # Convert to float32 for cosine similarity calculation
+    a = input_tensor.float()
+    b = output_tensor.float()
+
+    a_norm = torch.linalg.norm(a)
+    b_norm = torch.linalg.norm(b)
+
+    if a_norm == 0:
+        if b_norm == 0:
             cosine_similarity = 1.0
         else:
             cosine_similarity = 0.0
     else:
-        cosine_similarity = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        cosine_similarity = (torch.dot(a, b) / (a_norm * b_norm)).item()
+
     return {
         "is_valid": is_valid,
         "compression_efficiency": compression_efficiency,
