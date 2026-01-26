@@ -37,3 +37,8 @@ class JobFile(BaseModel):
     file_type: str
     file_name: str
     file_content: str
+
+
+class JobReject(BaseModel):
+    submission_id: int
+    reason: str
