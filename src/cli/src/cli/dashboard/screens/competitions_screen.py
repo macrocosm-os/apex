@@ -86,14 +86,12 @@ class CompetitionsScreen(Screen):
         """Populate the table with current filtered competitions."""
         table = self.query_one(DataTable)
 
-        # Total weight for emission allocation (only active competitions contribute to emissions)
-        total_weight = sum(comp.incentive_weight for comp in self.all_competitions if comp.state == "active")
-
         # Calculate max_emissions for each competition and sort by it descending
+        # incentive_weight is now a direct decimal allocation (0.0-1.0)
         def calc_max_emissions(comp):
-            if comp.state != "active" or total_weight <= 0:
+            if comp.state != "active":
                 return 0
-            emission_allocation = comp.incentive_weight / total_weight * 100
+            emission_allocation = comp.incentive_weight * 100
             return (1 - comp.base_burn_rate) * emission_allocation
 
         self.competitions = sorted(self.competitions, key=calc_max_emissions, reverse=True)
@@ -103,12 +101,10 @@ class CompetitionsScreen(Screen):
             round_details = self._format_round_details(comp)
 
             # Calculate emission metrics
+            # incentive_weight is directly the allocation (0.0-1.0)
             max_emissions = calc_max_emissions(comp)
-            emission_allocation = (comp.incentive_weight / total_weight * 100) if total_weight > 0 else 0
-            min_burn = comp.base_burn_rate * 100
-            if comp.state != "active":
-                emission_allocation = 0
-                min_burn = 0
+            emission_allocation = comp.incentive_weight * 100 if comp.state == "active" else 0
+            min_burn = comp.base_burn_rate * 100 if comp.state == "active" else 0
 
             table.add_row(
                 str(comp.id),
