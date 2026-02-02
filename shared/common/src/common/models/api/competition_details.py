@@ -6,6 +6,10 @@ from common.models.api.submission import SubmissionPagination
 
 class CompetitionDetailsRequest(BaseModel):
     competition_id: int
+
+
+class TopScoresRequest(BaseModel):
+    competition_id: int
     start_idx: int = 0
     count: int = 100
 
@@ -53,11 +57,13 @@ class CompetitionDetailsResponse(BaseModel):
     score_to_beat: float
     competition: CompetitionInfo
     curr_round: Optional[RoundInfo] = None
-    top_scores: List[ScorePoint]
     rounds: List[RoundAnnotation]
-    # Top scores pagination.
-    pagination: SubmissionPagination
     total_submissions: int
+
+
+class TopScoresResponse(BaseModel):
+    top_scores: List[ScorePoint]
+    pagination: SubmissionPagination
 
 
 class CompetitionDetailsCache(BaseModel):
@@ -65,6 +71,5 @@ class CompetitionDetailsCache(BaseModel):
     current_round: Optional[RoundInfo] = None
     top_score_value: float
     score_to_beat: float
-    all_scores: List[ScorePoint]
     rounds: List[RoundAnnotation]
     total_submissions: int

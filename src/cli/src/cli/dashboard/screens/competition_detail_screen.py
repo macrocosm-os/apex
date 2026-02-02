@@ -219,14 +219,9 @@ class CompetitionDetailScreen(Screen):
         else:
             top_scorer_age = "N/A"
 
-        # Calculate % emissions as factor of ACTIVE competitions only
+        # Calculate % emissions - incentive_weight is now a direct decimal allocation (0.0-1.0)
         if comp.burn_factor is not None and comp.state == "active":
-            total_weight = sum(c.incentive_weight for c in self.app.competitions if c.state == "active")
-            if total_weight > 0:
-                emission_allocation = comp.incentive_weight / total_weight
-                emissions_percent = (1 - comp.burn_factor) * emission_allocation * 100
-            else:
-                emissions_percent = 0
+            emissions_percent = (1 - comp.burn_factor) * comp.incentive_weight * 100
             emissions_str = f"{emissions_percent:.1f}%"
         else:
             emissions_str = "0.0%"
