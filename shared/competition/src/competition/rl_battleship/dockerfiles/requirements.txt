@@ -1,0 +1,13 @@
+# PyTorch CPU-only (RL models don't need GPU for inference)
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.9.1
+
+# Basic API
+fastapi==0.124.2
+uvicorn==0.38.0
+
+# Core computing
+numpy==2.3.5
+
+# Data validation library
+pydantic==2.12.5

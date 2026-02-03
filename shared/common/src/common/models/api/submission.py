@@ -1,12 +1,26 @@
 from datetime import datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 from typing import Optional
 
 
 class SubmitRequest(BaseModel):
     competition_id: int
     round_number: int = 0
-    raw_code: str
+    raw_code: Optional[str] = None  # Text-based submissions (e.g., .py files)
+    raw_binary: Optional[str] = None  # Base64-encoded binary submissions (e.g., .pt files)
+    file_extension: str = ".py"  # File extension for the submission
+
+    @model_validator(mode="after")
+    def validate_content(self) -> "SubmitRequest":
+        if self.raw_code is None and self.raw_binary is None:
+            raise ValueError("Either raw_code or raw_binary must be provided")
+        if self.raw_code is not None and self.raw_binary is not None:
+            raise ValueError("Only one of raw_code or raw_binary should be provided")
+        return self
+
+    @property
+    def is_binary(self) -> bool:
+        return self.raw_binary is not None
 
 
 class SubmitResponse(BaseModel):
