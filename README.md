@@ -31,7 +31,7 @@ See validator docs for an overview on validator setup.
 
 **[Matrix Compression V1: Lossless Compression](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/current-competitions)**: A lossless compression competition exploring how small neural activations, both forward and backward, can be compressed while still retaining all their original information.
 
-**[Battleship](https://docs.macrocosmos.ai/subnets/subnet-1-apex/current-competitions#id-2.-battleship)**: A strategy game competition in which miners compete to sink ships on a 10x10 grid in as few turns as possible. A Bittensor twist on the classic 1931 game. 
+**[RL Battleship](https://docs.macrocosmos.ai/subnets/subnet-1-apex/subnet-1-current-competitions#id-3.-reinforcement-learning-battleship)**: A strategy game competition in which miners compete to sink ships on a 10x10 grid in as few turns as possible, now with reinforcement learning. Miners train and submit models that compete in the game environment.
 
 **[Matrix Compression V2: Lossy Compression](https://docs.macrocosmos.ai/subnets/subnet-1-apex/subnet-1-current-competitions#compression-of-activations-challenge-1)**: A lossy compression challenge focused on reducing bfloat16 matrices while preserving enough information for effective training, allowing minor loss.
 
