@@ -1,0 +1,26 @@
+[project]
+name = "battleship_train"
+version = "0.1.0"
+description = "RL training toolkit for Battleship competition"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.122.0",
+    "gymnasium>=1.2.2",
+    "numpy>=2.3.5",
+    "pydantic>=2.12.4",
+    "requests>=2.32.5",
+    "stable-baselines3>=2.7.0",
+    "torch>=2.9.1",
+    "uvicorn>=0.38.0",
+    "tensorboard>=2.17.0",
+    "tqdm>=4.67.0",
+    "rich>=13.9.4",
+]
+
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+py-modules = ["agent", "env", "main", "state_encoder", "train"]

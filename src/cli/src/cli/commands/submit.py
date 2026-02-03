@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import typer
 from pathlib import Path
@@ -14,6 +15,9 @@ from cli.utils.wallet import load_keypair_from_file
 from common.models.api.submission import SubmitRequest
 
 console = Console()
+
+# Binary file extensions that should be base64 encoded
+BINARY_EXTENSIONS = {".pt", ".pth", ".onnx", ".pkl", ".pickle", ".bin", ".h5", ".hdf5", ".safetensors"}
 
 
 def submit(
@@ -57,19 +61,48 @@ def submit(
             console.print(f"[red]Path is not a file: {file_path}[/red]")
             return False
 
-        # Read and validate code content
+        # Determine if file is binary based on extension
+        file_extension = file_path.suffix.lower()
+        is_binary = file_extension in BINARY_EXTENSIONS
+
+        # Read file content
+        code = None
+        binary_content = None
+        file_size = 0
+
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
-                code = f.read().strip()
+            if is_binary:
+                with open(file_path, "rb") as f:
+                    raw_bytes = f.read()
+                    file_size = len(raw_bytes)
+                    binary_content = base64.b64encode(raw_bytes).decode("ascii")
+                if not raw_bytes:
+                    console.print(f"[red]File is empty: {file_path}[/red]")
+                    return False
+            else:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    code = f.read().strip()
+                    file_size = len(code)
+                if not code:
+                    console.print(f"[red]File is empty: {file_path}[/red]")
+                    return False
         except UnicodeDecodeError:
-            console.print(f"[red]Unable to read file as text (not UTF-8 encoded): {file_path}[/red]")
-            return False
+            # If text read fails, try as binary
+            console.print("[yellow]File is not UTF-8 encoded, treating as binary file[/yellow]")
+            try:
+                with open(file_path, "rb") as f:
+                    raw_bytes = f.read()
+                    file_size = len(raw_bytes)
+                    binary_content = base64.b64encode(raw_bytes).decode("ascii")
+                is_binary = True
+                if not raw_bytes:
+                    console.print(f"[red]File is empty: {file_path}[/red]")
+                    return False
+            except Exception as e:
+                console.print(f"[red]Error reading file: {e}[/red]")
+                return False
         except Exception as e:
             console.print(f"[red]Error reading file: {e}[/red]")
-            return False
-
-        if not code:
-            console.print(f"[red]File is empty: {file_path}[/red]")
             return False
 
         # Get competition parameters
@@ -123,14 +156,25 @@ def submit(
             return False
 
         # Create submission request
-        submit_request = SubmitRequest(competition_id=competition_id, round_number=-1, raw_code=code)
+        submit_request = SubmitRequest(
+            competition_id=competition_id,
+            round_number=-1,
+            raw_code=code,
+            raw_binary=binary_content,
+            file_extension=file_extension if file_extension else ".py",
+        )
 
         # Show submission summary
         console.print("\n[bold]Submission Summary:[/bold]")
         console.print(f"  File: {file_path}")
         console.print(f"  Competition ID: {competition_id}")
         console.print(f"  Hotkey: {hotkey}")
-        console.print(f"  Code length: {len(code)} characters")
+        if is_binary:
+            console.print(f"  File type: Binary ({file_extension})")
+            console.print(f"  File size: {file_size / 1024:.2f} KB")
+        else:
+            console.print(f"  File type: Text ({file_extension})")
+            console.print(f"  Code length: {file_size} characters")
 
         if not typer.confirm("Proceed with submission?"):
             console.print("[yellow]Submission cancelled[/yellow]")
