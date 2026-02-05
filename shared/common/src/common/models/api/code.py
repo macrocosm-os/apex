@@ -18,3 +18,4 @@ class CodeResponse(BaseModel):
     code: str
     submit_at: datetime
     pagination: FilePagination
+    is_binary: bool = False

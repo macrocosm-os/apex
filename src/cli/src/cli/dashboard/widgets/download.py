@@ -1,3 +1,4 @@
+import base64
 import os
 from pathlib import Path
 from datetime import datetime, timezone
@@ -214,8 +215,15 @@ async def download_file(
                     path.parent.mkdir(parents=True, exist_ok=True)
 
                     # Write the code to file
-                    with open(path, "w") as f:
-                        f.write(code_response.code)
+                    if code_response.is_binary:
+                        # Binary file
+                        binary_data = base64.b64decode(code_response.code)
+                        with open(path, "wb") as f:
+                            f.write(binary_data)
+                    else:
+                        # Text file
+                        with open(path, "w") as f:
+                            f.write(code_response.code)
 
                     success_msg = f"Code successfully saved to: {file_path}"
                     log_success(log_widget=log_widget, message=success_msg)
