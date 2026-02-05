@@ -62,6 +62,8 @@ class SubmissionDetail(BaseModel):
     code_path: str | None = None
     round_number: int
     reveal_at: Optional[datetime] = None
+    is_binary: bool = False
+    language: str | None = None
 
 
 class SubmissionPagination(BaseModel):
