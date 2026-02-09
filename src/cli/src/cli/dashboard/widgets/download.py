@@ -434,7 +434,30 @@ def show_download_dialog(
                     ),
                 )
 
-    screen.app.push_screen(
-        InputModal(title=dialog_title, default_value=default_path, placeholder="submissions/file.py"),
-        handle_path_input,
-    )
+    # Show warning for binary code submissions before showing the path input
+    is_binary = submission_detail and submission_detail.is_binary
+    if is_binary and normalized_file_type == "code":
+
+        def handle_binary_warning(confirmed: bool) -> None:
+            if confirmed:
+                screen.app.push_screen(
+                    InputModal(title=dialog_title, default_value=default_path, placeholder="submissions/file.py"),
+                    handle_path_input,
+                )
+
+        screen.app.push_screen(
+            ConfirmModal(
+                title="Binary File Warning",
+                message=(
+                    "This is a [bold]binary file[/bold] that has not been scanned for viruses or malware.\n\n"
+                    "Download at your own risk.\n\n"
+                    "Do you want to continue? [dim](y/n)[/dim]"
+                ),
+            ),
+            handle_binary_warning,
+        )
+    else:
+        screen.app.push_screen(
+            InputModal(title=dialog_title, default_value=default_path, placeholder="submissions/file.py"),
+            handle_path_input,
+        )
