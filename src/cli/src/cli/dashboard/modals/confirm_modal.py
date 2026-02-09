@@ -1,4 +1,5 @@
 from textual.app import ComposeResult
+from textual.binding import Binding
 from textual.containers import Container
 from textual.screen import ModalScreen
 from textual.widgets import Static, Button
@@ -6,6 +7,11 @@ from textual.widgets import Static, Button
 
 class ConfirmModal(ModalScreen[bool]):
     """Modal screen for getting confirmation from the user."""
+
+    BINDINGS = [
+        Binding("y", "confirm_yes", "Yes", show=False),
+        Binding("n", "confirm_no", "No", show=False),
+    ]
 
     CSS = """
     ConfirmModal {
@@ -67,3 +73,9 @@ class ConfirmModal(ModalScreen[bool]):
             self.dismiss(True)
         elif event.button.id == "no_button":
             self.dismiss(False)
+
+    def action_confirm_yes(self) -> None:
+        self.dismiss(True)
+
+    def action_confirm_no(self) -> None:
+        self.dismiss(False)

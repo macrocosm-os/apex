@@ -1,6 +1,6 @@
 [project]
 name = "cli"
-version = "4.0.25"
+version = "4.0.26"
 description = "Apex CLI"
 authors = [{ name = "Macrocosmos.ai" }]
 readme = "README.md"
