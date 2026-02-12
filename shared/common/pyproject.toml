@@ -1,6 +1,6 @@
 [project]
 name = "common"
-version = "4.0.26"
+version = "4.0.27"
 description = "Common shared dependencies"
 authors = [{ name = "Macrocosmos.ai" }]
 readme = "README.md"
