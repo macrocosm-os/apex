@@ -39,7 +39,7 @@ def encode_state(history: List[Dict], size: int = 10) -> torch.Tensor:
 
     Args:
         history: List of history events. Events are dicts with keys like
-                 'type', 'x', 'y', 'hit', 'sunk'.
+                 'type', 'x', 'y', 'hit', 'sunk', and optionally 'sunk_cells'.
         size: Board size (default 10).
 
     Returns:
@@ -51,10 +51,10 @@ def encode_state(history: List[Dict], size: int = 10) -> torch.Tensor:
     # Initialize 3 channels
     board_tensor = np.zeros((3, size, size), dtype=np.float32)
 
-    # Track shots and hits for sunk inference
+    # Track shots, hits, and sunk events (sunk_cells = exact cells when ships can touch)
     shots = set()
     hits = set()
-    sunk_events = []
+    sunk_events: List[Tuple[Any, ...]] = []  # (x, y, sunk_cells?) per sunk
 
     for event in history:
         if event.get("type") == "result":
@@ -62,6 +62,7 @@ def encode_state(history: List[Dict], size: int = 10) -> torch.Tensor:
             if 0 <= x < size and 0 <= y < size:
                 hit = event.get("hit", False)
                 sunk = event.get("sunk")
+                sunk_cells = event.get("sunk_cells")
 
                 # Channel 0: Tried
                 board_tensor[0, y, x] = 1.0
@@ -72,29 +73,30 @@ def encode_state(history: List[Dict], size: int = 10) -> torch.Tensor:
                     board_tensor[1, y, x] = 1.0
                     hits.add((x, y))
 
-                # Track sunk events to process after
                 if sunk:
-                    sunk_events.append((x, y))
+                    sunk_events.append((x, y, sunk_cells))
 
-    # Channel 2: Sunk inference via flood fill
-    for sx, sy in sunk_events:
-        board_tensor[2, sy, sx] = 1.0
-
-        # Flood fill to mark connected hits as sunk
-        stack = [(sx, sy)]
-        visited = set([(sx, sy)])
-
-        while stack:
-            cx, cy = stack.pop()
-            board_tensor[2, cy, cx] = 1.0
-
-            # Check neighbors (up, down, left, right)
-            for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                nx, ny = cx + dx, cy + dy
-                if 0 <= nx < size and 0 <= ny < size:
-                    if (nx, ny) in hits and (nx, ny) not in visited:
-                        visited.add((nx, ny))
-                        stack.append((nx, ny))
+    # Channel 2: use exact sunk_cells when provided (handles touching ships), else flood-fill
+    for item in sunk_events:
+        sx, sy, sunk_cells = item[0], item[1], item[2] if len(item) > 2 else None
+        if sunk_cells:
+            for cell in sunk_cells:
+                cx, cy = (cell[0], cell[1]) if isinstance(cell, (list, tuple)) else (cell[0], cell[1])
+                if 0 <= cx < size and 0 <= cy < size:
+                    board_tensor[2, cy, cx] = 1.0
+        else:
+            board_tensor[2, sy, sx] = 1.0
+            stack = [(sx, sy)]
+            visited = set([(sx, sy)])
+            while stack:
+                cx, cy = stack.pop()
+                board_tensor[2, cy, cx] = 1.0
+                for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                    nx, ny = cx + dx, cy + dy
+                    if 0 <= nx < size and 0 <= ny < size:
+                        if (nx, ny) in hits and (nx, ny) not in visited:
+                            visited.add((nx, ny))
+                            stack.append((nx, ny))
 
     return torch.from_numpy(board_tensor)
 
@@ -302,6 +304,7 @@ class ShotResult(BaseModel):
     y: int
     hit: bool
     sunk: Optional[str] = None
+    sunk_cells: Optional[List[List[int]]] = None  # when sunk: [[x,y], ...] for that ship only
 
 
 class NextMoveRequest(BaseModel):
@@ -417,6 +420,8 @@ def make_app(model_path: str) -> FastAPI:
                 "hit": req.result.hit,
                 "sunk": req.result.sunk,
             }
+            if req.result.sunk_cells is not None:
+                previous_result["sunk_cells"] = req.result.sunk_cells
             sess.history.append({"type": "result", **previous_result})
 
         # Get next shot from RL model

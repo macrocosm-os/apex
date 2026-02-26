@@ -437,6 +437,7 @@ def run_game(
         )
 
     turn = 0
+    sunk_events: List[Tuple[int, str]] = []  # (turn, ship_name) when a ship is sunk
 
     def board_to_log(board: BoardManager) -> Dict[str, Any]:
         ships_payload = {}
@@ -464,6 +465,8 @@ def run_game(
         try:
             x, y = ask_next_move(sess, p1.base_url, game_id, previous_result, timeout=shot_timeout_in_seconds)
         except requests.Timeout:
+            if console_mode and sunk_events:
+                print("Ships sunk: " + ", ".join(f"Turn {t} – {s}" for t, s in sunk_events))
             return GameResult(
                 name=name,
                 game_id=game_id,
@@ -475,6 +478,8 @@ def run_game(
                 board_size=size,
             )
         except Exception as e:
+            if console_mode and sunk_events:
+                print("Ships sunk: " + ", ".join(f"Turn {t} – {s}" for t, s in sunk_events))
             return GameResult(
                 name=name,
                 game_id=game_id,
@@ -488,6 +493,8 @@ def run_game(
 
         # Bounds check
         if not (0 <= x < size and 0 <= y < size):
+            if console_mode and sunk_events:
+                print("Ships sunk: " + ", ".join(f"Turn {t} – {s}" for t, s in sunk_events))
             return GameResult(
                 name=name,
                 game_id=game_id,
@@ -501,6 +508,8 @@ def run_game(
 
         # No repeat shots
         if (x, y) in p1.shot_history:
+            if console_mode and sunk_events:
+                print("Ships sunk: " + ", ".join(f"Turn {t} – {s}" for t, s in sunk_events))
             return GameResult(
                 name=name,
                 game_id=game_id,
@@ -516,8 +525,13 @@ def run_game(
         # Apply shot
         hit, sunk_name = target_board.receive_shot(x, y)
         p1.last_result = {"x": x, "y": y, "hit": hit, "sunk": sunk_name}
+        if sunk_name is not None:
+            p1.last_result["sunk_cells"] = [list(c) for c in sorted(target_board.ships[sunk_name].cells)]
+            sunk_events.append((turn, sunk_name))
 
         if target_board.all_ships_sunk():
+            if console_mode and sunk_events:
+                print("Ships sunk: " + ", ".join(f"Turn {t} – {s}" for t, s in sunk_events))
             return GameResult(
                 name=name,
                 game_id=game_id,
@@ -530,6 +544,8 @@ def run_game(
             )
 
     # Max turns reached
+    if console_mode and sunk_events:
+        print("Ships sunk: " + ", ".join(f"Turn {t} – {s}" for t, s in sunk_events))
     return GameResult(
         name=name,
         game_id=game_id,

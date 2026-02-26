@@ -30,9 +30,9 @@ def decompress_data(data: bytes) -> bytes:
 
 
 def _validate(data: bytes) -> dict:
-    # Validate that data compresses and decompresses correctly
-    # Returns: (is_valid, compression_efficiency, cosine_similarity)
-    # Data represents torch bfloat16 values (2 bytes per element)
+    # Validate that data compresses and decompresses correctly.
+    # Uses the same similarity formula as the eval runner: similarity = cos_similarity * norm_similarity.
+    # Data represents bfloat16 values (2 bytes per element).
     input_tensor = torch.frombuffer(bytearray(data), dtype=torch.bfloat16)
     compressed = compress_data(data)
     decompressed = decompress_data(compressed)
@@ -41,25 +41,33 @@ def _validate(data: bytes) -> dict:
     is_valid = torch.equal(input_tensor, output_tensor)
     compression_efficiency = 1 - (len(compressed) / len(data))
 
-    # Convert to float32 for cosine similarity calculation
+    # Convert to float32 for similarity calculation (matches runner's float64 semantics)
     a = input_tensor.float()
     b = output_tensor.float()
 
-    a_norm = torch.linalg.norm(a)
-    b_norm = torch.linalg.norm(b)
+    a_norm = torch.linalg.norm(a).item()
+    b_norm = torch.linalg.norm(b).item()
 
     if a_norm == 0:
-        if b_norm == 0:
-            cosine_similarity = 1.0
-        else:
-            cosine_similarity = 0.0
+        similarity = 1.0 if b_norm == 0 else 0.0
+        cosine_similarity = 1.0 if b_norm == 0 else 0.0
+        norm_similarity = 1.0 if b_norm == 0 else 0.0
     else:
-        cosine_similarity = (torch.dot(a, b) / (a_norm * b_norm)).item()
+        # cos_similarity = dot(a, b) / (norm(a) * norm(b)); avoid div by zero when b is zero
+        if b_norm == 0:
+            cosine_similarity = 0.0
+        else:
+            cosine_similarity = (torch.dot(a, b) / (a_norm * b_norm)).item()
+        # norm_similarity = 1 - norm(a - b) / norm(a)
+        norm_similarity = 1 - torch.linalg.norm(a - b).item() / a_norm
+        similarity = cosine_similarity * norm_similarity
 
     return {
         "is_valid": is_valid,
         "compression_efficiency": compression_efficiency,
         "cosine_similarity": float(cosine_similarity),
+        "norm_similarity": float(norm_similarity),
+        "similarity": float(similarity),
     }
 
 
