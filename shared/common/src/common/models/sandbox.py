@@ -66,7 +66,7 @@ class SandboxRunRules(BaseModel):
     run_timeout_in_seconds: int = 60
     filename: str = "solution.py"
     command: str | list[str] = "python solution.py"
-    mem_limit: str = "1g"
+    mem_limit: str = "1.5g"
     cpu_count: int = 1
     cpu_percent: int | None = None
     cpu_period: int | None = None
