@@ -61,11 +61,18 @@ class SandboxBuildRules(BaseModel):
     network_mode: str | None = None
 
 
+class SandboxStartupConfig(BaseModel):
+    # Optional setup command executed before the main sandbox command.
+    # Supports either a shell string or argv-style list.
+    command: str | list[str]
+
+
 class SandboxRunRules(BaseModel):
     sandbox_index: int = 0
     run_timeout_in_seconds: int = 60
     filename: str = "solution.py"
     command: str | list[str] = "python solution.py"
+    startup_config: SandboxStartupConfig | None = None
     mem_limit: str = "1.5g"
     cpu_count: int = 1
     cpu_percent: int | None = None
