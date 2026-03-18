@@ -258,23 +258,34 @@ async def download_file(
                         notify_callback(error_msg, severity="error", timeout=3)
                     return False
 
-                file_request = FileRequest(
-                    submission_id=submission.id,
-                    file_type=file_type.lower(),
-                    file_name=filename,
-                    start_idx=0,
-                    reverse=False,
-                )
-                file_data = await client.get_file_chunked(file_request=file_request)
+                # Fetch all pages of the file
+                start_idx = 0
+                chunks = []
+                while True:
+                    file_request = FileRequest(
+                        submission_id=submission.id,
+                        file_type=file_type.lower(),
+                        file_name=filename,
+                        start_idx=start_idx,
+                        reverse=False,
+                    )
+                    file_data = await client.get_file_chunked(file_request=file_request)
+                    if not file_data or not file_data.data:
+                        break
+                    chunks.append(file_data.data)
+                    if file_data.pagination.next_start_idx is None:
+                        break
+                    start_idx = file_data.pagination.next_start_idx
 
-                if file_data and file_data.data:
+                if chunks:
                     # Create directory if it doesn't exist
                     path = Path(file_path)
                     path.parent.mkdir(parents=True, exist_ok=True)
 
                     # Write the file content
                     with open(path, "w") as f:
-                        f.write(file_data.data)
+                        for chunk in chunks:
+                            f.write(chunk)
 
                     success_msg = f"{file_display_name} successfully saved to: {file_path}"
                     log_success(log_widget=log_widget, message=success_msg)

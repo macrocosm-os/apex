@@ -1,0 +1,18 @@
+# Basic API
+fastapi>=0.110.3
+uvicorn>=0.34.2
+
+# Data validation
+pydantic>=2.11.3
+
+# Fast JSON serialization
+orjson>=3.9.0
+
+# Useful for routing algorithms
+numpy>=1.24.0
+
+# ASGI transport for in-process proxy calls
+httpx>=0.27.0
+
+# Command-line argument parsing
+argparse>=1.4.0
