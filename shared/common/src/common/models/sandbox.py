@@ -65,6 +65,9 @@ class SandboxStartupConfig(BaseModel):
     # Optional setup command executed before the main sandbox command.
     # Supports either a shell string or argv-style list.
     command: str | list[str]
+    # Optional Kubernetes node pool for startup setup. If set and different from run_rules.nodepool,
+    # Kubernetes sandbox runs startup as a separate pre-job on this pool.
+    nodepool: str | None = None
 
 
 class SandboxRunRules(BaseModel):
@@ -87,6 +90,9 @@ class SandboxRunRules(BaseModel):
     allow_internet: bool = False  # Whether to allow internet access
     dns_servers: list[str] | None = None  # Custom DNS servers (None = auto-decide based on allow_internet)
     cap_drop: list[str] | None = None  # Capabilities to drop (None = auto-decide based on allow_internet)
+    # Optional Kubernetes node pool target, mapped to node selector/toleration by K8s sandbox.
+    # In this cluster, values typically match `component` label (e.g. "sandbox", "app", "ops").
+    nodepool: str | None = None
 
 
 class SandboxMetrics(BaseModel):
