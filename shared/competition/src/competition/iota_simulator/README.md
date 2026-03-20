@@ -1,6 +1,6 @@
 # IOTA Simulator Competition
 
-Route activations through a simulated distributed compute network faster than random.
+Route activations through a simulated distributed compute network, minimizing epoch completion time.
 
 ## Overview
 
@@ -9,6 +9,8 @@ The IOTA simulator models a distributed network where **activations** (units of 
 Each task runs **multiple epochs** (default: 5). Your total epoch time — the sum of all epoch durations, excluding merge phases — is scored against a pre-computed time ceiling. Lower is better.
 
 ## How the Simulation Works
+
+The simulation code is currently **proprietary**. Miners can improve their solutions round to round with the simulation snapshot and activation routing data from `HISTORY` files.
 
 ### Network Structure
 
@@ -205,12 +207,12 @@ The final score is the **median** across all evaluation tasks (default: 5 tasks,
 
 ## Timeouts
 
-| Timeout                          | Value                             | What Happens                                                                                                                                                                                        |
-| -------------------------------- | --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `/route` response                | 5 seconds                         | Any single `/route` call that exceeds this fails the **entire task** with a score of 0. Your handler must be fast.                                                                                  |
-| `/balance-orchestrator` response | 5 seconds                         | Any single `/balance-orchestrator` call that exceeds this fails the **entire task** with a score of 0.                                                                                              |
+| Timeout                          | Value                             | What Happens                                                                                                                                                                                                                                                                         |
+| -------------------------------- | --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/route` response                | 5 seconds                         | Any single `/route` call that exceeds this fails the **entire task** with a score of 0. Your handler must be fast.                                                                                                                                                                   |
+| `/balance-orchestrator` response | 5 seconds                         | Any single `/balance-orchestrator` call that exceeds this fails the **entire task** with a score of 0.                                                                                                                                                                               |
 | Layer timeout                    | 60 seconds (simulated time)       | If an activation doesn't progress past a layer within 60s of simulated time, it is dropped. Stale activations still sitting in a miner's queue or cache are also cleaned up. The activation doesn't count toward epoch completion — this slows your epoch but doesn't zero the task. |
-| Task timeout                     | 30s + 120s per epoch (wall-clock) | If the full simulation doesn't finish within this budget, the task scores 0. For 5 epochs: 630 seconds.                                                                                             |
+| Task timeout                     | 30s + 120s per epoch (wall-clock) | If the full simulation doesn't finish within this budget, the task scores 0. For 5 epochs: 630 seconds.                                                                                                                                                                              |
 
 The `/route` timeout is the most important constraint: your routing logic must respond well under 5 seconds. Heavy computation risks timing out and zeroing the task.
 
