@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from textual.app import ComposeResult
 from textual.containers import Container, Vertical, Horizontal, ScrollableContainer
 from textual.screen import Screen
@@ -256,7 +255,7 @@ class CompetitionDetailScreen(Screen):
 
         # Determine current round number and end date
         current_round = comp.curr_round.round_number if comp.curr_round else comp.curr_round_number
-        current_round_end_at = comp.curr_round.end_at if comp.curr_round else None
+        current_round_state = comp.curr_round.state if comp.curr_round else None
 
         if filtered_submissions:
             submissions_table = DataTable(id="submissions_table", classes="submissions-table")
@@ -288,24 +287,11 @@ class CompetitionDetailScreen(Screen):
                 # Calculate age using compact format
                 age_str = get_age(sub.submit_at, compact=True)
 
-                # Determine log icon based on round end date (if available)
-                # Lock if round hasn't ended yet, eye if it has ended or if we can't determine
-                log_icon = "👁"  # Default to eye (revealed)
-                if sub.round_number == current_round:
-                    # This is the current round, check if it has ended
-                    if current_round_end_at is not None:
-                        now = datetime.now(timezone.utc)
-                        # Ensure end_at is timezone-aware for comparison
-                        end_at = current_round_end_at
-                        if end_at.tzinfo is None:
-                            end_at = end_at.replace(tzinfo=timezone.utc)
-                        # Lock if round hasn't ended yet
-                        if now < end_at:
-                            log_icon = "🔒"
-                        else:
-                            log_icon = "👁"
-                    # If end_at is not available, default to eye (assuming we can't determine)
-                # If submission round != current round, assume it's a past round (already ended)
+                # Determine log icon based on round state
+                # Logs only available when round is completed
+                log_icon = "👁"  # Default to eye (past rounds are completed)
+                if sub.round_number == current_round and current_round_state != "completed":
+                    log_icon = "🔒"
 
                 submissions_table.add_row(
                     str(sub.id),

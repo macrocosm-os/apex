@@ -64,7 +64,7 @@ Orchestrator (activation complete)
 
 ### Multi-Layer Miners
 
-A miner hosting multiple layers (e.g., [1, 2]) processes all its layers in a single step without network hops between them. Routing an activation to a multi-layer miner saves transfer time for the layers it covers.
+Miners may initially host multiple layers based on their starting configuration. However, the `/balance-orchestrator` endpoint must assign each miner to exactly **one** layer — multi-layer assignments via balancing are rejected (see balance-orchestrator notes above).
 
 ### Queuing and Processing
 
@@ -141,11 +141,11 @@ Response body ([`BalanceResponse`](models.py)):
 | `assignments` | `dict[str, list[int]]` | Maps each `miner_id` to a list of layer indices it should serve |
 
 **Notes:**
-- Each miner should be assigned at least one layer.
+- Each miner should be assigned exactly one layer. Assignments with any miner mapped to multiple layers are **rejected entirely** — all miners keep their previous positions for that epoch.
 - Layer indices must be in `[0, n_layers)`.
-- A miner can be assigned to multiple layers (multi-layer hosting reduces network hops).
-- Every layer should have at least one miner assigned; layers with no miners will cause activations to stall.
-- Invalid assignments (e.g., out-of-range layers, missing miners) are silently ignored — affected miners keep their previous assignments.
+- Every layer must have at least one miner assigned. Assignments that leave any layer empty are **rejected entirely** — all miners keep their previous positions for that epoch.
+- Rejected balance assignments are reported in `eval_metadata` under `balance_rejections`.
+- Invalid individual entries (e.g., out-of-range layers, unknown miner IDs) are silently dropped before validation.
 
 ### MinerInfo Fields
 
@@ -226,8 +226,8 @@ The `/route` timeout is the most important constraint: your routing logic must r
 - **Liveness-aware routing**: Prefer active miners to avoid dropped activations.
 
 **Balancing (`/balance-orchestrator`):**
-- **Even layer distribution**: Ensure each layer has enough miners to handle the activation throughput.
-- **Multi-layer assignment**: Assign miners to consecutive layers to reduce network hops.
+- **Even layer distribution**: Ensure each layer has enough miners to handle the activation throughput. Every layer must have at least one miner.
+- **Single-layer assignment**: Each miner must be assigned to exactly one layer. Multi-layer assignments are rejected.
 - **Adaptive rebalancing**: Use `activation_tracking_buffer` from the previous epoch to identify bottlenecks.
 
 ## Simulation Data

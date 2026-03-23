@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from pydantic import BaseModel
 from typing import Optional
 
@@ -62,3 +62,16 @@ class CompetitionRecord(BaseModel):
 class CompetitionResponse(BaseModel):
     competitions: list[CompetitionRecord]
     pagination: SubmissionPagination
+
+
+class ComingSoonCompetition(BaseModel):
+    name: str
+    description: str
+    image_url: Optional[str] = None
+    ctype: str
+    ptype: str
+    start_at: Optional[date] = None
+
+
+class ComingSoonResponse(BaseModel):
+    competitions: list[ComingSoonCompetition]

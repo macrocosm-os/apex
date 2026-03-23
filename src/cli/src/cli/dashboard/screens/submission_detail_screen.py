@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.json import JSON
 from rich.syntax import Syntax
 
-from datetime import datetime, timezone
+
 from common.models.api.submission import SubmissionRecord, SubmissionDetail, FileRequest
 from common.models.api.code import CodeRequest
 from common.models.api.competition import CompetitionRecord
@@ -102,7 +102,7 @@ class SubmissionDetailScreen(Screen):
         self.submission_detail: SubmissionDetail | None = None
         self.competition: CompetitionRecord | None = None
         self.current_round: int | None = None
-        self.current_round_end_at: datetime | None = None
+        self.current_round_state: str | None = None
         self.is_loading = True
         self.file_paths = {}  # Store file paths for each file type and name
         self.current_file_type: str | None = None
@@ -155,10 +155,10 @@ class SubmissionDetailScreen(Screen):
                     # Determine current round number and end date
                     if self.competition.curr_round:
                         self.current_round = self.competition.curr_round.round_number
-                        self.current_round_end_at = self.competition.curr_round.end_at
+                        self.current_round_state = self.competition.curr_round.state
                     else:
                         self.current_round = self.competition.curr_round_number
-                        self.current_round_end_at = None
+                        self.current_round_state = None
 
             # Debug logging
             log_widget = self.query_one("#log")
@@ -225,19 +225,17 @@ class SubmissionDetailScreen(Screen):
 
         error_msg = f"[red]{sub.eval_error}[/red]" if sub.eval_error and not sub.eval_error == "Success" else "None"
 
-        # Determine log reveal icon based on round end date (if available)
-        # Lock if round hasn't ended yet, eye if it has ended or if we can't determine
-        now = datetime.now(timezone.utc)
-        log_status = get_reveal_status(now)
+        # Determine log reveal icon based on round state
+        # Logs are only available when the round is completed (not just time-ended/evaluating)
         if self.current_round is not None and sub.round_number == self.current_round:
-            # This is the current round, check if it has ended
-            if self.current_round_end_at is not None:
-                # Ensure end_at is timezone-aware for comparison
-                end_at = self.current_round_end_at
-                if end_at.tzinfo is None:
-                    end_at = end_at.replace(tzinfo=timezone.utc)
-                # Lock if round hasn't ended yet
-                log_status = f"{format_datetime(end_at, include_seconds=True)} {get_reveal_status(end_at)}"
+            if self.current_round_state == "completed":
+                log_status = "🔓 [green]Visible[/green]"
+            else:
+                state_label = self.current_round_state or "unknown"
+                log_status = "🔒 [orange]Locked[/orange]"
+        else:
+            # Past rounds are completed
+            log_status = "🔓 [green]Visible[/green]"
         version = f"v{sub.version}" if sub.version > 0 else f"v{sub.version} [dim](Auto)[/dim]"
 
         detail_content = f"""[bold cyan]Submission Details[/bold cyan]
@@ -559,7 +557,7 @@ class SubmissionDetailScreen(Screen):
             filename=filename,
             notify_callback=self.notify,
             current_round=self.current_round,
-            current_round_end_at=self.current_round_end_at,
+            current_round_state=self.current_round_state,
         )
 
     def action_cursor_up(self) -> None:
