@@ -22,7 +22,7 @@ def check_file_available(
     file_type: str,
     log_widget=None,
     current_round: int | None = None,
-    current_round_end_at: datetime | None = None,
+    current_round_state: str | None = None,
 ) -> tuple[bool, str | None]:
     """Check if code is available for download.
 
@@ -31,7 +31,7 @@ def check_file_available(
         file_type: The type of file to check
         log_widget: Optional log widget for debug logging
         current_round: Optional current round number for log visibility check
-        current_round_end_at: Optional current round end date for log visibility check
+        current_round_state: Optional current round state for log visibility check
 
     Returns:
         tuple: (is_available, error_message)
@@ -42,7 +42,7 @@ def check_file_available(
         log_success(
             log_widget=log_widget,
             message=f"check_file_available called: file_type={file_type}, submission.round_number={submission.round_number}, "
-            f"current_round={current_round}, current_round_end_at={current_round_end_at}",
+            f"current_round={current_round}, current_round_state={current_round_state}",
         )
     now = datetime.now(timezone.utc)
     reveal_at = submission.reveal_at
@@ -71,57 +71,38 @@ def check_file_available(
         log_success(log_widget=log_widget, message=f"Current time: {now}, Reveal time: {reveal_at}")
 
     # Check log visibility if file_type is "log"
+    # Logs are only available when the round is completed (not just ended/evaluating)
     if file_type and file_type.lower() == "log":
         if log_widget:
             log_success(
                 log_widget=log_widget,
-                message=f"Checking log availability: submission round={submission.round_number} (type: {type(submission.round_number).__name__}), "
-                f"Checking log availability: submission round={submission.round_number} (type: {type(submission.round_number).__name__}), "
-                f"current_round={current_round} (type: {type(current_round).__name__}), current_round_end_at={current_round_end_at}",
+                message=f"Checking log availability: submission round={submission.round_number}, "
+                f"current_round={current_round}, current_round_state={current_round_state}",
             )
-        # Check if this is the current round and if the round has ended
-        # Ensure both are int for comparison
         submission_round = int(submission.round_number)
         if current_round is not None:
             current_round_int = int(current_round)
             if submission_round == current_round_int:
-                if log_widget:
-                    log_success(log_widget=log_widget, message=f"Submission is from current round {current_round_int}")
-                if current_round_end_at is not None:
-                    # Ensure end_at is timezone-aware for comparison
-                    end_at = current_round_end_at
-                    if end_at.tzinfo is None:
-                        end_at = end_at.replace(tzinfo=timezone.utc)
+                # This is the current round — logs only available when round is completed
+                if current_round_state != "completed":
+                    state_label = current_round_state or "unknown"
+                    error_msg = (
+                        f"Log not yet available. Logs are revealed when the round completes "
+                        f"(current state: {state_label})."
+                    )
                     if log_widget:
-                        log_success(
-                            log_widget=log_widget,
-                            message=f"Round end time: {end_at}, Current time: {now}, Comparison: {now < end_at}",
-                        )
-                    # Lock if round hasn't ended yet
-                    if now < end_at:
-                        error_msg = (
-                            f"Log not yet available. Will be revealed when the round ends at "
-                            f"{format_datetime(end_at, include_seconds=True)}"
-                        )
-                        if log_widget:
-                            log_error(log_widget=log_widget, message=f"Log not available: {error_msg}")
-                        return False, error_msg
-                    else:
-                        if log_widget:
-                            log_success(log_widget=log_widget, message="Round has ended, log is available")
+                        log_error(log_widget=log_widget, message=f"Log not available: {error_msg}")
+                    return False, error_msg
                 else:
                     if log_widget:
-                        log_success(log_widget=log_widget, message="No round end date available, allowing download")
+                        log_success(log_widget=log_widget, message="Round is completed, log is available")
             else:
                 if log_widget:
                     log_success(
                         log_widget=log_widget,
-                        message=f"Submission is not from current round (submission={submission_round}, "
+                        message=f"Submission is from past round (submission={submission_round}, "
                         f"current={current_round_int}), allowing download",
                     )
-        else:
-            if log_widget:
-                log_success(log_widget=log_widget, message="No current round available, allowing download")
         # If we can't determine (not current round or no end date), allow download
         # (defaults to viewable, similar to submission detail screen logic)
 
@@ -340,7 +321,7 @@ def show_download_dialog(
     filename: str | None = None,
     notify_callback=None,
     current_round: int | None = None,
-    current_round_end_at: datetime | None = None,
+    current_round_state: str | None = None,
 ):
     """Show the download dialog with path input and handle the download flow.
 
@@ -353,7 +334,7 @@ def show_download_dialog(
         filename: Optional filename. Used for non-code files.
         notify_callback: Optional callback for notifications
         current_round: Optional current round number for log visibility check
-        current_round_end_at: Optional current round end date for log visibility check
+        current_round_state: Optional current round state for log visibility check
     """
     # Check if file is available (for code and log files)
     # Normalize file_type to lowercase for consistent checking
@@ -364,14 +345,14 @@ def show_download_dialog(
             log_success(
                 log_widget=log_widget,
                 message=f"Checking file availability: file_type={file_type} (normalized={normalized_file_type}), "
-                f"current_round={current_round}, current_round_end_at={current_round_end_at}",
+                f"current_round={current_round}, current_round_state={current_round_state}",
             )
         is_available, error_msg = check_file_available(
             submission=submission,
             file_type=normalized_file_type,
             log_widget=log_widget,
             current_round=current_round,
-            current_round_end_at=current_round_end_at,
+            current_round_state=current_round_state,
         )
         if log_widget:
             log_success(
