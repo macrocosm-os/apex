@@ -1,0 +1,22 @@
+[package]
+name = "eval"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.21"
+bincode = "1"
+flate2 = "1"
+nalgebra = "0.32"
+paste = "1"
+rand = { version = "0.8", default-features = false, features = ["std_rng", "small_rng"] }
+rand_distr = "0.4"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[features]
+default = ["c008"]
+hide_verification = []
+c008 = []
+energy_arbitrage = ["c008"]

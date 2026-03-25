@@ -94,6 +94,9 @@ class SandboxRunRules(BaseModel):
     # In this cluster, values typically match `component` label (e.g. "sandbox", "app", "ops").
     nodepool: str | None = None
 
+    # K8s image pull policy ("Always", "IfNotPresent", "Never"). Ignored by Docker sandbox.
+    image_pull_policy: str = "IfNotPresent"
+
 
 class SandboxMetrics(BaseModel):
     execution_time: float = 0
