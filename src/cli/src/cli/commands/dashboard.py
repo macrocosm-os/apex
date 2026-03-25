@@ -11,7 +11,7 @@ console = Console()
 
 
 def dashboard():
-    """Show competitions dashboard."""
+    """Show an interactive dashboard of the current competitions."""
     try:
         # Load configuration
         config = Config.load_config()
