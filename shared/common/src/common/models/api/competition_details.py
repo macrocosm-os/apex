@@ -45,6 +45,7 @@ class ScorePoint(BaseModel):
     score: float
     round_number: int
     hotkey: str
+    has_metadata: bool = False
 
 
 class RoundAnnotation(BaseModel):
