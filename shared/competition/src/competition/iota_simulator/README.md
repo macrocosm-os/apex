@@ -141,10 +141,9 @@ Response body ([`BalanceResponse`](models.py)):
 | `assignments` | `dict[str, list[int]]` | Maps each `miner_id` to a list of layer indices it should serve |
 
 **Notes:**
-- Each miner should be assigned exactly one layer. Assignments with any miner mapped to multiple layers are **rejected entirely** — all miners keep their previous positions for that epoch.
+- Each miner must be assigned to exactly one layer. Assignments with any miner mapped to multiple layers **fail the task with a score of 0**.
 - Layer indices must be in `[0, n_layers)`.
-- Every layer must have at least one miner assigned. Assignments that leave any layer empty are **rejected entirely** — all miners keep their previous positions for that epoch.
-- Rejected balance assignments are reported in `eval_metadata` under `balance_rejections`.
+- Every layer must have at least one miner assigned. Assignments that leave any layer empty **fail the task with a score of 0**.
 - Invalid individual entries (e.g., out-of-range layers, unknown miner IDs) are silently dropped before validation.
 
 ### MinerInfo Fields
@@ -200,6 +199,7 @@ A task scores 0 if:
 - Your total epoch time equals or exceeds `max_epoch_time`
 - The task times out (wall-clock)
 - Any `/route` or `/balance-orchestrator` call times out
+- Your `/balance-orchestrator` returns invalid assignments (multi-layer or empty layers)
 
 ### Final Score
 
@@ -227,7 +227,7 @@ The `/route` timeout is the most important constraint: your routing logic must r
 
 **Balancing (`/balance-orchestrator`):**
 - **Even layer distribution**: Ensure each layer has enough miners to handle the activation throughput. Every layer must have at least one miner.
-- **Single-layer assignment**: Each miner must be assigned to exactly one layer. Multi-layer assignments are rejected.
+- **Single-layer assignment**: Each miner must be assigned to exactly one layer. Multi-layer assignments fail the task.
 - **Adaptive rebalancing**: Use `activation_tracking_buffer` from the previous epoch to identify bottlenecks.
 
 ## Simulation Data
