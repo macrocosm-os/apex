@@ -55,7 +55,7 @@ class RoundAnnotation(BaseModel):
 
 class CompetitionDetailsResponse(BaseModel):
     top_score: float
-    score_to_beat: float
+    score_to_beat: Optional[float] = None
     competition: CompetitionInfo
     curr_round: Optional[RoundInfo] = None
     rounds: List[RoundAnnotation]
@@ -71,6 +71,6 @@ class CompetitionDetailsCache(BaseModel):
     competition: CompetitionInfo
     current_round: Optional[RoundInfo] = None
     top_score_value: float
-    score_to_beat: float
+    score_to_beat: Optional[float] = None
     rounds: List[RoundAnnotation]
     total_submissions: int
