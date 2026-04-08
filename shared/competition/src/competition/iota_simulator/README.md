@@ -175,7 +175,7 @@ The `activation_tracking_buffer` contains recent event records from completed an
 | `miner_id`      | `str`           | Which miner recorded this event                                               |
 | `layer`         | `int`           | Which layer                                                                   |
 
-The buffer is bounded (up to ~1,920 entries) and cleared between epochs. You can use it to observe throughput, identify congested miners, or track how long activations spend queuing vs. processing. The baseline ignores this data entirely — using it is an opportunity for improvement.
+The buffer is bounded (up to ~1,920 entries) and cleared between epochs. It is refreshed periodically during each epoch — early-epoch `/route` calls may see a sparse or empty buffer, while later calls see a fuller rolling window of recent events. The `/balance-orchestrator` endpoint always receives the complete buffer from the just-completed epoch. You can use it to observe throughput, identify congested miners, or track how long activations spend queuing vs. processing. The baseline ignores this data entirely — using it is an opportunity for improvement.
 
 ## Scoring
 
