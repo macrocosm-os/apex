@@ -1,6 +1,3 @@
-//! Aligned with tig-challenges from tig-foundation/tig-monorepo (c008_energy_arbitrage).
-//! See: https://github.com/tig-foundation/tig-monorepo/blob/c008_energy_arbitrage/tig-challenges/src/lib.rs
-
 #![allow(unused_imports, dead_code)]
 
 pub const BUILD_TIME_PATH: &str = env!("CARGO_MANIFEST_DIR");
