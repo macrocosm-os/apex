@@ -1,6 +1,6 @@
 [project]
 name = "validator"
-version = "4.1.20"
+version = "4.1.21"
 description = "Apex Validator"
 authors = [{ name = "Macrocosmos.ai" }]
 readme = "README.md"
@@ -8,6 +8,7 @@ dependencies = [
     "aiohttp>=3.9.0",
     "common",
     "bittensor==9.9.0",
+    "async-substrate-interface<2.0.0",
     "tenacity>=9.1.2",
     "async-substrate-interface<2.0.0",
 ]

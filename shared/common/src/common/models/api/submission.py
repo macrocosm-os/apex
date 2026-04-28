@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from pydantic import BaseModel, model_validator
 from typing import Optional
 
@@ -9,6 +10,8 @@ class SubmitRequest(BaseModel):
     raw_code: Optional[str] = None  # Text-based submissions (e.g., .py files)
     raw_binary: Optional[str] = None  # Base64-encoded binary submissions (e.g., .pt files)
     file_extension: str = ".py"  # File extension for the submission
+    payment_block_hash: Optional[str] = None  # Block hash of on-chain fee payment (hex string)
+    payment_extrinsic_index: Optional[int] = None  # Extrinsic index within the block
 
     @model_validator(mode="after")
     def validate_content(self) -> "SubmitRequest":
@@ -76,6 +79,13 @@ class SubmissionPagination(BaseModel):
 class SubmissionResponse(BaseModel):
     submissions: list[SubmissionRecord]
     pagination: SubmissionPagination
+
+
+class SubmissionFeeResponse(BaseModel):
+    amount_rao: int
+    send_address: str
+    competition_id: int
+    fee_usd: Decimal  # USD equivalent of amount_rao at the current TAO price
 
 
 class FileRequest(BaseModel):

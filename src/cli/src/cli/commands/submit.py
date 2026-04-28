@@ -1,6 +1,8 @@
 import asyncio
 import base64
 import json
+import os
+from decimal import Decimal
 import typer
 from pathlib import Path
 from typing import Optional
@@ -8,6 +10,8 @@ from typing import Optional
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import PathCompleter
 
+from bittensor import Subtensor
+from bittensor_wallet import Wallet
 from rich.console import Console
 from cli.utils.config import Config
 from cli.utils.client import Client
@@ -20,9 +24,18 @@ console = Console()
 BINARY_EXTENSIONS = {".pt", ".pth", ".onnx", ".pkl", ".pickle", ".bin", ".h5", ".hdf5", ".safetensors"}
 
 
+PAYMENT_TIMEOUT_SECONDS = 300
+
+
 def submit(
     file_path: Optional[Path] = typer.Argument(None, help="Path to the solution file"),
     competition_id: Optional[int] = typer.Option(None, "--competition-id", "-c", help="Competition ID"),
+    payment_block_hash: Optional[str] = typer.Option(
+        None, "--payment-block-hash", help="Block hash of a previous payment"
+    ),
+    payment_extrinsic_index: Optional[int] = typer.Option(
+        None, "--payment-extrinsic-index", help="Extrinsic index of a previous payment"
+    ),
 ):
     """Submit a coding solution to a competition."""
     try:
@@ -180,8 +193,146 @@ def submit(
             console.print("[yellow]Submission cancelled[/yellow]")
             return False
 
+        # Check submission fee and handle payment
+        try:
+            # Check if payment proof was provided via CLI flags
+            if payment_block_hash and payment_extrinsic_index:
+                console.print("\n[cyan]Using provided payment proof:[/cyan]")
+                console.print(f"  Block Hash: {payment_block_hash}")
+                console.print(f"  Extrinsic Index: {payment_extrinsic_index}")
+            else:
+                # Check if there's a saved receipt for this competition
+                from cli.utils.config import PaymentReceipt
+
+                saved = config.last_payment_receipt
+                if saved and saved.competition_id == competition_id:
+                    console.print(f"\n[cyan]Found saved payment receipt for competition {competition_id}:[/cyan]")
+                    console.print(f"  Block Hash: {saved.payment_block_hash}")
+                    console.print(f"  Extrinsic Index: {saved.payment_extrinsic_index}")
+                    if typer.confirm("Use this saved payment?"):
+                        payment_block_hash = saved.payment_block_hash
+                        payment_extrinsic_index = saved.payment_extrinsic_index
+
+                # No existing payment — check if one is needed
+                if not payment_block_hash:
+
+                    async def _get_fee():
+                        async with Client(config.hotkey_file_path, timeout=config.timeout) as client:
+                            return await client.get_submission_fee(competition_id)
+
+                    console.print("\n[blue]Checking submission fee...[/blue]")
+                    fee_info = asyncio.run(_get_fee())
+                    amount_rao = fee_info.get("amount_rao", 0)
+                    send_address = fee_info.get("send_address", "")
+                    fee_usd = Decimal(str(fee_info.get("fee_usd", "0")))
+
+                    if amount_rao > 0:
+                        if not config.wallet_name:
+                            console.print(
+                                "[red]Wallet name not found in config."
+                                " Please run `apex link` to re-link your wallet.[/red]"
+                            )
+                            return False
+
+                        network = os.environ.get("NETWORK", "finney")
+                        subtensor = Subtensor(network=network)
+                        wallet = Wallet(name=config.wallet_name, hotkey=config.hotkey_name or "default")
+
+                        # Decrypt coldkey once and reuse — otherwise each access to
+                        # `wallet.coldkey` prompts for the password again.
+                        coldkey_keypair = wallet.coldkey
+
+                        # Compose extrinsic to estimate the network transaction fee
+                        payment_payload = subtensor.substrate.compose_call(
+                            call_module="Balances",
+                            call_function="transfer_keep_alive",
+                            call_params={
+                                "dest": send_address,
+                                "value": amount_rao,
+                            },
+                        )
+                        payment_extrinsic = subtensor.substrate.create_signed_extrinsic(
+                            call=payment_payload, keypair=coldkey_keypair
+                        )
+
+                        # Get estimated network transaction fee
+                        tx_fee_rao = 0
+                        try:
+                            fee_info = subtensor.substrate.get_payment_info(
+                                call=payment_payload, keypair=coldkey_keypair
+                            )
+                            tx_fee_rao = fee_info.get("partialFee", 0) if fee_info else 0
+                        except Exception:
+                            pass  # Show 0 if fee estimation fails
+
+                        total_rao = amount_rao + tx_fee_rao
+                        console.print(
+                            f"\n[bold yellow]Submission fee:    {amount_rao} RAO ({amount_rao / 1e9:.4f} TAO) ≈ ${fee_usd:.2f} USD[/bold yellow]"
+                        )
+                        console.print(
+                            f"[yellow]Transaction fee:   {tx_fee_rao} RAO ({tx_fee_rao / 1e9:.4f} TAO)[/yellow]"
+                        )
+                        console.print(
+                            f"[bold yellow]Total cost:        {total_rao} RAO ({total_rao / 1e9:.4f} TAO)[/bold yellow]"
+                        )
+                        console.print(f"[yellow]Destination: {send_address}[/yellow]")
+
+                        if not typer.confirm("Proceed with payment?"):
+                            console.print("[yellow]Payment cancelled. Submission aborted.[/yellow]")
+                            return False
+
+                        console.print("[blue]Submitting payment...[/blue]")
+
+                        # Submit with timeout to avoid hanging indefinitely
+                        import concurrent.futures
+
+                        with concurrent.futures.ThreadPoolExecutor() as executor:
+                            future = executor.submit(
+                                subtensor.substrate.submit_extrinsic,
+                                payment_extrinsic,
+                                wait_for_finalization=True,
+                            )
+                            try:
+                                receipt = future.result(timeout=PAYMENT_TIMEOUT_SECONDS)
+                            except concurrent.futures.TimeoutError:
+                                console.print(
+                                    f"\n[red]Payment timed out after {PAYMENT_TIMEOUT_SECONDS}s."
+                                    " The payment may still finalize on-chain."
+                                    " Check your wallet and retry with --payment-block-hash"
+                                    " and --payment-extrinsic-index if it did.[/red]"
+                                )
+                                return False
+
+                        payment_block_hash = receipt.block_hash
+                        payment_extrinsic_index = int(receipt.extrinsic_idx)
+
+                        # Save receipt to config for retry recovery
+                        config.last_payment_receipt = PaymentReceipt(
+                            competition_id=competition_id,
+                            payment_block_hash=payment_block_hash,
+                            payment_extrinsic_index=payment_extrinsic_index,
+                        )
+                        config.save_config()
+
+                        console.print("\n[green]Payment submitted successfully.[/green]")
+                        console.print(f"[cyan]Block Hash:[/cyan] {payment_block_hash}")
+                        console.print(f"[cyan]Extrinsic Index:[/cyan] {payment_extrinsic_index}")
+                        console.print(
+                            "[dim]Receipt saved. You can retry with --payment-block-hash"
+                            " and --payment-extrinsic-index if submission fails.[/dim]\n"
+                        )
+
+        except Exception as e:
+            console.print(f"\n[red]Error during fee check/payment: {e}[/red]")
+            return False
+
+        # Attach payment proof to request if applicable
+        if payment_block_hash:
+            submit_request.payment_block_hash = payment_block_hash
+            submit_request.payment_extrinsic_index = payment_extrinsic_index
+
         # Submit solution
-        console.print("\n[blue]Submitting solution...[/blue]")
+        console.print("[blue]Submitting solution...[/blue]")
 
         async def _submit():
             async with Client(config.hotkey_file_path, timeout=config.timeout) as client:
@@ -200,6 +351,10 @@ def submit(
                 console.print(f"[green]  Submission ID: {submission_id}[/green]")
             except Exception:
                 console.print("[dim]  Submission ID: unavailable[/dim]")
+            # Clear saved receipt after successful submission
+            if config.last_payment_receipt:
+                config.last_payment_receipt = None
+                config.save_config()
         else:
             console.print(f"\n[red]✗ Submission returned status {resp.status_code}[/red]")
             try:
