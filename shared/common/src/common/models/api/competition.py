@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from decimal import Decimal
 from pydantic import BaseModel
 from typing import Optional
 
@@ -57,6 +58,7 @@ class CompetitionRecord(BaseModel):
     total_submissions: int = 0
     image_url: Optional[str] = None
     base_burn_rate: float = DEFAULT_BASE_BURN_RATE
+    submission_fee_usd: Decimal = Decimal("0.0")
 
 
 class CompetitionResponse(BaseModel):

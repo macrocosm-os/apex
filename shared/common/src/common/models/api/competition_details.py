@@ -44,6 +44,7 @@ class ScorePoint(BaseModel):
     date: datetime
     score: float
     round_number: int
+    version: int
     hotkey: str
     has_metadata: bool = False
 

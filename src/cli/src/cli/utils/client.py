@@ -137,6 +137,15 @@ class Client:
         except Exception as e:
             raise
 
+    async def get_submission_fee(self, competition_id: int) -> dict:
+        """Get the current submission fee for a competition."""
+        response = await self._make_request(
+            method="GET",
+            path="/miner/submission/fee",
+            params={"competition_id": competition_id},
+        )
+        return response.json()
+
     async def list_competitions(
         self,
         id: int | None = None,

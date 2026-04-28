@@ -43,3 +43,8 @@ SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "0.01"))
 
 # Competition settings
 DEFAULT_BASE_BURN_RATE = 0.9
+
+# Submission fee settings
+SUBMISSION_FEE_ADDRESS = os.getenv(
+    "SUBMISSION_FEE_ADDRESS", "5EtauUg5ZyHYuRN8MP1hBSejvFjXsKoCKcDr3FJrdy8dZepK"
+)  # prod ss58 coldkey that receives submission fees
