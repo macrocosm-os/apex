@@ -48,3 +48,8 @@ DEFAULT_BASE_BURN_RATE = 0.9
 SUBMISSION_FEE_ADDRESS = os.getenv(
     "SUBMISSION_FEE_ADDRESS", "5EtauUg5ZyHYuRN8MP1hBSejvFjXsKoCKcDr3FJrdy8dZepK"
 )  # prod ss58 coldkey that receives submission fees
+
+# Use archive finney network for payment verification
+SUBMISSION_FEE_VERIFICATION_NETWORK = os.getenv(
+    "SUBMISSION_FEE_VERIFICATION_NETWORK", "wss://archive.chain.opentensor.ai:443"
+)

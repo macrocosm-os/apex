@@ -15,6 +15,7 @@ from bittensor_wallet import Wallet
 from rich.console import Console
 from cli.utils.config import Config
 from cli.utils.client import Client
+from cli.utils.payment import canonicalize_block_hash
 from cli.utils.wallet import load_keypair_from_file
 from common.models.api.submission import SubmitRequest
 
@@ -305,6 +306,10 @@ def submit(
 
                         payment_block_hash = receipt.block_hash
                         payment_extrinsic_index = int(receipt.extrinsic_idx)
+
+                        payment_block_hash, warning = canonicalize_block_hash(subtensor.substrate, payment_block_hash)
+                        if warning:
+                            console.print(f"[yellow]{warning}[/yellow]")
 
                         # Save receipt to config for retry recovery
                         config.last_payment_receipt = PaymentReceipt(
