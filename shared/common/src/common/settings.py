@@ -49,7 +49,11 @@ SUBMISSION_FEE_ADDRESS = os.getenv(
     "SUBMISSION_FEE_ADDRESS", "5EtauUg5ZyHYuRN8MP1hBSejvFjXsKoCKcDr3FJrdy8dZepK"
 )  # prod ss58 coldkey that receives submission fees
 
-# Use archive finney network for payment verification
+# Primary network for payment verification — defaults to finney lite for low-latency
+# verification of recent blocks. State-pruned blocks (older than ~256 blocks on lite)
+# transparently fail over to SUBMISSION_FEE_VERIFICATION_ARCHIVE_NETWORK if set.
 SUBMISSION_FEE_VERIFICATION_NETWORK = os.getenv(
-    "SUBMISSION_FEE_VERIFICATION_NETWORK", "wss://archive.chain.opentensor.ai:443"
+    "SUBMISSION_FEE_VERIFICATION_NETWORK", "wss://entrypoint-finney.opentensor.ai:443"
 )
+
+SUBMISSION_FEE_VERIFICATION_ARCHIVE_NETWORK = os.getenv("SUBMISSION_FEE_VERIFICATION_ARCHIVE_NETWORK", "")
