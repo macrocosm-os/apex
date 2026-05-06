@@ -27,6 +27,9 @@ class MinerRankRecord(BaseModel):
     join_date: str | int | float | None = None
     # Number of submissions by the miner
     submissions_count: int
+    # True if any of this miner's submissions has a browser-playable artifact
+    # (currently: ONNX-converted Tron round winners). Generic across competitions.
+    can_play: bool = False
 
 
 class RanksPagination(BaseModel):

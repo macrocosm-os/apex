@@ -70,9 +70,43 @@ class SandboxStartupConfig(BaseModel):
     nodepool: str | None = None
 
 
+class ReadinessProbeSpec(BaseModel):
+    """Kubelet-driven readiness probe for a sandbox container.
+
+    When set on SandboxRunRules, the K8s sandbox attaches this as a readinessProbe on
+    the runner container and gates `exit_after_startup=True` on the kubelet flipping
+    `containerStatuses[runner].ready` rather than grepping pod stdout for a token.
+    Replaces the log-grep readiness path; ignored by the Docker sandbox.
+
+    Defaults match the existing `max_wait_for_ready=60` ceiling at parity
+    (failure_threshold * period_seconds = 60s) so this change swaps the readiness
+    substrate without changing the cold-start budget.
+    """
+
+    # Probe form. Exactly one of http_get / exec_command / tcp_socket should be set.
+    http_get: str | None = None  # path, e.g. "/health"
+    exec_command: list[str] | None = None  # argv, e.g. ["test", "-f", "/workspace/.ready_to_run"]
+    tcp_socket: bool = False  # use the port below for a TCP connection check
+
+    port: int | None = None  # required for http_get and tcp_socket
+
+    initial_delay_seconds: int = 2
+    period_seconds: int = 1
+    timeout_seconds: int = 2
+    failure_threshold: int = 60  # 60 * 1s = 60s budget; bump per-competition on evidence
+    success_threshold: int = 1
+
+    # Number of log lines to fetch synchronously on probe failure. None means use the slow-failure fallback
+    # (since_time=<pod creation>) instead of a tail.
+    failure_log_tail_lines: int | None = 200
+
+
 class SandboxRunRules(BaseModel):
     sandbox_index: int = 0
     run_timeout_in_seconds: int = 60
+    # Seconds to wait for the sandbox container to signal readiness before
+    # raising SandboxStartupError. Applies when `exit_after_startup=True`.
+    startup_timeout_in_seconds: int = 60
     filename: str = "solution.py"
     command: str | list[str] = "python solution.py"
     startup_config: SandboxStartupConfig | None = None
@@ -96,6 +130,11 @@ class SandboxRunRules(BaseModel):
 
     # K8s image pull policy ("Always", "IfNotPresent", "Never"). Ignored by Docker sandbox.
     image_pull_policy: str = "IfNotPresent"
+
+    # When set, the K8s sandbox attaches this as a readinessProbe on the runner
+    # container and uses kubelet readiness (not log-grep) to gate
+    # `exit_after_startup=True`. Ignored by Docker sandbox.
+    readiness_probe: ReadinessProbeSpec | None = None
 
 
 class SandboxMetrics(BaseModel):
