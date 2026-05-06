@@ -67,6 +67,10 @@ class SubmissionDetail(BaseModel):
     reveal_at: Optional[datetime] = None
     is_binary: bool = False
     language: str | None = None
+    # True if this submission has a browser-playable artifact (e.g. an
+    # ONNX-converted Tron model). Generic across competitions; derived from
+    # `submit_metadata.onnx`.
+    can_play: bool = False
 
 
 class SubmissionPagination(BaseModel):
