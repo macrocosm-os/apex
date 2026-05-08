@@ -15,6 +15,7 @@ class MinerRankRecord(BaseModel):
     # True if current submission is a winner
     top_scorer: bool
     hotkey: str
+    coldkey: Optional[str] = None
     # Miner's best score
     score: float
     # Score multiplied by incentive weight (for rendering)
@@ -43,6 +44,7 @@ class MinerRanksResponse(BaseModel):
     competition_id: int
     incentive_weight_render: float
     curr_top_scorer_hotkey: Optional[str] = None
+    curr_top_scorer_coldkey: Optional[str] = None
     miners: list[MinerRankRecord]
     pagination: RanksPagination
     total_submissions: int
