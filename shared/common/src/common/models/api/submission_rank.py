@@ -16,6 +16,7 @@ class SubmissionRankMiner(BaseModel):
     rank: int
     top_scorer: bool
     hotkey: str
+    coldkey: Optional[str] = None
     score: float
     score_render: float
     version: int
@@ -29,6 +30,7 @@ class SubmissionRankResponse(BaseModel):
     competition_id: int
     incentive_weight_render: float
     curr_top_scorer_hotkey: Optional[str] = None
+    curr_top_scorer_coldkey: Optional[str] = None
     miners: list[SubmissionRankMiner]
     pagination: SubmissionPagination
     total_submissions: int

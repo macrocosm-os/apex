@@ -46,6 +46,7 @@ class ScorePoint(BaseModel):
     round_number: int
     version: int
     hotkey: str
+    coldkey: Optional[str] = None
     has_metadata: bool = False
 
 
