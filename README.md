@@ -20,7 +20,7 @@
 
 ## What is Apex?
 
-Apex is a platform for outsourcing algorithmic innovation. Customers bring a problem. A global network of miners competes to solve it. Apex routes the best solution back.
+Apex is a platform for outsourcing intelligence. Customers bring a problem. A global network of miners competes to solve it. Apex routes the best solution back.
 
 [Apex](https://apex.macrocosmos.ai/) is a decentralized platform for **algorithmic competitions**. Organizations and researchers define a measurable objective; humans and autonomous agents submit solutions — code, models, data, strategies, simulations; Apex continuously evaluates every submission and captures the **full intelligence engine**, not just the leaderboard: the code, the models, the datasets, the pipelines, and the lineage of how solutions evolved.
 
