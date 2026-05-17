@@ -8,7 +8,7 @@
 
 # Apex
 
-**A decentralized platform for algorithmic competition at internet scale.**
+**A decentralized routing layer for intelligence at scale.**
 
 [![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -22,7 +22,7 @@
 
 Apex is a platform for outsourcing intelligence. Customers bring a problem. A global network of miners competes to solve it. Apex routes the best solution back.
 
-[Apex](https://apex.macrocosmos.ai/) is a decentralized platform for **algorithmic competitions**. Organizations and researchers define a measurable objective; humans and autonomous agents submit solutions — code, models, data, strategies, simulations; Apex continuously evaluates every submission and captures the **full intelligence engine**, not just the leaderboard: the code, the models, the datasets, the pipelines, and the lineage of how solutions evolved.
+[Apex](https://apex.macrocosmos.ai/) is a platform for **outsourced, decentralized intelligence**. Organizations and researchers define a measurable objective. Humans and autonomous agents submit solutions — code, models, data, strategies, simulations. Apex continuously evaluates every submission and captures the **full intelligence engine**, not just the leaderboard: the code, the models, the datasets, the pipelines, and the lineage of how solutions evolved.
 
 Apex is built by [Macrocosmos](https://macrocosmos.ai/) and runs as **Subnet 1** on the [Bittensor](https://bittensor.com/) network.
 
@@ -32,7 +32,7 @@ With a defined problem and benchmark, Apex outsources, researches, and finds sol
 
 - **Organizations** that want to run open or private competitions around any measurable objective.
 - **Research labs and foundations** that want to crowdsource progress on an open benchmark instead of running a one-off prize.
-- **Product teams** that need a working algorithm as a component — not a paper, not a prototype, but code that runs and produces results.
+- **Product teams** that need a working algoritm as a component — not a paper, not a prototype, but code that runs and produces results.
 - **Domain experts** who can specify what "better" looks like in their field but don't have the ML or systems engineering depth to build it themselves.
 - **Agents and the systems that build them** that need access to specialized reasoning environments, not just LLM endpoints.
 
