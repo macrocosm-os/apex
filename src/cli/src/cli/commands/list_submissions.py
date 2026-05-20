@@ -148,7 +148,7 @@ def list_submissions(
                 top_score,
                 version_str,
                 age_str,
-                get_state(sub.state, compact=True),
+                get_state(sub.state, compact=True, eval_error=sub.eval_error),
                 reveal_status,
                 log_icon,
                 format_datetime(sub.submit_at, include_seconds=True),

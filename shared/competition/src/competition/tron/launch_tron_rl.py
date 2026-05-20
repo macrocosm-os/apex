@@ -22,7 +22,6 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-
 # ============================================================================
 # State Encoding
 # ============================================================================
@@ -123,11 +122,144 @@ class GameSession(BaseModel):
 
 
 # ============================================================================
+# Layer 2 in-sandbox model validation
+#
+# Intentionally silent. The only externally observable failure signal is the
+# bare sentinel `MODEL_VALIDATION_FAILED` written to stderr via SystemExit,
+# which the evaluation runner detects in the sandbox log. No per-check
+# details, thresholds, or check names are ever emitted.
+# ============================================================================
+
+_VALIDATION_SENTINEL = "MODEL_VALIDATION_FAILED"
+_MIN_PARAMETER_COUNT = 1_000
+_MIN_WEIGHT_STD = 1e-6
+_INPUT_CHANNELS = 5
+_NUM_ACTIONS = 4
+
+
+def _check_parameter_count(model: torch.jit.ScriptModule) -> bool:
+    return sum(p.numel() for p in model.parameters()) >= _MIN_PARAMETER_COUNT
+
+
+def _check_parameter_distribution(model: torch.jit.ScriptModule) -> bool:
+    chunks = [p.detach().cpu().numpy().flatten() for p in model.parameters()]
+    if not chunks:
+        return False
+    w = np.concatenate(chunks)
+    if np.any(np.isnan(w)) or np.any(np.isinf(w)):
+        return False
+    if np.allclose(w, 0, atol=1e-10):
+        return False
+    if np.allclose(w, w[0], atol=1e-10):
+        return False
+    return float(np.std(w)) >= _MIN_WEIGHT_STD
+
+
+def _check_output_shape(model: torch.jit.ScriptModule, device: torch.device, board) -> bool:
+    h, w = board
+    inp = torch.rand(1, _INPUT_CHANNELS, h, w, device=device)
+    try:
+        with torch.no_grad():
+            out = model(inp)
+    except Exception:
+        return False
+    return out.flatten().numel() >= _NUM_ACTIONS
+
+
+def _check_output_variation(model: torch.jit.ScriptModule, device: torch.device, board) -> bool:
+    h, w = board
+    inputs = [
+        torch.zeros(1, _INPUT_CHANNELS, h, w, device=device),
+        torch.ones(1, _INPUT_CHANNELS, h, w, device=device),
+        torch.rand(1, _INPUT_CHANNELS, h, w, device=device),
+    ]
+    outputs = []
+    with torch.no_grad():
+        for inp in inputs:
+            try:
+                outputs.append(model(inp).cpu().numpy().flatten()[:_NUM_ACTIONS])
+            except Exception:
+                return False
+    if len(outputs) != len(inputs):
+        return False
+    return not all(np.allclose(outputs[0], o, atol=1e-6) for o in outputs[1:])
+
+
+def _check_gradient_flow(model: torch.jit.ScriptModule, device: torch.device, board) -> bool:
+    h, w = board
+    inp = torch.rand(1, _INPUT_CHANNELS, h, w, device=device)
+    params = list(model.parameters())
+    if not params:
+        return False
+    for p in params:
+        p.requires_grad_(True)
+    try:
+        loss = model(inp).sum()
+        loss.backward()
+        live = 0
+        for p in params:
+            if p.grad is not None and p.grad.abs().sum().item() > 0:
+                live += p.numel()
+        return live > 0
+    except Exception:
+        return False
+    finally:
+        for p in params:
+            p.requires_grad_(False)
+            p.grad = None
+
+
+def _check_output_sensitivity(model: torch.jit.ScriptModule, device: torch.device, board) -> bool:
+    h, w = board
+    torch.manual_seed(42)
+    base_input = torch.rand(1, _INPUT_CHANNELS, h, w, device=device)
+    epsilons = (1e-3, 1e-2, 1e-1)
+    diffs = []
+    with torch.no_grad():
+        try:
+            base_out = model(base_input).cpu().numpy().flatten()[:_NUM_ACTIONS]
+            for eps in epsilons:
+                torch.manual_seed(0)
+                perturbed = base_input + eps * torch.randn_like(base_input)
+                perturbed_out = model(perturbed).cpu().numpy().flatten()[:_NUM_ACTIONS]
+                diffs.append(float(np.abs(base_out - perturbed_out).mean()))
+        except Exception:
+            return False
+    if not diffs:
+        return False
+    smallest, largest = diffs[0], diffs[-1]
+    if largest < 1e-8:
+        return False
+    if smallest < 1e-10 and largest > 0.01:
+        return False
+    return True
+
+
+def _validate_model(model: torch.jit.ScriptModule, device: torch.device, board: tuple[int, int]) -> None:
+    """Run all Layer 2 checks. Raises SystemExit with the bare sentinel on any failure.
+
+    `board` is the (height, width) the competition will actually play on, passed from the runner
+    """
+    if not _check_parameter_count(model):
+        raise SystemExit(_VALIDATION_SENTINEL)
+    if not _check_parameter_distribution(model):
+        raise SystemExit(_VALIDATION_SENTINEL)
+    if not _check_output_shape(model, device, board):
+        raise SystemExit(_VALIDATION_SENTINEL)
+    if not _check_output_variation(model, device, board):
+        raise SystemExit(_VALIDATION_SENTINEL)
+    if not _check_gradient_flow(model, device, board):
+        raise SystemExit(_VALIDATION_SENTINEL)
+    if not _check_output_sensitivity(model, device, board):
+        raise SystemExit(_VALIDATION_SENTINEL)
+
+
+# ============================================================================
 # FastAPI Application
 # ============================================================================
 
 
-def make_app(model_path: str) -> FastAPI:
+def make_app(model_path: str, board_height: int, board_width: int) -> FastAPI:
     app = FastAPI(title="Tron RL Player API")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -141,6 +273,8 @@ def make_app(model_path: str) -> FastAPI:
     except Exception as e:
         print(f"Failed to load model: {e}")
         raise
+
+    _validate_model(model, device, (board_height, board_width))
 
     SESSIONS: Dict[str, GameSession] = {}
 
@@ -224,11 +358,13 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--model", type=str, required=True, help="Path to TorchScript model (.pt)")
+    parser.add_argument("--board-height", type=int, required=True, help="Tron board height for this round")
+    parser.add_argument("--board-width", type=int, required=True, help="Tron board width for this round")
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
         print(f"Error: Model not found at {args.model}")
         exit(1)
 
-    app = make_app(model_path=args.model)
+    app = make_app(model_path=args.model, board_height=args.board_height, board_width=args.board_width)
     uvicorn.run(app, host=args.host, port=args.port)

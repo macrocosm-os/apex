@@ -10,8 +10,6 @@ from typing import Optional
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import PathCompleter
 
-from bittensor import Subtensor
-from bittensor_wallet import Wallet
 from rich.console import Console
 from cli.utils.config import Config
 from cli.utils.client import Client
@@ -234,6 +232,9 @@ def submit(
                                 " Please run `apex link` to re-link your wallet.[/red]"
                             )
                             return False
+
+                        from bittensor import Subtensor
+                        from bittensor_wallet import Wallet
 
                         network = os.environ.get("NETWORK", "finney")
                         subtensor = Subtensor(network=network)

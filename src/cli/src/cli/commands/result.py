@@ -106,7 +106,7 @@ def _show_submission_detail(submission, detail, comp):
         f"[dim]Submission ID:[/dim]    {sub.id}",
         f"[dim]Competition ID:[/dim]   {sub.competition_id}",
         f"[dim]Round Number:[/dim]     {sub.round_number}",
-        f"[dim]State:[/dim]            {get_state(sub.state)}",
+        f"[dim]State:[/dim]            {get_state(sub.state, eval_error=sub.eval_error)}",
         f"[dim]Hotkey:[/dim]           {sub.hotkey}",
         f"[dim]Version:[/dim]          {version}",
         f"[dim]Top Score:[/dim]        {top_score}",
