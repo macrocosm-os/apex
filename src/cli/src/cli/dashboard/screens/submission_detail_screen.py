@@ -243,7 +243,7 @@ class SubmissionDetailScreen(Screen):
 [dim]Submission ID:[/dim] {sub.id}
 [dim]Competition ID:[/dim] {sub.competition_id}
 [dim]Round Number:[/dim] {sub.round_number}
-[dim]State:[/dim] {get_state(sub.state)}
+[dim]State:[/dim] {get_state(sub.state, eval_error=sub.eval_error)}
 [dim]Hotkey:[/dim] {sub.hotkey}
 [dim]Version:[/dim] {version}
 [dim]Top Score:[/dim] {top_score}
