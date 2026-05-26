@@ -22,7 +22,6 @@ import uvicorn
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
-
 # ============================================================================
 # State Encoding
 # ============================================================================
@@ -127,7 +126,7 @@ class GameSession(BaseModel):
 # ============================================================================
 
 
-def make_app(model_path: str) -> FastAPI:
+def make_app(model_path: str, board_height: int, board_width: int) -> FastAPI:
     app = FastAPI(title="Tron RL Player API")
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -224,11 +223,13 @@ if __name__ == "__main__":
     parser.add_argument("--port", type=int, default=8001)
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--model", type=str, required=True, help="Path to TorchScript model (.pt)")
+    parser.add_argument("--board-height", type=int, required=True, help="Tron board height for this round")
+    parser.add_argument("--board-width", type=int, required=True, help="Tron board width for this round")
     args = parser.parse_args()
 
     if not os.path.exists(args.model):
         print(f"Error: Model not found at {args.model}")
         exit(1)
 
-    app = make_app(model_path=args.model)
+    app = make_app(model_path=args.model, board_height=args.board_height, board_width=args.board_width)
     uvicorn.run(app, host=args.host, port=args.port)

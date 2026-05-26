@@ -3,6 +3,8 @@
 from datetime import datetime
 from textual.widgets import Log
 
+_SCREENER_REJECTION_MARKERS = ("screener validation",)
+
 
 def log_success(log_widget: Log, message: str) -> None:
     """Log a success message in green."""
@@ -39,7 +41,18 @@ def log_warning(log_widget: Log, message: str) -> None:
 # 0 = reset, 1 = bold, 2 = dim, 3 = italic, 4 = underline
 
 
-def get_state(state: str, compact: bool = False) -> str:
+def get_state(state: str, compact: bool = False, eval_error: str | None = None) -> str:
+    """Render a state badge. If `eval_error` matches a known sandbox-screener
+    rejection marker on a `scored` submission, the badge is overridden to
+    `sandbox_rejected` — these submissions technically completed (with a
+    0/forfeit score) but were thrown out by the in-sandbox model validator.
+
+    Note: `rejected` and `sandbox_rejected` mean materially different things to
+    the miner — only the former (pre-sandbox competition-screener rejection)
+    refunds the submission fee. Sandbox-screener rejections are non-refundable.
+    """
+    if state == "scored" and eval_error and any(m in eval_error.lower() for m in _SCREENER_REJECTION_MARKERS):
+        state = "sandbox_rejected"
     mapping = {
         "pending": ("⏳", "[yellow]pending[/yellow]"),
         "active": ("🟢", "[green]active[/green]"),
@@ -50,6 +63,8 @@ def get_state(state: str, compact: bool = False) -> str:
         "completed": ("🏁", "[bold blue]completed[/bold blue]"),
         "stale": ("🟡", "[yellow]stale[/yellow]"),
         "replaced": ("🗑️ ", "[orange]replaced[/orange]"),
+        "rejected": ("🔴", "[red]rejected[/red]"),
+        "sandbox_rejected": ("❌", "[red]sandbox rejected[/red]"),
         "evaluation": ("⏳", "[orange]evaluation[/orange]"),
         "partially_scored": ("⏳", "[orange]partially scored[/orange]"),
     }
