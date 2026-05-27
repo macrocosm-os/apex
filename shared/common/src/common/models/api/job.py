@@ -57,6 +57,8 @@ class JobResponse(BaseModel):
     language: list[str] = []
     submit_metadata: list[dict] = []
     raw_code: list[str] = []
+    # Per-submission cached screening verdict ("passed"/"failed"/None)
+    screening_status: list[str | None] = []
     round_generation: RoundGenerationPayload | None = None
     onnx_conversion: OnnxConversionPayload | None = None
 
