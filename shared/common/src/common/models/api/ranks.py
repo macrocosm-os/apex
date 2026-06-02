@@ -31,6 +31,8 @@ class MinerRankRecord(BaseModel):
     # True if any of this miner's submissions has a browser-playable artifact
     # (currently: ONNX-converted Tron round winners). Generic across competitions.
     can_play: bool = False
+    estimated_current_competition_alpha_earned: float = 0.0
+    estimated_current_round_alpha_earned: float = 0.0
 
 
 class RanksPagination(BaseModel):

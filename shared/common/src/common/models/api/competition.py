@@ -56,6 +56,11 @@ class CompetitionRecord(BaseModel):
     top_scorer_hotkey: Optional[str] = None
     score_to_beat: Optional[float] = None
     total_submissions: int = 0
+    active_miners: int = 0
+    total_alpha_earned: Optional[float] = None
+    daily_alpha_earned: Optional[float] = None
+    total_rounds: Optional[int] = None
+    daily_submissions: list[int] = []
     image_url: Optional[str] = None
     base_burn_rate: float = DEFAULT_BASE_BURN_RATE
     submission_fee_usd: Decimal = Decimal("0.0")
@@ -64,6 +69,8 @@ class CompetitionRecord(BaseModel):
 class CompetitionResponse(BaseModel):
     competitions: list[CompetitionRecord]
     pagination: SubmissionPagination
+    total_alpha_earned: Optional[float] = None
+    daily_submissions: list[int] = []
 
 
 class ComingSoonCompetition(BaseModel):
