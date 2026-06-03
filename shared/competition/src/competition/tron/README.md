@@ -36,9 +36,9 @@ Note: the per-game *score* depends on **how** the game ended, not just who survi
 
 ### Spawn Positions
 
-Players spawn in opposite corners:
-- Player 0: top-left area `(2, 2)`, facing DOWN
-- Player 1: bottom-right area `(29, 29)`, facing UP
+Players spawn in opposite corners (one cell inside the wall border):
+- Player 0: top-left `(1, 1)`, facing DOWN
+- Player 1: bottom-right `(30, 30)`, facing UP
 
 ## Submission Format
 
@@ -100,7 +100,7 @@ The scoring rewards aggression: a clean kill (`1.00`) is worth more than waiting
 
 #### Match outcome and tiebreakers
 
-The per-duel score is the **average** across the 3 games (`sum(per_game_scores) / num_games`). The submission with the higher per-duel score wins the match and advances; the loser is eliminated.
+The **per-duel score** is the average of the 3 per-game scores (`sum(per_game_scores) / num_games`). The submission with the higher per-duel score wins the match and advances; the loser is eliminated. This average only decides **who advances** in a given match — it is *not* the `eval_score` reported for the round (see [Round scoring](#round-scoring) below).
 
 If per-duel scores tie, tiebreakers apply in order:
 
@@ -111,7 +111,11 @@ If per-duel scores tie, tiebreakers apply in order:
 
 ### Round scoring
 
-A submission's round score is its **win rate across the matches it actually played** in the bracket. Eliminated submissions stop accumulating matches at the round they're knocked out, so deeper survivors have more matches contributing to their score. The bracket winner is the last submission standing.
+A submission's reported scores reflect **how deep it got in the bracket**, not its per-duel averages:
+
+- **`eval_raw_score`** = the **number of bracket rounds it survived** — i.e. how many matches it won before being eliminated. The bracket winner survives every round.
+- **`eval_score`** = `eval_raw_score / total_rounds`, where `total_rounds` is the bracket depth (the number of rounds the eventual winner played). This puts `eval_score` in `[0, 1]`, and the **tournament winner always scores `1.0`**.
+
 
 ### Multiple submissions
 
