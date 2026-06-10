@@ -1,5 +1,6 @@
 import base64
 import os
+import httpx
 from pathlib import Path
 from datetime import datetime, timezone
 from rich.console import Console
@@ -190,17 +191,27 @@ async def download_file(
                 )
                 code_response = await client.get_submission_code(code_request=code_request)
 
-                if code_response and code_response.code:
+                if code_response and (code_response.code or code_response.download_url):
                     # Create directory if it doesn't exist
                     path = Path(file_path)
                     path.parent.mkdir(parents=True, exist_ok=True)
 
                     # Write the code to file
                     if code_response.is_binary:
-                        # Binary file
-                        binary_data = base64.b64decode(code_response.code)
-                        with open(path, "wb") as f:
-                            f.write(binary_data)
+                        if code_response.download_url:
+                            # Large model binaries are served via a presigned S3 URL. Stream it
+                            # straight to disk so the CLI never holds the whole file in memory.
+                            async with httpx.AsyncClient(timeout=config.timeout) as http_client:
+                                async with http_client.stream("GET", code_response.download_url) as resp:
+                                    resp.raise_for_status()
+                                    with open(path, "wb") as f:
+                                        async for chunk in resp.aiter_bytes():
+                                            f.write(chunk)
+                        else:
+                            # Backwards-compat: older servers inline base64-encoded bytes.
+                            binary_data = base64.b64decode(code_response.code)
+                            with open(path, "wb") as f:
+                                f.write(binary_data)
                     else:
                         # Text file
                         with open(path, "w") as f:
