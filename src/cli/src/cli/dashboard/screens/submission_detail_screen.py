@@ -378,7 +378,14 @@ class SubmissionDetailScreen(Screen):
                         start_idx=0,
                     )
                     code_response = await client.get_submission_code(code_request)
-                    if code_response:
+                    if code_response and code_response.is_binary:
+                        # Binary model files (e.g. .pt) are served as a presigned download URL and
+                        # can't be rendered inline. Prompt the user to download instead.
+                        self.display_file_content(
+                            filename, "[Binary submission — use the download action to fetch the model file.]"
+                        )
+                        log_success(log_widget, f"Loaded code content: {filename}")
+                    elif code_response:
                         self.display_file_content(filename, code_response.code)
                         log_success(log_widget, f"Loaded code content: {filename}")
                     else:
