@@ -63,3 +63,10 @@ class MinerProfileResponse(BaseModel):
     activity: ActivityTimeline
     competitions: list[CompetitionHistory] = []
     pagination: SubmissionPagination
+
+
+class ColdkeyExistsResponse(BaseModel):
+    """Response for `GET /public/miners/by-coldkey/{coldkey}/exists`."""
+
+    coldkey: str
+    exists: bool
