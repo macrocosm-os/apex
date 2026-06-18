@@ -1,3 +1,4 @@
+from decimal import Decimal
 from datetime import date, datetime
 from typing import Optional
 
@@ -11,11 +12,19 @@ class SubmissionHistoryRecord(BaseModel):
 
     submission_id: int
     hotkey: str
+    rank: Optional[int] = None
     round_number: int
     submitted_at: datetime
     score: Optional[float] = None
     state: str
     version: int
+
+
+class ProfileHotkey(BaseModel):
+    """A hotkey linked to the profile with its alpha earnings breakdown."""
+
+    hotkey: str
+    alpha_earned_total: Decimal = Decimal("0.0")
 
 
 class CompetitionHistory(BaseModel):
@@ -26,7 +35,7 @@ class CompetitionHistory(BaseModel):
     submission_count: int
     best_score: Optional[float] = None
     last_submission_at: Optional[datetime] = None
-    alpha_earned: float = 0.0
+    alpha_earned: Decimal = Decimal("0.0")
     submissions: list[SubmissionHistoryRecord] = []
 
 
@@ -37,10 +46,18 @@ class DailyActivity(BaseModel):
     count: int
 
 
+class DailyEarnings(BaseModel):
+    """One bucket of daily alpha earnings."""
+
+    date: date
+    alpha_earned: Decimal
+
+
 class ActivityTimeline(BaseModel):
     """Activity timeline used by the profile heatmap."""
 
     daily_submissions: list[DailyActivity] = []
+    daily_earnings: list[DailyEarnings] = []
 
 
 class ProfileSummary(BaseModel):
@@ -51,15 +68,22 @@ class ProfileSummary(BaseModel):
     scored_submission_count: int
     best_score: Optional[float] = None
     last_submission_at: Optional[datetime] = None
-    alpha_earned_total: float = 0.0
+    alpha_earned_total: Decimal = Decimal("0.0")
 
 
 class MinerProfileResponse(BaseModel):
     """Aggregate response for `GET /public/miners/by-coldkey/{coldkey}/profile`."""
 
     coldkey: str
-    hotkeys: list[str] = []
+    hotkeys: list[ProfileHotkey] = []
     summary: ProfileSummary
     activity: ActivityTimeline
     competitions: list[CompetitionHistory] = []
     pagination: SubmissionPagination
+
+
+class ColdkeyExistsResponse(BaseModel):
+    """Response for `GET /public/miners/by-coldkey/{coldkey}/exists`."""
+
+    coldkey: str
+    exists: bool
