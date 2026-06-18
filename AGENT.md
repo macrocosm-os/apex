@@ -1,6 +1,8 @@
-# AGENT.md — How to start mining Apex (no prior knowledge needed)
+# Apex - Bittensor Subnet 1
 
-**Apex is Kaggle for decentralized intelligence.** It runs open competitions where
+**Apex is Kaggle for decentralized intelligence.** The difference: Kaggle captures
+*predictions*, while Apex captures *intelligence* — the actual models and algorithms
+that produce them. It runs open competitions where
 anyone can submit an algorithm or model to solve hard problems, scores every entry
 automatically, and pays out crypto rewards to the best solutions — no gatekeepers, no
 application process. Instead of a single company deciding who builds the best AI, Apex

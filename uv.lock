@@ -164,7 +164,7 @@ wheels = [
 
 [[package]]
 name = "apex"
-version = "4.1.32"
+version = "4.1.41"
 source = { virtual = "." }
 
 [[package]]
@@ -399,7 +399,7 @@ wheels = [
 
 [[package]]
 name = "cli"
-version = "4.1.32"
+version = "4.1.41"
 source = { editable = "src/cli" }
 dependencies = [
     { name = "async-substrate-interface" },
@@ -451,7 +451,7 @@ wheels = [
 
 [[package]]
 name = "common"
-version = "4.1.32"
+version = "4.1.41"
 source = { editable = "shared/common" }
 dependencies = [
     { name = "bittensor-wallet" },
@@ -478,7 +478,7 @@ requires-dist = [
 
 [[package]]
 name = "competition"
-version = "4.1.32"
+version = "4.1.41"
 source = { editable = "shared/competition" }
 
 [[package]]
@@ -1609,7 +1609,7 @@ wheels = [
 
 [[package]]
 name = "validator"
-version = "4.1.32"
+version = "4.1.41"
 source = { editable = "src/validator" }
 dependencies = [
     { name = "aiohttp" },
