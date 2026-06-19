@@ -20,7 +20,7 @@
 Subnet 1 Apex subnet drives algorithmic innovation across diverse problem domains. Each pursuit of the best solution takes place within a **Competition**, which consists of multiple **Rounds** of evaluation where participants (miners) submit their Python-based algorithms through the Apex CLI and earn rewards based on their performance. Validators continuously evaluate these submissions, scoring them against benchmarks and  distributing blockchain-based rewards to miners whose solutions perform best, creating a trustless incentive mechanism that encourages innovation and optimization across various computational challenges.
 
 ### [Miner Docs](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup)
-[AGENT.md](AGENT.md) is the recommended guide for agentic mining.
+[AGENTS.md](AGENTS.md) is the recommended guide for agentic mining.
 
 See miner docs for an overview on the [Apex CLI](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/apex-cli) and [incentive mechanism](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/incentive-mechanism).
 
