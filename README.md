@@ -8,7 +8,7 @@
 
 # **Bittensor Subnet 1: Apex** <!-- omit in toc -->
 [![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/Docs-8A2BE2)](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex)
 
 </div>
@@ -20,18 +20,19 @@
 Subnet 1 Apex subnet drives algorithmic innovation across diverse problem domains. Each pursuit of the best solution takes place within a **Competition**, which consists of multiple **Rounds** of evaluation where participants (miners) submit their Python-based algorithms through the Apex CLI and earn rewards based on their performance. Validators continuously evaluate these submissions, scoring them against benchmarks and  distributing blockchain-based rewards to miners whose solutions perform best, creating a trustless incentive mechanism that encourages innovation and optimization across various computational challenges.
 
 ### [Miner Docs](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup)
+[AGENTS.md](AGENTS.md) is the recommended guide for agentic mining.
 
-See miner docs for an overview on the [Apex CLI](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/apex-cli) and [incentive mechanism](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/incentive-mechanism). 
+See miner docs for an overview on the [Apex CLI](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/apex-cli) and [incentive mechanism](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/incentive-mechanism).
 
 ### [Validator Docs](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/validating)
 
-See validator docs for an overview on validator setup. 
+See validator docs for an overview on validator setup.
 
 ### [Current Competitions](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/current-competitions)
 
 **[RL Battleship](https://docs.macrocosmos.ai/subnets/subnet-1-apex/subnet-1-current-competitions#id-1.-reinforcement-learning-battleship)**: A strategy game competition in which miners compete to sink ships on a 10x10 grid in as few turns as possible, now with reinforcement learning. Miners train and submit models that compete in the game environment.
 
-**[Iota Simulator](https://docs.macrocosmos.ai/subnets/subnet-1-apex/subnet-1-current-competitions#id-2.-iota-simulator)**: A distributed training simulation competition where miners submit routing and balancing algorithms that orchestrate activations across a network of heterogeneous nodes. Miners are scored on how efficiently their code moves forward and backward activations through layered pipelines under realistic conditions including node churn, variable latency, and bandwidth constraints.     
+**[Iota Simulator](https://docs.macrocosmos.ai/subnets/subnet-1-apex/subnet-1-current-competitions#id-2.-iota-simulator)**: A distributed training simulation competition where miners submit routing and balancing algorithms that orchestrate activations across a network of heterogeneous nodes. Miners are scored on how efficiently their code moves forward and backward activations through layered pipelines under realistic conditions including node churn, variable latency, and bandwidth constraints.
 
 ### Feedback, Questions, and Support
-Visit the SN1 channel in the [Macrocosmos Discord server](https://discord.gg/vdyz4JZ9Ww) or the [Bittensor Discord server](https://discord.gg/GtgHWakpDs) to chat, ask questions, submit feedback, and more. 
+Visit the SN1 channel in the [Macrocosmos Discord server](https://discord.gg/vdyz4JZ9Ww) or the [Bittensor Discord server](https://discord.gg/GtgHWakpDs) to chat, ask questions, submit feedback, and more.
