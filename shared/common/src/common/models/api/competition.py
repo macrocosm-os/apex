@@ -29,6 +29,12 @@ class RoundRecord(BaseModel):
     submit_at: Optional[datetime] = None  # For ordering purposes
 
 
+class SponsorMetadata(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
+
+
 class CompetitionRecord(BaseModel):
     id: int
     name: str
@@ -62,6 +68,7 @@ class CompetitionRecord(BaseModel):
     total_rounds: Optional[int] = None
     daily_submissions: list[int] = []
     image_url: Optional[str] = None
+    sponsor: Optional[SponsorMetadata] = None
     base_burn_rate: float = DEFAULT_BASE_BURN_RATE
     submission_fee_usd: Decimal = Decimal("0.0")
 

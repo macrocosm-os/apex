@@ -1,6 +1,7 @@
 from pydantic import BaseModel  # type: ignore
 from typing import Optional, List
 from datetime import datetime
+from common.models.api.competition import SponsorMetadata
 from common.models.api.submission import SubmissionPagination
 
 
@@ -27,6 +28,7 @@ class CompetitionInfo(BaseModel):
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
     image_url: Optional[str] = None
+    sponsor: Optional[SponsorMetadata] = None
     active_miners: int = 0
     total_alpha_earned: Optional[float] = None
     daily_alpha_earned: Optional[float] = None
