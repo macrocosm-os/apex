@@ -14,8 +14,14 @@ console = Console()
 
 def competitions(
     competition_id: int = typer.Option(None, "-c", help="Show details for a specific competition ID."),
+    show_all: bool = typer.Option(False, "-a", "--all", help="Include completed competitions in the list."),
+    page: int = typer.Option(1, "-p", "--page", help="Page number (10 results per page)."),
 ):
     """List available competitions, or show details for a specific one."""
+    if page < 1:
+        console.print("[red]Page must be >= 1.[/red]")
+        raise typer.Exit(code=1)
+
     console.print("Fetching competitions...")
     try:
         config = Config.load_config()
@@ -25,9 +31,16 @@ def competitions(
             )
             raise typer.Exit(code=1)
 
+        start_idx = (page - 1) * 10
+
         async def _load():
             async with Client(config.hotkey_file_path, timeout=config.timeout) as client:
-                return await client.list_competitions(id=competition_id)
+                return await client.list_competitions(
+                    id=competition_id,
+                    show_completed=show_all,
+                    start_idx=start_idx,
+                    count=10,
+                )
 
         result = asyncio.run(_load())
         competitions_list = result.competitions
@@ -35,6 +48,13 @@ def competitions(
         if not competitions_list:
             if competition_id is not None:
                 console.print(f"[yellow]Competition {competition_id} not found.[/yellow]")
+            elif page > 1:
+                console.print(f"[yellow]No competitions found on page {page}.[/yellow]")
+            elif not show_all:
+                console.print(
+                    "[yellow]No active competitions found.[/yellow] "
+                    "[dim]Run[/dim] [green]apex competitions --all[/green] [dim]to include completed ones.[/dim]"
+                )
             else:
                 console.print("[yellow]No competitions found.[/yellow]")
             return
@@ -42,7 +62,7 @@ def competitions(
         if competition_id is not None:
             _show_competition_detail(competitions_list[0])
         else:
-            _show_competitions_list(competitions_list)
+            _show_competitions_list(competitions_list, page=page, pagination=result.pagination)
 
     except typer.Exit:
         raise
@@ -51,8 +71,8 @@ def competitions(
         raise typer.Exit(code=1)
 
 
-def _show_competitions_list(competitions_list):
-    """Print a summary table of all competitions."""
+def _show_competitions_list(competitions_list, page=1, pagination=None):
+    """Print a summary table of competitions for the current page."""
     table = Table(title="Competitions", show_lines=True)
     table.add_column("ID", style="bold", justify="right")
     table.add_column("Name", style="cyan")
@@ -74,9 +94,17 @@ def _show_competitions_list(competitions_list):
         )
 
     console.print(table)
+
+    if pagination is not None and pagination.total > 0:
+        total_pages = (pagination.total + 9) // 10
+        console.print(f"[dim]Page {page} of {total_pages} ({pagination.total} total)[/dim]")
+
     console.print(
         "\n[dim]Run[/dim] [green]apex competitions -c <ID>[/green] [dim]for details on a specific competition.[/dim]"
     )
+    if pagination is not None and pagination.has_more:
+        console.print(f"[dim]Run[/dim] [green]apex competitions -p {page + 1}[/green] [dim]for the next page.[/dim]")
+    console.print("[dim]Run[/dim] [green]apex competitions --all[/green] [dim]to include completed competitions.[/dim]")
 
 
 def _show_competition_detail(comp):

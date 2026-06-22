@@ -14,6 +14,7 @@ class CompetitionRequest(BaseModel):
     ptype: Optional[str] = None
     ctype: Optional[str] = None
     state: Optional[str] = None
+    show_completed: bool = False
     start_idx: int = 0
     count: int = 10
 
@@ -68,6 +69,7 @@ class CompetitionRecord(BaseModel):
     total_rounds: Optional[int] = None
     daily_submissions: list[int] = []
     image_url: Optional[str] = None
+    doc_url: Optional[str] = None
     sponsor: Optional[SponsorMetadata] = None
     base_burn_rate: float = DEFAULT_BASE_BURN_RATE
     submission_fee_usd: Decimal = Decimal("0.0")
