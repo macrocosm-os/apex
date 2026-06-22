@@ -65,6 +65,8 @@ class SubmissionDetail(BaseModel):
     code_path: str | None = None
     round_number: int
     reveal_at: Optional[datetime] = None
+    eval_raw_score: Optional[float] = None
+    eval_score: Optional[float] = None
     is_binary: bool = False
     language: str | None = None
     # True if this submission has a browser-playable artifact (e.g. an
