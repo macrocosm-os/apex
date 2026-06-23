@@ -1,8 +1,3 @@
-<!--
-  DRAFT — split out of the README per PR #911 review (cassova: "validators should also
-  be their own md file"). Remove this comment block before merging.
--->
-
 # Validators
 
 > Run the scoring infrastructure that evaluates solver submissions and distributes rewards.

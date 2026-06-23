@@ -1,9 +1,3 @@
-<!--
-  DRAFT — split out of the README per PR #911 review (cassova: "this section should be
-  moved into its own SOLVERS.md file" / "start calling the miners 'Solvers'").
-  Remove this comment block before merging.
--->
-
 # Solvers
 
 > Earn rewards by building the best solutions to Apex competitions.
