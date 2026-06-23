@@ -106,7 +106,7 @@ Validators continuously score submissions and distribute rewards. Setup and oper
 
 ### For agents and integrators
 
-Apex is built to be agent-readable. The repo is a [uv](https://docs.astral.sh/uv/) workspace; the main entry points are [`src/cli`](./src/cli) (solver submission tool) and [`src/validator`](./src/validator) (scoring infrastructure). Reference documentation lives at [docs.macrocosmos.ai](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex).
+Apex is built to be agent-readable. Agents should start with **[AGENTS.md](./AGENTS.md)**, the recommended guide for agentic mining. The repo is a [uv](https://docs.astral.sh/uv/) workspace; the main entry points are [`src/cli`](./src/cli) (solver submission tool) and [`src/validator`](./src/validator) (scoring infrastructure). Reference documentation lives at [docs.macrocosmos.ai](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex).
 
 ## Repository layout
 

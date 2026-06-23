@@ -8,7 +8,7 @@ For an overview of what Apex is and how competitions work, see the main [README]
 
 ## Quick links
 
-[Validator setup](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/validating) · [Auto-updater script](./scripts/README.md) · [Incentive mechanism](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/incentive-mechanism)
+[Validator setup](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/validating) · [Auto-updater script](./scripts/start_autoupdater_pm2.sh) · [Incentive mechanism](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/incentive-mechanism)
 
 ## What validators do
 
@@ -20,7 +20,7 @@ For an overview of what Apex is and how competitions work, see the main [README]
 
 Run the validator to continuously score submissions and distribute rewards. Follow the [validator setup guide](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/validating) for installation, configuration, and operational requirements.
 
-To keep your validator current with releases, use the [auto-updater script](./scripts/README.md).
+To keep your validator current with releases, use the [auto-updater script](./scripts/start_autoupdater_pm2.sh).
 
 The validator implementation lives in [`src/validator`](./src/validator).
 
