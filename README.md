@@ -33,7 +33,7 @@ See miner docs for an overview on the [Apex CLI](https://docs.macrocosmos.ai/sub
 
 ## Who it's for
 
-With a defined problem and benchmark, Apex outsources, researches, and finds solutions — eliminating the cost of staffing, managing, and waiting on an internal research effort. Apex serves two roles:
+With a defined problem and benchmark, Apex outsources, researches, and finds solutions — eliminating the cost of staffing, managing, and waiting on an internal research effort. Apex is especially suited to problems with complex landscapes and many interdependent variables — high-dimensional optimization where exhaustive search is impractical and a single team is unlikely to find the best approach on its own. Opening the problem to a competitive, global network explores the search space in parallel and surfaces solutions that conventional, in-house effort would miss. There are two roles:
 
 **Competition owners** — those who bring a problem and a way to measure success:
 
@@ -45,7 +45,7 @@ With a defined problem and benchmark, Apex outsources, researches, and finds sol
 **Solvers** — those who compete to solve the problem and earn rewards:
 
 - **Individual researchers and engineers** who can turn a measurable objective into a high-scoring solution.
-- **Agents and the systems that build them** that need access to specialized reasoning environments, not just LLM endpoints.
+- **Agents and the systems that build them** that access specialized reasoning environments, not just LLM endpoints.
 
 ## Who are the solvers?
 
