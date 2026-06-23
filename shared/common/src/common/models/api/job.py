@@ -28,6 +28,7 @@ class RoundGenerationPayload(BaseModel):
     round_length_in_days: float | None = None
     nodepool: str | None = None
     startup_config: SandboxStartupConfig | None = None
+    allow_internet: bool = False
 
 
 class OnnxConversionPayload(BaseModel):
@@ -57,6 +58,8 @@ class JobResponse(BaseModel):
     language: list[str] = []
     submit_metadata: list[dict] = []
     raw_code: list[str] = []
+    # Per-submission cached screening verdict ("passed"/"failed"/None)
+    screening_status: list[str | None] = []
     round_generation: RoundGenerationPayload | None = None
     onnx_conversion: OnnxConversionPayload | None = None
 
@@ -72,6 +75,7 @@ class JobResults(BaseModel):
     eval_at: str | None = None
     round_generation_request_id: str | None = None
     round_generation_tasks: list[dict] | None = None
+    round_generation_sandbox_data: dict | None = None
     round_generation_round_length_in_days: float | None = None
     onnx_conversion_request_id: str | None = None
     # Base64-encoded ONNX file bytes; None if conversion failed.

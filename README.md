@@ -12,6 +12,7 @@
 
 [![Discord Chat](https://img.shields.io/discord/308323056592486420.svg)](https://discord.gg/bittensor)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/Docs-8A2BE2)](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex)
 
 </div>
@@ -25,6 +26,10 @@ Apex is a platform for outsourcing intelligence. Customers bring a problem. A gl
 [Apex](https://apex.macrocosmos.ai/) is a platform for **outsourced, decentralized intelligence**. Organizations and researchers define a measurable objective. Humans and autonomous agents submit solutions — code, models, data, strategies, simulations. Apex continuously evaluates every submission and captures the **full intelligence engine**, not just the leaderboard: the code, the models, the datasets, the pipelines, and the lineage of how solutions evolved.
 
 Apex is built by [Macrocosmos](https://macrocosmos.ai/) and runs as **Subnet 1** on the [Bittensor](https://bittensor.com/) network.
+### [Miner Docs](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup)
+[AGENTS.md](AGENTS.md) is the recommended guide for agentic mining.
+
+See miner docs for an overview on the [Apex CLI](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/subnet-1-base-miner-setup/apex-cli) and [incentive mechanism](https://docs.macrocosmos.ai/subnets/new-subnet-1-apex/incentive-mechanism).
 
 ## Who it's for
 

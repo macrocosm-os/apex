@@ -10,8 +10,6 @@ from typing import Optional
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import PathCompleter
 
-from bittensor import Subtensor
-from bittensor_wallet import Wallet
 from rich.console import Console
 from cli.utils.config import Config
 from cli.utils.client import Client
@@ -37,11 +35,25 @@ def submit(
     payment_extrinsic_index: Optional[int] = typer.Option(
         None, "--payment-extrinsic-index", help="Extrinsic index of a previous payment"
     ),
+    hotkey_file: Optional[Path] = typer.Option(
+        None,
+        "--hotkey-file",
+        "-k",
+        help="Path to a hotkey keypair file to submit with, overriding the linked config.",
+    ),
+    yes: bool = typer.Option(
+        False,
+        "--yes",
+        "-Y",
+        help="Skip confirmation prompts (assume yes). DISCLAIMER: auto-confirms payment. Use with caution.",
+    ),
 ):
     """Submit a coding solution to a competition."""
     try:
         # Load configuration
         config = Config.load_config()
+        if hotkey_file is not None:
+            config.hotkey_file_path = str(hotkey_file.expanduser())
         if not config.hotkey_file_path:
             console.print(
                 "[red]No hotkey file path found. Please run `apex link` to link your wallet and hotkey.[/red]"
@@ -190,7 +202,7 @@ def submit(
             console.print(f"  File type: Text ({file_extension})")
             console.print(f"  Code length: {file_size} characters")
 
-        if not typer.confirm("Proceed with submission?"):
+        if not (yes or typer.confirm("Proceed with submission?")):
             console.print("[yellow]Submission cancelled[/yellow]")
             return False
 
@@ -210,7 +222,7 @@ def submit(
                     console.print(f"\n[cyan]Found saved payment receipt for competition {competition_id}:[/cyan]")
                     console.print(f"  Block Hash: {saved.payment_block_hash}")
                     console.print(f"  Extrinsic Index: {saved.payment_extrinsic_index}")
-                    if typer.confirm("Use this saved payment?"):
+                    if yes or typer.confirm("Use this saved payment?"):
                         payment_block_hash = saved.payment_block_hash
                         payment_extrinsic_index = saved.payment_extrinsic_index
 
@@ -234,6 +246,9 @@ def submit(
                                 " Please run `apex link` to re-link your wallet.[/red]"
                             )
                             return False
+
+                        from bittensor import Subtensor
+                        from bittensor_wallet import Wallet
 
                         network = os.environ.get("NETWORK", "finney")
                         subtensor = Subtensor(network=network)
@@ -278,7 +293,7 @@ def submit(
                         )
                         console.print(f"[yellow]Destination: {send_address}[/yellow]")
 
-                        if not typer.confirm("Proceed with payment?"):
+                        if not (yes or typer.confirm("Proceed with payment?")):
                             console.print("[yellow]Payment cancelled. Submission aborted.[/yellow]")
                             return False
 

@@ -154,10 +154,14 @@ class Client:
         ptype: str | None = None,
         ctype: str | None = None,
         state: str | None = None,
+        show_completed: bool = False,
         start_idx: int = 0,
         count: int = 10,
     ) -> CompetitionResponse:
-        """List competitions using signed GET request."""
+        """List competitions using signed GET request.
+
+        Completed competitions are excluded server-side unless ``show_completed`` is True.
+        """
         req = CompetitionRequest(
             id=id,
             name=name,
@@ -165,6 +169,7 @@ class Client:
             ptype=ptype,
             ctype=ctype,
             state=state,
+            show_completed=show_completed,
             start_idx=start_idx,
             count=count,
         )

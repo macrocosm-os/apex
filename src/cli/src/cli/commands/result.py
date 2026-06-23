@@ -106,7 +106,7 @@ def _show_submission_detail(submission, detail, comp):
         f"[dim]Submission ID:[/dim]    {sub.id}",
         f"[dim]Competition ID:[/dim]   {sub.competition_id}",
         f"[dim]Round Number:[/dim]     {sub.round_number}",
-        f"[dim]State:[/dim]            {get_state(sub.state)}",
+        f"[dim]State:[/dim]            {get_state(sub.state, eval_error=sub.eval_error)}",
         f"[dim]Hotkey:[/dim]           {sub.hotkey}",
         f"[dim]Version:[/dim]          {version}",
         f"[dim]Top Score:[/dim]        {top_score}",
@@ -221,7 +221,13 @@ def _show_file_content(filename, files, submission, detail, config):
                     start_idx=0,
                 )
                 code_response = await client.get_submission_code(code_request)
-                return code_response.code if code_response else None
+                if not code_response:
+                    return None
+                if code_response.is_binary:
+                    # Binary model files (e.g. .pt) aren't viewable inline; they're served as a
+                    # presigned download URL. Point the user at `download` instead of dumping bytes.
+                    return "[Binary submission — use the download command to fetch the model file.]"
+                return code_response.code
             else:
                 from common.models.api.submission import FileRequest
 

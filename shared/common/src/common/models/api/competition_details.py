@@ -1,6 +1,7 @@
 from pydantic import BaseModel  # type: ignore
 from typing import Optional, List
 from datetime import datetime
+from common.models.api.competition import SponsorMetadata
 from common.models.api.submission import SubmissionPagination
 
 
@@ -27,6 +28,11 @@ class CompetitionInfo(BaseModel):
     start_at: Optional[datetime] = None
     end_at: Optional[datetime] = None
     image_url: Optional[str] = None
+    sponsor: Optional[SponsorMetadata] = None
+    active_miners: int = 0
+    total_alpha_earned: Optional[float] = None
+    daily_alpha_earned: Optional[float] = None
+    total_rounds: Optional[int] = None
 
 
 class RoundInfo(BaseModel):
@@ -62,11 +68,17 @@ class CompetitionDetailsResponse(BaseModel):
     curr_round: Optional[RoundInfo] = None
     rounds: List[RoundAnnotation]
     total_submissions: int
+    daily_submissions: List[int] = []
 
 
 class TopScoresResponse(BaseModel):
     top_scores: List[ScorePoint]
     pagination: SubmissionPagination
+    current_competition_submissions: int = 0
+    current_round_submissions: int = 0
+    estimated_current_competition_alpha_earned: float = 0.0
+    estimated_current_round_alpha_earned: float = 0.0
+    daily_submissions: List[int] = []
 
 
 class CompetitionDetailsCache(BaseModel):
@@ -76,3 +88,13 @@ class CompetitionDetailsCache(BaseModel):
     score_to_beat: Optional[float] = None
     rounds: List[RoundAnnotation]
     total_submissions: int
+    daily_submissions: List[int] = []
+
+
+class TopScoresCache(BaseModel):
+    top_scores: List[ScorePoint]
+    daily_submission_counts: dict[str, int] = {}
+    current_competition_submissions: int = 0
+    current_round_submissions: int = 0
+    estimated_current_competition_alpha_earned: float = 0.0
+    estimated_current_round_alpha_earned: float = 0.0

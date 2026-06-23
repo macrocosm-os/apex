@@ -14,6 +14,7 @@ class CompetitionRequest(BaseModel):
     ptype: Optional[str] = None
     ctype: Optional[str] = None
     state: Optional[str] = None
+    show_completed: bool = False
     start_idx: int = 0
     count: int = 10
 
@@ -27,6 +28,12 @@ class RoundRecord(BaseModel):
     end_at: Optional[datetime] = None
     competed_at: Optional[datetime] = None
     submit_at: Optional[datetime] = None  # For ordering purposes
+
+
+class SponsorMetadata(BaseModel):
+    name: Optional[str] = None
+    description: Optional[str] = None
+    url: Optional[str] = None
 
 
 class CompetitionRecord(BaseModel):
@@ -56,7 +63,14 @@ class CompetitionRecord(BaseModel):
     top_scorer_hotkey: Optional[str] = None
     score_to_beat: Optional[float] = None
     total_submissions: int = 0
+    active_miners: int = 0
+    total_alpha_earned: Optional[float] = None
+    daily_alpha_earned: Optional[float] = None
+    total_rounds: Optional[int] = None
+    daily_submissions: list[int] = []
     image_url: Optional[str] = None
+    doc_url: Optional[str] = None
+    sponsor: Optional[SponsorMetadata] = None
     base_burn_rate: float = DEFAULT_BASE_BURN_RATE
     submission_fee_usd: Decimal = Decimal("0.0")
 
@@ -64,6 +78,8 @@ class CompetitionRecord(BaseModel):
 class CompetitionResponse(BaseModel):
     competitions: list[CompetitionRecord]
     pagination: SubmissionPagination
+    total_alpha_earned: Optional[float] = None
+    daily_submissions: list[int] = []
 
 
 class ComingSoonCompetition(BaseModel):
