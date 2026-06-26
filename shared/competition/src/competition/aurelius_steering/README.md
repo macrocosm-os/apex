@@ -74,14 +74,54 @@ Unlike per-submission competitions, **evals are done in a batch at the end of th
 ### Baseline and normalization
 
 1. **Baseline:** at round generation, the validator scores an **unsteered** submission (a unit vector with `alpha=0`, so the model output is unaffected) on a freshly drawn round seed. This `baseline_score` is the concept's natural hit rate with no steering.
-2. **Raw score:** each miner's submission is scored as a hit-fraction in `[0, 1]` — the share of completions that express the concept above its detector threshold.
-3. **Headroom normalization:** the final `eval_score` removes the baseline and rescales by the available headroom, so every concept maps the unsteered model to 0.0 and a perfect steer to 1.0:
+2. **Raw score:** each submission is posted to the scorer, which returns the concept score (a hit-fraction in `[0, 1]`). The eval pipeline takes the returned number as the submission's `raw_score` (stored as `eval_raw_score`) — *raw* meaning **before normalization**. If the round's optional [minimal-intervention reward](#minimal-intervention-reward-optional-off-by-default) is enabled, the scorer has already applied it before returning the number; from the validator's side this is just the score that came back.
+3. **Headroom normalization:** the `eval_score` we store in the DB removes the baseline and rescales by the available headroom, so every concept maps the unsteered model to 0.0 and a perfect steer to 1.0:
 
    ```
    eval_score = clip((raw_score - baseline_score) / (1 - baseline_score), 0, 1)
    ```
 
    This makes scores comparable across concepts: a hard concept (high baseline) and an easy one (low baseline) are judged purely on how much of the *remaining* headroom the miner captures.
+
+### Minimal-intervention reward (optional, off by default)
+
+As of the **v0.1.4** scorer, a round may optionally reward steering that achieves the concept with a **gentler push** — a smaller total intervention on the residual stream — over brute-forcing the detector with an enormous one. (This replaces the experimental Hoyer-sparsity penalty from v0.1.3, which is gone in v0.1.4.)
+
+This all happens **inside the scorer**, before the eval pipeline sees a number. When enabled, the scorer multiplies its pre-reward concept score by an `efficiency` factor in `(0, 1]`, derived from the submission's total absolute steering `push`, to produce the `score` it returns:
+
+```
+push       = |alpha| * sum(|direction|)        # total absolute steering applied
+efficiency = exp(-push / push_scale)            # in (0, 1]; larger push_scale = gentler discount
+```
+
+A bigger `push_scale` tolerates more steering before discounting; as `push_scale → ∞` the factor → 1 (no discount). The day-score gates it (a submission that generates nothing on-concept stays at 0), and `efficiency ∈ (0, 1]` with `raw_score ∈ [0, 1]`, so the product stays in `[0, 1]`.
+
+**It is off by default** and is enabled per round, by precedence **request > per-concept config > off**:
+
+- **From the competition (the apex path):** set `push_scale` in the competition's `input_data_generator_args`. Round generation stamps it onto the round input ([`AureliusSteeringInputDataSchema.push_scale`](../../../../backend/src/backend/eval/aurelius_steering/models.py)) and the eval runner sends it on **every** `/score` call in the round — so the whole round (and its baseline) is scored under one setting. Omit it (or `null`) to leave the reward off. A recommended starting value is **~555000**.
+- **In the scorer config:** a non-null `push_scale` for a concept in the scorer's `config/competition.yaml` (used when the request omits it).
+
+`push` is **always computed and reported**, even when the reward is off, so it can be calibrated against the real distribution before being switched on. The `/score` response (and each submission's history file) carries:
+
+| Scorer response field | Meaning |
+|---|---|
+| `score` | the concept score the scorer returns, **after** the reward (`= raw_score × efficiency`) |
+| `raw_score` | the scorer's score **before** the reward |
+| `push` | total absolute steering, `|alpha| × Σ|direction|` |
+| `push_scale` | the scale in effect for this request (`null` = off) |
+| `efficiency` | the multiplier applied: `exp(-push / push_scale)` (`1.0` when off) |
+
+> **⚠️ `raw_score` means two different things across the two layers.** The scorer's `raw_score` is its *pre*-reward score. The eval pipeline's `raw_score` (what we store as `eval_raw_score`) is the scorer's *post*-reward **`score`** field. The full chain:
+>
+> ```
+> score      (scorer)  =  raw_score (scorer) × efficiency
+> raw_score  (eval / eval_raw_score)  =  score (scorer)
+> eval_score (DB)      =  clip((raw_score − baseline_score) / (1 − baseline_score), 0, 1)
+> ```
+>
+> With the reward off (the default), `efficiency = 1.0`, so the scorer's `raw_score` and `score` are equal and the distinction collapses.
+
+> **Note on the baseline.** The unsteered baseline submission has `alpha = 0`, so `push = 0` and `efficiency = exp(0) = 1` for any `push_scale` — the baseline is never discounted. So even with the reward on, a (discounted) miner score is normalized against an undiscounted `baseline_score`. This is intended — the baseline is the no-steer reference point — but worth being aware of before enabling it.
 
 ## Round structure and defaults
 

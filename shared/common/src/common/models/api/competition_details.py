@@ -33,6 +33,12 @@ class CompetitionInfo(BaseModel):
     total_alpha_earned: Optional[float] = None
     daily_alpha_earned: Optional[float] = None
     total_rounds: Optional[int] = None
+    # Miner submission metadata surfaced on the competition page.
+    round_length_in_days: Optional[float] = None
+    submission_fee_usd: Optional[float] = None
+    submission_reveal_days: Optional[float] = None
+    submission_rate_limit: Optional[str] = None  # global, e.g. "4/day"
+    notes: List[str] = []
 
 
 class RoundInfo(BaseModel):
