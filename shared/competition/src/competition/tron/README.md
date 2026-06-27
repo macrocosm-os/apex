@@ -132,3 +132,94 @@ If you submit multiple models in one round, only the **latest submission** is us
 | Items        | Disabled              |
 | Move timeout | 0.1 seconds           |
 | Spawn mode   | Corners               |
+
+## Local Tooling
+
+Two helper scripts let you evaluate submissions on your own machine — pit two
+models against each other, or play one yourself in the terminal. Both use the
+**same game engine** (`tron.py`) and the **same model inference path** as the
+competition launcher (`launch_tron_rl.py`), so behaviour matches a real duel.
+
+### Prerequisites
+
+The model servers need the same runtime deps as the sandbox. Install the
+CPU-only PyTorch build into your environment:
+
+```bash
+uv pip install torch==2.9.1 --extra-index-url https://download.pytorch.org/whl/cpu
+```
+
+`fastapi`, `uvicorn`, `numpy`, and `pydantic` are already provided by the
+repo environment. Run both scripts from this directory:
+
+```bash
+cd shared/competition/src/competition/tron
+```
+
+### `run_local_duel.py` — model vs. model
+
+Plays a full duel between two TorchScript submissions and reports a winner using
+the **exact production scoring** (death-cause cascade → mean per-duel score →
+tiebreakers of games-won › kills › fewest self-deaths, see [Scoring](#scoring)).
+Under the hood it launches each model behind its own `launch_tron_rl.py` HTTP
+server, plays the games with alternating spawn corners for fairness, then tears
+the servers down.
+
+```bash
+python run_local_duel.py --a modelA.pt --b modelB.pt --games 21
+```
+
+Key flags:
+
+| Flag             | Default | Purpose                                                       |
+| ---------------- | ------- | ------------------------------------------------------------- |
+| `--a` / `--b`    | —       | Paths to the two `.pt` models (required unless `--replay`)    |
+| `--games`        | `3`     | Number of games in the duel (use an **odd** number)           |
+| `--seed`         | `42`    | Base seed; game *N* uses `seed + N`                           |
+| `--move-timeout` | `0.5`   | Per-move deadline in seconds (matches production)             |
+| `--max-steps`    | `500`   | Steps before a game is a timeout draw                         |
+| `--save-replay`  | —       | Write a JSON replay artifact of the duel to this path         |
+| `--replay`       | —       | Replay a saved artifact in the terminal (skips running a duel) |
+| `--replay-game`  | `-1`    | With `--replay`: which game index to show (`-1` = all)        |
+| `--tick`         | `0.12`  | Replay animation seconds per step                             |
+
+**Generate a replay artifact**, then watch it back:
+
+```bash
+python run_local_duel.py --a modelA.pt --b modelB.pt --games 3 --save-replay duel.json
+python run_local_duel.py --replay duel.json                 # all games
+python run_local_duel.py --replay duel.json --replay-game 1 # just game 2, faster with --tick 0.08
+```
+
+The artifact stores each game's config, metadata (swap, seed, scores), and the
+full per-step history. Replay reconstructs the board frame-by-frame and animates
+it with curses: `@`/`o` (cyan) = model A, `X`/`x` (red) = model B, `#` = walls.
+Controls: **q** quit · **n** next game · **space** pause.
+
+### `play_vs_model.py` — human vs. model
+
+Drive one light-cycle yourself in the terminal while a submission drives the
+other. Real-time (one step per `--tick`), rendered with curses.
+
+```bash
+python play_vs_model.py --model modelA.pt
+python play_vs_model.py --model modelA.pt --human-player 1 --tick 0.25
+```
+
+| Flag             | Default | Purpose                                                       |
+| ---------------- | ------- | ------------------------------------------------------------- |
+| `--model`        | —       | Path to the opponent `.pt` model (required)                   |
+| `--human-player` | `0`     | `0` = you spawn top-left, `1` = you spawn bottom-right        |
+| `--tick`         | `0.15`  | Seconds per step (lower = faster)                             |
+| `--seed`         | `42`    | Seed (spawn corners are fixed; here for parity)               |
+
+Controls: **arrow keys** / **WASD** to steer · **q** to quit. You are `@` (cyan),
+the model is `X` (red); trails are `o`/`x`. Reversing into yourself is ignored,
+as in-game.
+
+> **Note:** unlike `run_local_duel.py`, this script applies **no per-move
+> timeout** — the model gets unlimited time to decide each step, so a model slow
+> enough to lose moves in production will run clean here.
+
+Both scripts require a real terminal for the curses display (`run_local_duel.py`
+only for `--replay`); they won't render inside a piped or non-interactive shell.
