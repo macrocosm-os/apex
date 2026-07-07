@@ -55,6 +55,7 @@ class RoundInfo(BaseModel):
 class ScorePoint(BaseModel):
     date: datetime
     score: float
+    raw_score: float
     round_number: int
     version: int
     hotkey: str
