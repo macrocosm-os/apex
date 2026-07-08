@@ -18,6 +18,7 @@ class SubmissionRankMiner(BaseModel):
     hotkey: str
     coldkey: Optional[str] = None
     score: float
+    raw_score: float
     score_render: float
     version: int
     round_number: int
