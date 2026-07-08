@@ -136,6 +136,21 @@ class SandboxRunRules(BaseModel):
     # `exit_after_startup=True`. Ignored by Docker sandbox.
     readiness_probe: ReadinessProbeSpec | None = None
 
+    # Additional absolute DIRECTORY paths where the K8s sandbox mounts the SAME per-job
+    # shared volume (same underlying directory as the primary /workspace mount, just
+    # visible at more locations), e.g. a spec's "/data" exchange dir. Only safe for
+    # directories the competition's own image doesn't bake anything into — a directory
+    # mount replaces the image's contents at that path entirely. Ignored by Docker sandbox.
+    extra_mount_paths: list[str] = []
+
+    # Additional single FILES mounted from the shared volume, keyed by filename relative
+    # to the sandbox's /workspace root, valued by the absolute path to mount it at in the
+    # container (e.g. {"submission.py": "/app/submission.py"}). Unlike extra_mount_paths,
+    # a file-level mount only shadows that one file, so it's safe to point into a
+    # directory (like a spec's submission.target_path parent) that the image also bakes
+    # its own files into. Ignored by Docker sandbox.
+    extra_mount_files: dict[str, str] = {}
+
 
 class SandboxMetrics(BaseModel):
     execution_time: float = 0

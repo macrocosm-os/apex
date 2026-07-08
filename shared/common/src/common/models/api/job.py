@@ -60,6 +60,10 @@ class JobResponse(BaseModel):
     raw_code: list[str] = []
     # Per-submission cached screening verdict ("passed"/"failed"/None)
     screening_status: list[str | None] = []
+    # Which competition_spec_versions row (if any) this job runs under. NULL for
+    # legacy EVAL_REGISTRY-driven jobs; set once a spec-driven path is active for
+    # the competition. Lets us attribute "which spec ran this job" for replay/audit.
+    spec_version_id: int | None = None
     round_generation: RoundGenerationPayload | None = None
     onnx_conversion: OnnxConversionPayload | None = None
 
