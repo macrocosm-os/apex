@@ -18,6 +18,8 @@ class MinerRankRecord(BaseModel):
     coldkey: Optional[str] = None
     # Miner's best score
     score: float
+    # Raw (un-normalized) eval score of the ranked submission
+    raw_score: float
     # Score multiplied by incentive weight (for rendering)
     score_render: float
     # Miner's last submission version
