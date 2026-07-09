@@ -79,6 +79,7 @@ class CompetitionResponse(BaseModel):
     competitions: list[CompetitionRecord]
     pagination: SubmissionPagination
     total_alpha_earned: Optional[float] = None
+    total_agents: int = 0
     daily_submissions: list[int] = []
 
 
