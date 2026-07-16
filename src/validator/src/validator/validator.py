@@ -37,7 +37,7 @@ class Validator(HealthServerMixin):
             f"Network: {common_settings.NETWORK}. Netuid: {common_settings.NETUID}"
         )
         self.subtensor = get_subtensor()
-        self.metagraph = bt.metagraph(netuid=common_settings.NETUID, lite=False, network=common_settings.NETWORK)
+        self.metagraph = bt.Metagraph(netuid=common_settings.NETUID, lite=False, network=common_settings.NETWORK)
         self.burn_factor: float = 0.0
 
         if common_settings.BITTENSOR:
