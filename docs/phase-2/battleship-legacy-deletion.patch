@@ -1,0 +1,334 @@
+diff --git a/shared/backend/src/backend/eval/battleship/runner.py b/shared/backend/src/backend/eval/battleship/runner.py
+deleted file mode 100644
+index 8517999..0000000
+--- a/shared/backend/src/backend/eval/battleship/runner.py
++++ /dev/null
+@@ -1,254 +0,0 @@
+-from loguru import logger
+-from datetime import datetime, timezone
+-import asyncio
+-import random
+-import time
+-import os
+-
+-from common.models.api.job import FileType
+-from common.utils.logger_utils import to_thread_with_context
+-from backend.eval.base import BaseEvaluation, EvaluationResults, BaseSandbox
+-from backend.eval.battleship.models import BattleshipEvalInputDataSchema
+-from backend.eval.battleship.normalizer import BattleshipNormalizer
+-from competition.battleship.battleship import Name, run_game, GameResult, RemotePlayer
+-from common.models.sandbox import (
+-    SandboxBuildRules,
+-    SandboxRunRules,
+-)
+-
+-
+-# Buffer time added to calculated game timeout (seconds)
+-GAME_TIMEOUT_BUFFER_SECONDS = 30
+-
+-
+-class BattleshipEvaluation(BaseEvaluation):
+-    def __init__(
+-        self,
+-        sandbox_cls: type[BaseSandbox],
+-        competition_id: int,
+-        round_number: int,
+-        competition_pkg: str,
+-        submission_ids: list[str],
+-        hotkeys: list[str],
+-        codes: list[str],
+-        shared_volume_path_on_worker: str,
+-    ):
+-        super().__init__(
+-            sandbox_cls=sandbox_cls,
+-            competition_id=competition_id,
+-            round_number=round_number,
+-            competition_pkg=competition_pkg,
+-            submission_ids=submission_ids,
+-            hotkeys=hotkeys,
+-            codes=codes,
+-            shared_volume_path_on_worker=shared_volume_path_on_worker,
+-        )
+-        logger.debug("Battleship Competition initialized...")
+-
+-        self._sandbox_cls = sandbox_cls
+-        self._submission_id = self._submission_ids[0]
+-        self._hotkey = self._hotkeys[0]
+-        self._code = self._codes[0]
+-        self._port = 8001
+-        self._shared_volume_path_on_worker = shared_volume_path_on_worker
+-
+-    async def run(self, input_data: BattleshipEvalInputDataSchema) -> list[EvaluationResults]:
+-        """Run the runner with the given input data."""
+-        logger.debug("Battleship Competition running...")
+-        raw_scores = []
+-        eval_metadata = {
+-            "player_number": "p1",
+-        }
+-        log_files = []
+-        history_files = []
+-        total_time = 0
+-
+-        player_sandbox: BaseSandbox | None = None
+-
+-        try:
+-            # Run the compression sandbox
+-            with logger.contextualize(phase="running_containers"):
+-                input = input_data.tasks[0].input.model_dump()
+-
+-                # Define sandbox
+-                player_sandbox = self._sandbox_cls(
+-                    competition_pkg=self._competition_pkg,
+-                    submission_id=self._submission_id,
+-                )
+-
+-                logger.debug("Building battleship player sandbox image...")
+-
+-                # Build sandbox image
+-                battleship_build_rules = SandboxBuildRules()
+-                await player_sandbox.build_image(battleship_build_rules)
+-
+-                # Run sandbox container
+-                run_rules = SandboxRunRules(
+-                    sandbox_index=0,
+-                    run_timeout_in_seconds=3 * len(input_data.tasks),
+-                    filename="solution.py",
+-                    command=["python", "solution.py", "--port", str(self._port)],
+-                    startup_config=self.get_startup_config("player"),
+-                    ports={f"{self._port}/tcp": self._port},
+-                    network_disabled=False,
+-                    network_mode="bridge",
+-                    allow_internet=False,
+-                )
+-                await player_sandbox.run_container(
+-                    code=self._code,
+-                    input_data=input,
+-                    run_rules=run_rules,
+-                    init_log_message="Battleship Game - Player 1 Start",
+-                    exit_after_startup=True,
+-                    auto_cleanup=False,
+-                )
+-
+-            # Get connection URLs from sandboxes (for Kubernetes, uses pod IP; for Docker, falls back to localhost)
+-            if hasattr(player_sandbox, "get_connection_url"):
+-                p1_url = player_sandbox.get_connection_url(self._port) or f"http://localhost:{self._port}"
+-            else:
+-                p1_url = f"http://localhost:{self._port}"
+-            logger.debug(f"Using Player URL: {p1_url}")
+-
+-            for task in input_data.tasks:
+-                with logger.contextualize(task_name=task.task_name, phase="running_game"):
+-                    logger.debug(f"Running solo game on port {self._port}...")
+-
+-                    # Use the task's seed (set per-task by the generator) so the
+-                    # board is reproducible and the legacy score is directly
+-                    # comparable to the spec-driven shadow eval, which already
+-                    # honours task.input.seed. Falls back to a random seed only if
+-                    # the task somehow carries none.
+-                    game_seed = task.input.seed if task.input.seed is not None else random.randint(0, 2**32 - 1)
+-
+-                    start_time = time.time()
+-                    try:
+-                        game_result = await asyncio.wait_for(
+-                            to_thread_with_context(
+-                                run_game,
+-                                name=task.task_name,
+-                                p1_id=self._hotkeys[0],
+-                                p1_url=p1_url,
+-                                size=task.input.size,
+-                                max_turns=task.input.max_turns,
+-                                ships_spec=task.input.ships_spec,
+-                                enforce_no_touching=task.input.enforce_no_touching,
+-                                startup_health_check_timeout_in_seconds=task.input.startup_health_check_timeout_in_seconds,
+-                                board_generation_timeout_in_seconds=task.input.board_generation_timeout_in_seconds,
+-                                shot_timeout_in_seconds=task.input.shot_timeout_in_seconds,
+-                                console_mode=False,
+-                                seed=game_seed,
+-                            ),
+-                            timeout=GAME_TIMEOUT_BUFFER_SECONDS,
+-                        )
+-                    except asyncio.TimeoutError:
+-                        logger.error(f"Game timed out after {GAME_TIMEOUT_BUFFER_SECONDS} seconds")
+-                        game_result = GameResult(
+-                            name=task.task_name,
+-                            game_id="timeout",
+-                            turns=0,
+-                            max_turns=task.input.max_turns,
+-                            game_result=f"Game timed out after {GAME_TIMEOUT_BUFFER_SECONDS} seconds",
+-                            p1=RemotePlayer(id=self._hotkeys[0], name=Name.PLAYER_1, base_url=p1_url),
+-                            board={"ships": {}, "misses": []},
+-                            board_size=task.input.size,
+-                        )
+-
+-                    execution_time = time.time() - start_time
+-
+-                # Score the task
+-                with logger.contextualize(task_name=task.task_name, phase="scoring"):
+-                    logger.debug("Scoring the game...")
+-                    success = game_result.game_result == f"{Name.PLAYER_1.value} won"
+-                    score_dict = BattleshipEvaluation._calculate_game_score(
+-                        success=success,
+-                        max_player_turns=task.input.size**2,
+-                        player_turns=game_result.turns or 0,
+-                    )
+-                    game_file_name = f"game_{game_result.game_id}.json"
+-
+-                    logger.info(
+-                        f"Solo game result in {game_result.turns} turns "
+-                        f"with an execution time: {execution_time:.4f}s - Result: {game_result.game_result}"
+-                    )
+-                    raw_scores.append(score_dict["raw_score"])
+-
+-                    eval_metadata[task.task_name] = {
+-                        "game_id": game_result.game_id,
+-                        "sandbox_id": player_sandbox.sandbox_id,
+-                        "result": game_result.game_result,
+-                        "game_result": game_result.game_result,
+-                        "turns": game_result.turns,
+-                        "success": success,
+-                        "max_turns": task.input.max_turns,
+-                        "execution_time": execution_time,
+-                        "log_file_name": player_sandbox.log_file_name,
+-                        "game_file_name": game_file_name,
+-                        "score": score_dict,
+-                        "seed": game_seed,
+-                    }
+-
+-                    # Create game log file
+-                    game_log_file_path = os.path.join(self._shared_volume_path_on_worker, game_file_name)
+-                    with open(game_log_file_path, "w") as f:
+-                        f.write(game_result.model_dump_json())
+-
+-                    history_files.append(game_log_file_path)
+-                    total_time += execution_time
+-
+-            with logger.contextualize(phase="final_scoring"):
+-                # NOTE: we don't destroy containers between tasks for efficiency
+-                log_files.append(player_sandbox.log_file_path)
+-
+-                logger.debug("Calculating final score using average of all games...")
+-                num_games = len(input_data.tasks)
+-                final_raw_score = sum(raw_scores) / num_games if num_games else 0
+-                logger.info(f"Final raw score: {final_raw_score:.4f}")
+-
+-                self._results.append(
+-                    EvaluationResults(
+-                        submission_id=self._submission_id,
+-                        hotkey=self._hotkey,
+-                        eval_metadata=eval_metadata,
+-                        eval_error="Success",
+-                        eval_time_in_seconds=total_time,
+-                        eval_raw_score=final_raw_score,
+-                        eval_score=BattleshipNormalizer.normalize(raw_score=final_raw_score),
+-                        eval_at=datetime.now(timezone.utc),
+-                        file_paths={FileType.LOG: log_files, FileType.HISTORY: history_files},
+-                    )
+-                )
+-
+-                return self._results
+-        except Exception as e:
+-            logger.error(f"Error in Battleship Evaluation: {e}")
+-            raise
+-        finally:
+-            if player_sandbox:
+-                await player_sandbox.clean_up()
+-
+-    @staticmethod
+-    def _calculate_game_score(
+-        max_player_turns: int = 100, player_turns: int | None = None, success: bool = False
+-    ) -> float:
+-        """Calculate the game score based on turns taken and outcome."""
+-        score_dict = {
+-            "player_turns": player_turns,
+-            "base_win_points": 0,
+-            "speed_bonus": 0,
+-            "raw_score": 0,
+-            "score": 0,
+-        }
+-        if not success or player_turns is None or player_turns <= 0:
+-            return score_dict
+-
+-        points = max_player_turns * 10  # for 100 turn game, base win points = 1_000
+-        score_dict["base_win_points"] = points
+-
+-        # example: if player took 30 turns out of 100, they get a 7 point speed bonus
+-        speed_bonus = max(max_player_turns - player_turns, 0) * 0.1
+-        points += speed_bonus
+-        score_dict["speed_bonus"] = speed_bonus
+-        score_dict["raw_score"] = points
+-        score_dict["score"] = BattleshipNormalizer.normalize(raw_score=points)
+-        return score_dict
+diff --git a/shared/backend/src/backend/eval/battleship/screener.py b/shared/backend/src/backend/eval/battleship/screener.py
+deleted file mode 100644
+index 8c0a33c..0000000
+--- a/shared/backend/src/backend/eval/battleship/screener.py
++++ /dev/null
+@@ -1,25 +0,0 @@
+-from loguru import logger
+-
+-from backend.eval.base import BaseScreener
+-from backend.utils.ast_guard import ASTGuard
+-
+-
+-class BattleshipScreener(BaseScreener):
+-    def screen(self, submission: str) -> bool:
+-        guard = ASTGuard()
+-        try:
+-            tree = guard.parse_submission(submission)
+-        except SyntaxError as exc:
+-            logger.warning("Rejected submission: failed to parse code ({})", exc)
+-            return False
+-
+-        guard.visit(tree)
+-
+-        if guard.violations:
+-            logger.warning(
+-                "Rejected submission: forbidden actions detected {}",
+-                guard.violations,
+-            )
+-            return False
+-
+-        return True
+diff --git a/shared/backend/src/backend/eval/registry.py b/shared/backend/src/backend/eval/registry.py
+index 8c3d553..dac580d 100644
+--- a/shared/backend/src/backend/eval/registry.py
++++ b/shared/backend/src/backend/eval/registry.py
+@@ -4,11 +4,13 @@ from backend.eval.matrix_compression.runner import MatrixCompressionEvaluation
+ from backend.eval.matrix_compression.generator import MatrixCompressionInputDataGenerator
+ from backend.eval.matrix_compression.normalizer import MatrixCompressionNormalizer
+ from backend.eval.matrix_compression.screener import MatrixCompressionScreener
+-from backend.eval.battleship.runner import BattleshipEvaluation
++# NOTE (competition externalization Phase 2): the legacy `battleship` competition is now
++# spec-driven (external image + SoloRunner), so its in-process runner/screener are gone.
++# `rl_battleship` still reuses battleship's input schema / generator / normalizer, so those
++# three modules stay until rl_battleship is ported too.
+ from backend.eval.battleship.models import BattleshipEvalInputDataSchema
+ from backend.eval.battleship.generator import BattleshipInputDataGenerator
+ from backend.eval.battleship.normalizer import BattleshipNormalizer
+-from backend.eval.battleship.screener import BattleshipScreener
+ from backend.eval.rl_battleship.runner import RLBattleshipEvaluation
+ from backend.eval.rl_battleship.screener import RLBattleshipScreener
+ from backend.eval.energy_arbitrage.runner import EnergyArbitrageEvaluation
+@@ -52,20 +54,8 @@ EVAL_REGISTRY: dict[str, RegistryEntry] = {
+         default_round_length_in_days=7,
+         default_submission_reveal_days=1,
+     ),
+-    "battleship": RegistryEntry(
+-        runner_cls=BattleshipEvaluation,
+-        input_schema=BattleshipEvalInputDataSchema,
+-        generator_cls=BattleshipInputDataGenerator,
+-        screener_cls=BattleshipScreener,
+-        normalizer_cls=BattleshipNormalizer,
+-        default_ptype=ProcessType.CPU,
+-        default_ctype=CompetitionType.SOLO,
+-        default_baseline_score=0.0,
+-        default_baseline_raw_score=0.0,
+-        default_incentive_weight=0.1,
+-        default_round_length_in_days=1,
+-        default_submission_reveal_days=1,
+-    ),
++    # `battleship` intentionally has no registry entry: it is spec-driven (competition
++    # externalization Phase 2). Eval dispatch resolves its active spec instead.
+     "rl_battleship": RegistryEntry(
+         runner_cls=RLBattleshipEvaluation,
+         input_schema=BattleshipEvalInputDataSchema,

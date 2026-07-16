@@ -108,6 +108,10 @@ class SandboxRunRules(BaseModel):
     # raising SandboxStartupError. Applies when `exit_after_startup=True`.
     startup_timeout_in_seconds: int = 60
     filename: str = "solution.py"
+    # When set, the sandbox hardlinks (falls back to copy) this shared-volume file into the
+    # mount as `filename` instead of writing the `code` argument — so large model artifacts
+    # never pass through the worker's heap. See worker `_resolve_runner`.
+    code_src_path: str | None = None
     command: str | list[str] = "python solution.py"
     startup_config: SandboxStartupConfig | None = None
     mem_limit: str = "1.5g"
@@ -150,6 +154,20 @@ class SandboxRunRules(BaseModel):
     # directory (like a spec's submission.target_path parent) that the image also bakes
     # its own files into. Ignored by Docker sandbox.
     extra_mount_files: dict[str, str] = {}
+
+    # Extra environment variables injected into the runner container (on top of
+    # PYTHONUNBUFFERED). Used by spec-driven duels to hand the referee sandbox its gym_v1
+    # contract (MATCH_ID / SEED / CONFIG_JSON / PLAYER_URLS / NUM_PLAYERS). Ignored by the
+    # Docker sandbox (duels are K8s-only — the Docker backend gives each sandbox its own
+    # isolated network, so a referee cannot reach the player sandboxes).
+    env: dict[str, str] = {}
+
+    # When True, the K8s sandbox labels this pod so a dedicated NetworkPolicy permits it to
+    # initiate egress to other in-namespace sandbox pods (`app: sandbox`). This is what lets
+    # a duel referee reach the player sandboxes; internet egress stays blocked. Player
+    # sandboxes leave this False — they only need to accept the referee's ingress and reply
+    # on the established connection (which no egress rule is required for). Ignored by Docker.
+    sandbox_peer_egress: bool = False
 
 
 class SandboxMetrics(BaseModel):
