@@ -14,6 +14,7 @@ class JobType(str, Enum):
     EVALUATION = "evaluation"
     ROUND_GENERATION = "round_generation"
     ONNX_CONVERSION = "onnx_conversion"
+    SCREEN = "screen"  # Layer-2 behavioural screening in the competition's own screen image
 
 
 class RoundGenerationPayload(BaseModel):
@@ -57,6 +58,9 @@ class JobResponse(BaseModel):
     input_data: dict = {}
     language: list[str] = []
     submit_metadata: list[dict] = []
+    # S3 keys, aligned with `submission_id`; the worker fetches these itself. `raw_code` is the
+    # legacy inlined form, kept for rolling-deploy compat with older orchestrators.
+    code_paths: list[str] = []
     raw_code: list[str] = []
     # Per-submission cached screening verdict ("passed"/"failed"/None)
     screening_status: list[str | None] = []
@@ -84,6 +88,9 @@ class JobResults(BaseModel):
     onnx_conversion_request_id: str | None = None
     # Base64-encoded ONNX file bytes; None if conversion failed.
     onnx_conversion_payload_b64: str | None = None
+    # Layer-2 screen verdict: "passed" / "failed" (with an optional reason). Set for SCREEN jobs.
+    screening_status: str | None = None
+    screening_reason: str | None = None
 
 
 class JobFile(BaseModel):
