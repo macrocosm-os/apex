@@ -20,7 +20,7 @@ def _log_retry_attempt(retry_state):
     wait=tenacity.wait_exponential(multiplier=1, min=4, max=60),
     before_sleep=_log_retry_attempt,
 )
-def get_subtensor() -> bt.subtensor:
+def get_subtensor() -> bt.Subtensor:
     logger.info(f"🔄 Getting subtensor for network: {common_settings.NETWORK}")
     if common_settings.MOCK:
         logger.info("🔄 Using mock subtensor")
@@ -38,12 +38,12 @@ def get_subtensor() -> bt.subtensor:
 
     elif common_settings.BITTENSOR:
         logger.info("🔄 Using subtensor")
-        return bt.subtensor(network=common_settings.NETWORK)
+        return bt.Subtensor(network=common_settings.NETWORK)
     else:
         raise Exception("No subtensor found")
 
 
-def get_wallet(wallet_name: str, wallet_hotkey: str) -> bt.wallet:
+def get_wallet(wallet_name: str, wallet_hotkey: str) -> bt.Wallet:
     """Get a Bittensor wallet.
 
     Args:
@@ -54,7 +54,7 @@ def get_wallet(wallet_name: str, wallet_hotkey: str) -> bt.wallet:
         f"Initializing Bittensor wallet: {wallet_name} and hotkey: {wallet_hotkey}. Bittensor is set to {common_settings.BITTENSOR}"
     )
     if common_settings.BITTENSOR:
-        wallet = bt.wallet(name=wallet_name, hotkey=wallet_hotkey)
+        wallet = bt.Wallet(name=wallet_name, hotkey=wallet_hotkey)
         return wallet
     else:
         return get_mock_wallet(
