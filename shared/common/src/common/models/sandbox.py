@@ -1,5 +1,16 @@
+from enum import Enum
 from typing import Mapping
 from pydantic import BaseModel
+
+
+class SandboxRole(str, Enum):
+    """Role a sandbox plays in a spec-driven eval. Surfaced in the K8s pod/job name so a
+    two-sandbox eval is self-describing in the cluster. Empty/unset (legacy in-process
+    runners) keeps the roleless `sb-<pkg>-<id>-<hash>` name."""
+
+    PLAYER = "player"
+    REFEREE = "referee"
+    SCREEN = "screen"
 
 
 class SandboxBaseError(Exception):
