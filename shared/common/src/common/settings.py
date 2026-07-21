@@ -15,6 +15,17 @@ SB_PREFIX = os.getenv("SB_PREFIX", "main")
 LOG_FILE_ENABLED = os.getenv("LOG_FILE_ENABLED") == "True"
 TEST_MODE = os.getenv("TEST_MODE") == "True"
 
+
+def sandbox_image_tag(competition_pkg: str, variant: str | None = None) -> str:
+    """Canonical sandbox image tag: sb-{SB_PREFIX}-{pkg}[-{variant}]-{COMMIT_HASH}.
+
+    Single source of truth for the tag CI builds and the worker pulls.
+    variant="groundtruth" selects the round-gen bake image; None = miner image.
+    """
+    infix = f"-{variant}" if variant else ""
+    return f"sb-{SB_PREFIX}-{competition_pkg}{infix}-{COMMIT_HASH}"
+
+
 # Bittensor settings
 BITTENSOR = os.getenv("BITTENSOR") == "True"
 NETUID = int(os.getenv("NETUID", 1))

@@ -151,6 +151,8 @@ class SandboxRunRules(BaseModel):
     # `exit_after_startup=True`. Ignored by Docker sandbox.
     readiness_probe: ReadinessProbeSpec | None = None
 
+    inject_apex_secrets: bool = False
+
     # Additional absolute DIRECTORY paths where the K8s sandbox mounts the SAME per-job
     # shared volume (same underlying directory as the primary /workspace mount, just
     # visible at more locations), e.g. a spec's "/data" exchange dir. Only safe for
