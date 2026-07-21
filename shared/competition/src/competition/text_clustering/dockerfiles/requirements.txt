@@ -1,0 +1,6 @@
+# Miner solution deps only. The bake's ML stack lives in requirements-groundtruth.txt.
+numpy==2.3.5
+scikit-learn==1.6.1
+fastapi==0.124.2
+uvicorn==0.38.0
+pydantic==2.12.5

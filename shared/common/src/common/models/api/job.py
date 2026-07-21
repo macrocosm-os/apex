@@ -29,7 +29,40 @@ class RoundGenerationPayload(BaseModel):
     round_length_in_days: float | None = None
     nodepool: str | None = None
     startup_config: SandboxStartupConfig | None = None
+    # Optional sandbox memory limit (e.g. "13Gi") for heavy round generation such
+    # as text_clustering bake mode (mpnet + UMAP + HDBSCAN peaks ~12GB). When None,
+    # the worker leaves the SandboxRunRules default (1.5g), which is fine for
+    # cheap generators (pool-pick, energy_arbitrage). Set from the competition's
+    # input_data_generator_args.sandbox_mem_limit.
+    sandbox_mem_limit: str | None = None
+    # Optional sandbox CPU core count for heavy round generation. text_clustering
+    # bake (mpnet + UMAP + HDBSCAN) is CPU-bound; on the default 1 core a 3-subset
+    # bake takes ~45-60 min (UMAP is the bottleneck) and risks the round-gen
+    # timeout. When None, the worker leaves the SandboxRunRules default (1). Set
+    # from input_data_generator_args.sandbox_cpu_count. The baker also caps native
+    # thread pools to the bake_num_threads knob (BakeConfig) — raise that in lockstep.
+    sandbox_cpu_count: int | None = None
+    # Sandbox kill-timer override in seconds, validated by the scheduler from
+    # input_data_generator_args.round_generation_timeout_seconds. The scheduler
+    # uses the same value for its result-poll deadline, so both sides of the
+    # timeout always agree. When None, the worker falls back to its
+    # ROUND_GENERATION_TIMEOUT env default (a spec-resolved timeout still takes
+    # precedence on the spec-driven path).
+    timeout_seconds: int | None = None
+    # Explicit, DB-driven grants for the round-generation sandbox. Set from the
+    # competition's input_data_generator_args (inject_secrets /
+    # round_generation_allow_internet). Fail-safe defaults: no secrets, no network
+    # (the worker derives network_disabled = not allow_internet) — only a
+    # competition-metadata change (Neon or the admin endpoint) can grant access,
+    # never code drift alone.
+    inject_secrets: bool = False
     allow_internet: bool = False
+    # Optional sandbox image variant (e.g. "groundtruth") for competitions whose
+    # round generation runs a different image than miner eval. Maps to tag
+    # sb-{env}-{pkg}-{variant}-{sha} + Dockerfile.{variant}. Set from
+    # input_data_generator_args.round_generation_image_variant. None -> the
+    # competition's default (miner) image.
+    image_variant: str | None = None
 
 
 class OnnxConversionPayload(BaseModel):

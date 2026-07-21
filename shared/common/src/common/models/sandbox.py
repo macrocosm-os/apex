@@ -1,5 +1,16 @@
+from enum import Enum
 from typing import Mapping
 from pydantic import BaseModel
+
+
+class SandboxRole(str, Enum):
+    """Role a sandbox plays in a spec-driven eval. Surfaced in the K8s pod/job name so a
+    two-sandbox eval is self-describing in the cluster. Empty/unset (legacy in-process
+    runners) keeps the roleless `sb-<pkg>-<id>-<hash>` name."""
+
+    PLAYER = "player"
+    REFEREE = "referee"
+    SCREEN = "screen"
 
 
 class SandboxBaseError(Exception):
@@ -139,6 +150,8 @@ class SandboxRunRules(BaseModel):
     # container and uses kubelet readiness (not log-grep) to gate
     # `exit_after_startup=True`. Ignored by Docker sandbox.
     readiness_probe: ReadinessProbeSpec | None = None
+
+    inject_apex_secrets: bool = False
 
     # Additional absolute DIRECTORY paths where the K8s sandbox mounts the SAME per-job
     # shared volume (same underlying directory as the primary /workspace mount, just
