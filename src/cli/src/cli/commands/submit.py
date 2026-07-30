@@ -277,7 +277,10 @@ def submit(
                             fee_info = subtensor.substrate.get_payment_info(
                                 call=payment_payload, keypair=coldkey_keypair
                             )
-                            tx_fee_rao = fee_info.get("partialFee", 0) if fee_info else 0
+                            # substrate returns snake_case; tolerate camelCase from other versions
+                            tx_fee_rao = (
+                                (fee_info.get("partial_fee") or fee_info.get("partialFee") or 0) if fee_info else 0
+                            )
                         except Exception:
                             pass  # Show 0 if fee estimation fails
 
