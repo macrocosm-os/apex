@@ -1,6 +1,6 @@
 [project]
 name = "cli"
-version = "4.2.18"
+version = "4.2.19"
 description = "Apex CLI"
 authors = [{ name = "Macrocosmos.ai" }]
 readme = "README.md"
@@ -9,7 +9,7 @@ requires-python = ">=3.12"
 dependencies = [
     "common",
     "competition",
-    "bittensor==10.3.0",
+    "bittensor==10.4.0",
     "httpx>=0.27.0",
     "inquirer>=3.4.1",
     "prompt-toolkit>=3.0.52",
