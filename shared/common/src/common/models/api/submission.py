@@ -1,7 +1,9 @@
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, field_validator, model_validator
 from typing import Optional
+
+from common.models.api.eval_metadata import StandardEvalMetadata, accept_legacy_eval_metadata
 
 
 class SubmitRequest(BaseModel):
@@ -60,7 +62,9 @@ class SubmissionRecord(BaseModel):
 class SubmissionDetail(BaseModel):
     id: int
     submit_metadata: dict | None = None
-    eval_metadata: dict | None = None
+    # Typed so the envelope lands in the OpenAPI schema and the dashboard gets
+    # generated types instead of `any`.
+    eval_metadata: StandardEvalMetadata | None = None
     eval_file_paths: dict | None = None
     code_path: str | None = None
     round_number: int
@@ -70,9 +74,23 @@ class SubmissionDetail(BaseModel):
     is_binary: bool = False
     language: str | None = None
     # True if this submission has a browser-playable artifact (e.g. an
-    # ONNX-converted Tron model). Generic across competitions; derived from
+    # ONNX-converted model). Generic across competitions; derived from
     # `submit_metadata.onnx`.
     can_play: bool = False
+
+    @field_validator("eval_metadata", mode="before")
+    @classmethod
+    def _accept_legacy(cls, v):
+        """Tolerate a bare/legacy dict, same as `EvaluationResults`/`JobResults`.
+
+        A new `apex` CLI does `SubmissionDetail.model_validate(response.json())`
+        against a not-yet-upgraded orchestrator, and `get_submission_detail`'s
+        Redis cache key has no version salt, so a cross-version cached entry can
+        also deserialize here. Without this, both crash with
+        `ValidationError: Extra inputs are not permitted` instead of degrading
+        to a legacy-wrapped payload.
+        """
+        return accept_legacy_eval_metadata(v, "legacy eval_metadata dict in SubmissionDetail")
 
 
 class SubmissionPagination(BaseModel):

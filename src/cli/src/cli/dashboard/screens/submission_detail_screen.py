@@ -18,10 +18,6 @@ from cli.dashboard.time_utils import format_datetime
 from cli.utils.client import Client
 from cli.utils.config import Config
 from cli.dashboard.widgets.download import show_download_dialog
-from cli.dashboard.widgets.battleship import (
-    BattleshipWidget,
-    BattleshipWidgetClosed,
-)
 
 console = Console()
 
@@ -91,7 +87,6 @@ class SubmissionDetailScreen(Screen):
         Binding("r", "refresh", "Refresh", show=False),
         Binding("enter", "select_file", "Select File"),
         Binding("d", "download_file", "Download File"),
-        Binding("p", "replay_battleship", "Replay"),
         Binding("k", "cursor_up", "Up", show=False),
         Binding("j", "cursor_down", "Down", show=False),
     ]
@@ -107,7 +102,6 @@ class SubmissionDetailScreen(Screen):
         self.file_paths = {}  # Store file paths for each file type and name
         self.current_file_type: str | None = None
         self.current_filename: str | None = None
-        self.battleship_widget: BattleshipWidget | None = None
 
     def compose(self) -> ComposeResult:
         """Compose the screen."""
@@ -415,13 +409,6 @@ class SubmissionDetailScreen(Screen):
 
     def display_file_content(self, filename: str, content: str) -> None:
         """Display file content with syntax highlighting."""
-        # Hide battleship widget if present
-        if self.battleship_widget:
-            try:
-                self.battleship_widget.display = False
-            except Exception:
-                pass
-
         # Show and update the RichLog widget
         metadata_widget = self.query_one(".file_display", RichLog)
         metadata_widget.display = True
@@ -459,18 +446,13 @@ class SubmissionDetailScreen(Screen):
 
     def show_metadata(self) -> None:
         """Show the evaluation metadata in JSON format with syntax highlighting."""
-        # Hide battleship widget if present
-        if self.battleship_widget:
-            try:
-                self.battleship_widget.display = False
-            except Exception:
-                pass
-
         metadata = None
 
         # Use submission detail metadata if available
         if self.submission_detail and self.submission_detail.eval_metadata:
-            metadata = self.submission_detail.eval_metadata
+            # eval_metadata is a typed StandardEvalMetadata envelope now, not a
+            # plain dict — Rich's JSON.from_data needs raw JSON-able data.
+            metadata = self.submission_detail.eval_metadata.model_dump(mode="json")
         elif hasattr(self.submission, "eval_metadata") and self.submission.eval_metadata:
             # Fallback to original submission data
             metadata = self.submission.eval_metadata
@@ -576,171 +558,6 @@ class SubmissionDetailScreen(Screen):
         """Move cursor down (vim-style j)."""
         table = self.query_one("#file_explorer", DataTable)
         table.action_cursor_down()
-
-    def is_battleship_history_file(self, data: dict) -> bool:
-        """Check if the content is a battleship history file (JSON with battleship log structure)."""
-        try:
-            # Solo mode format: p1 with shot_history, board with ships, no p2
-            has_p1 = "p1" in data and isinstance(data["p1"], dict)
-            has_board = "board" in data and isinstance(data["board"], dict)
-            has_board_ships = has_board and "ships" in data.get("board", {})
-            has_p1_shots = has_p1 and "shot_history" in data.get("p1", {})
-            is_solo_format = has_p1 and has_board_ships and has_p1_shots
-
-            # Legacy duel format: p1 and p2 each with ships and shot_history
-            has_p2 = "p2" in data and isinstance(data["p2"], dict)
-            has_duel_ships = (
-                has_p1
-                and has_p2
-                and "ships" in data.get("p1", {})
-                and "ships" in data.get("p2", {})
-                and isinstance(data["p1"]["ships"], dict)
-                and isinstance(data["p2"]["ships"], dict)
-            )
-            has_duel_shots = "shot_history" in data.get("p1", {}) and "shot_history" in data.get("p2", {})
-            is_duel_format = has_p1 and has_p2 and has_duel_ships and has_duel_shots
-
-            return is_solo_format or is_duel_format
-        except Exception as _:
-            return False
-
-    async def load_file_for_replay(self, file_type: str, filename: str) -> str | None:
-        """Load file content for replay. Returns the content as a string or None if failed."""
-        try:
-            log_widget = self.query_one("#log")
-            log_success(log_widget, f"Loading file for replay: {filename}")
-
-            config = Config.load_config()
-            async with Client(config.hotkey_file_path, timeout=config.timeout) as client:
-                # Code files need to use the code endpoint, not the file endpoint
-                if file_type.lower() != "history":
-                    log_error(log_widget, f"Failed to load code content: {filename}")
-                    return None
-
-                # For history files, use the file endpoint
-                file_request = FileRequest(
-                    submission_id=self.submission.id,
-                    file_type=file_type.lower(),
-                    file_name=filename,
-                    start_idx=0,
-                    reverse=False,
-                )
-                file_data = await client.get_file_chunked(file_request)
-                if file_data:
-                    return file_data.data
-                else:
-                    log_error(log_widget, f"Failed to load file content: {filename}")
-                    return None
-
-        except Exception as e:
-            log_widget = self.query_one("#log")
-            log_error(log_widget, f"Error loading file {filename} for replay: {e}")
-            return None
-
-    def action_replay_battleship(self) -> None:
-        """Handle 'r' key press to replay battleship game from history file."""
-        log_widget = self.query_one("#log")
-
-        # Get the currently highlighted file from the file explorer
-        file_table = self.query_one("#file_explorer", DataTable)
-        file_type = None
-        filename = None
-        file_path = None
-
-        if file_table.cursor_row is not None:
-            row_index = file_table.cursor_row
-            if row_index < len(file_table.rows):
-                row_data = file_table.get_row_at(row_index)
-                if len(row_data) >= 2:
-                    file_type, filename = row_data[0], row_data[1]
-                    file_key = (file_type, filename)
-
-                    if file_key in self.file_paths:
-                        log_success(log_widget, f"Replaying battleship from: {file_type} - {filename}")
-                        # Load and replay the file
-                        self.set_timer(0.1, lambda: self.replay_battleship_async(file_type, filename))
-                    else:
-                        log_error(log_widget, f"File path not found for: {file_type} - {filename}")
-        else:
-            log_error(log_widget, "No file selected for replay")
-
-    async def replay_battleship_async(self, file_type: str, filename: str) -> None:
-        """Asynchronously load and replay battleship game."""
-        try:
-            log_widget = self.query_one("#log")
-
-            # Load the file content
-            content = await self.load_file_for_replay(file_type, filename)
-            if not content:
-                log_error(log_widget, f"Failed to load file content for replay: {filename}")
-                self.notify("File is not a valid battleship history file", severity="error", timeout=3)
-                return
-
-            # Check if it's a battleship history file
-            import json
-
-            data = json.loads(content)
-            if not self.is_battleship_history_file(data):
-                log_error(log_widget, f"File {filename} is not a valid battleship history file")
-                self.notify("File is not a valid battleship history file", severity="error", timeout=3)
-                return
-
-            # Get the metadata container and replace its content
-            metadata_container = self.query_one(".metadata_container", ScrollableContainer)
-
-            # Remove existing battleship widget if present
-            if self.battleship_widget:
-                try:
-                    self.battleship_widget.remove()
-                except Exception:
-                    pass
-
-            # Remove existing RichLog widget if present and hide it
-            try:
-                existing_log = metadata_container.query_one(".file_display", default=None)
-                if existing_log:
-                    existing_log.display = False
-            except Exception:
-                pass
-
-            # Determine which player is the submitter from eval_metadata
-            submitter_player = None
-            p1_id = data.get("p1", {}).get("id")
-            p2_id = data.get("p2", {}).get("id")
-            if p1_id == self.submission.hotkey:
-                submitter_player = 1
-            elif p2_id == self.submission.hotkey:
-                submitter_player = 2
-            else:
-                submitter_player = None
-
-            # Create and mount battleship widget
-            self.battleship_widget = BattleshipWidget(
-                log_data=data, delay_seconds=0.5, submitter_player=submitter_player
-            )
-            metadata_container.mount(self.battleship_widget)
-
-            log_success(log_widget, f"Started battleship replay from: {filename}")
-            self.notify("Battleship replay started", severity="information", timeout=2)
-
-        except Exception as e:
-            log_widget = self.query_one("#log")
-            log_error(log_widget, f"Error replaying battleship: {e}")
-            self.notify(f"Error replaying battleship: {e}", severity="error", timeout=3)
-
-    def on_battleship_widget_closed(self, event: BattleshipWidgetClosed) -> None:
-        """Handle battleship widget being closed - restore file display."""
-        # Clear the battleship widget reference
-        self.battleship_widget = None
-
-        # Restore the file display
-        try:
-            metadata_container = self.query_one(".metadata_container", ScrollableContainer)
-            existing_log = metadata_container.query_one(".file_display", default=None)
-            if existing_log:
-                existing_log.display = True
-        except Exception:
-            pass
 
 
 class BackToCompetitionDetail(Message):

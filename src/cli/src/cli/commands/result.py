@@ -128,8 +128,14 @@ def _show_submission_detail(submission, detail, comp):
 
     # Show eval metadata if available
     if detail and detail.eval_metadata:
+        # eval_metadata is a typed StandardEvalMetadata envelope now, not a
+        # plain dict — Rich's JSON.from_data needs raw JSON-able data.
         console.print(
-            Panel(RichJSON.from_data(detail.eval_metadata, indent=2), title="Evaluation Metadata", border_style="green")
+            Panel(
+                RichJSON.from_data(detail.eval_metadata.model_dump(mode="json"), indent=2),
+                title="Evaluation Metadata",
+                border_style="green",
+            )
         )
 
 
@@ -200,8 +206,14 @@ def _show_file_content(filename, files, submission, detail, config):
     # Handle eval metadata specially
     if file_type == "Eval" and fname == "metadata.json":
         if detail and detail.eval_metadata:
+            # eval_metadata is a typed StandardEvalMetadata envelope now, not a
+            # plain dict — Rich's JSON.from_data needs raw JSON-able data.
             console.print(
-                Panel(RichJSON.from_data(detail.eval_metadata, indent=2), title="metadata.json", border_style="green")
+                Panel(
+                    RichJSON.from_data(detail.eval_metadata.model_dump(mode="json"), indent=2),
+                    title="metadata.json",
+                    border_style="green",
+                )
             )
         else:
             console.print("[dim]No evaluation metadata available.[/dim]")
