@@ -1,1 +1,0 @@
-# Matrix Compression Competition

@@ -1,5 +1,8 @@
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, field_validator
 from enum import Enum
+from common.models.api.eval_metadata import StandardEvalMetadata, accept_legacy_eval_metadata
 from common.models.sandbox import SandboxStartupConfig
 
 
@@ -108,7 +111,7 @@ class JobResponse(BaseModel):
 class JobResults(BaseModel):
     job_type: JobType = JobType.EVALUATION
     submission_id: int | None = None
-    eval_metadata: dict = {}
+    eval_metadata: StandardEvalMetadata = StandardEvalMetadata(schema_version=0)
     eval_error: str | None = None
     eval_time_in_seconds: float | None = None
     eval_raw_score: float | None = None
@@ -121,9 +124,25 @@ class JobResults(BaseModel):
     onnx_conversion_request_id: str | None = None
     # Base64-encoded ONNX file bytes; None if conversion failed.
     onnx_conversion_payload_b64: str | None = None
+    # Duel control fields, read by scoring_utils to drive bracket advancement.
+    match_outcome: Literal["won", "lost", "tied"] | None = None
+    opponent_submission_id: int | None = None
     # Layer-2 screen verdict: "passed" / "failed" (with an optional reason). Set for SCREEN jobs.
+    # Also reused by evaluation (duel) jobs as a typed home for the screening cache verdict.
     screening_status: str | None = None
     screening_reason: str | None = None
+
+    @field_validator("eval_metadata", mode="before")
+    @classmethod
+    def _accept_legacy(cls, v):
+        """Rolling-deploy + APEX-103 compat: an older worker posts a bare dict.
+
+        Routes ANY dict through `coerce_eval_metadata`, including a
+        present-but-invalid `schema_version` payload — a hard raise here means
+        a 422 back to the worker and a lost evaluation result, exactly what the
+        envelope's never-raise contract exists to prevent.
+        """
+        return accept_legacy_eval_metadata(v, "legacy eval_metadata over the wire — old worker or unmigrated runner")
 
 
 class JobFile(BaseModel):
