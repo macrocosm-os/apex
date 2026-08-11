@@ -148,23 +148,3 @@ def coerce_eval_metadata(raw: Any) -> StandardEvalMetadata:
             logger.warning(f"non-conforming eval_metadata, wrapping as legacy: {e}")
             return StandardEvalMetadata(schema_version=0, details=raw)
     return StandardEvalMetadata(schema_version=0, details=raw)
-
-
-def accept_legacy_eval_metadata(v: Any, legacy_warning: str) -> Any:
-    """Shared body for the `eval_metadata` before-validator on every boundary
-    model (`EvaluationResults`, `JobResults`, `SubmissionDetail`).
-
-    Routes ANY dict through `coerce_eval_metadata` — including one that already
-    carries a (possibly invalid) `schema_version` — so a present-but-invalid
-    payload is wrapped rather than left to raise past this validator. Only the
-    genuinely-legacy case (a non-empty dict with `schema_version` absent) logs
-    `legacy_warning`; an empty dict (some runners pass `eval_metadata={}` when
-    there's nothing to report) and a present-but-invalid dict are benign or
-    already logged inside `coerce_eval_metadata` itself, so they don't also log
-    this one.
-    """
-    if isinstance(v, dict):
-        if v and "schema_version" not in v:
-            logger.warning(legacy_warning)
-        return coerce_eval_metadata(v)
-    return v
