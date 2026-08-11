@@ -1,8 +1,8 @@
 from typing import Literal
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel
 from enum import Enum
-from common.models.api.eval_metadata import StandardEvalMetadata, accept_legacy_eval_metadata
+from common.models.api.eval_metadata import StandardEvalMetadata
 from common.models.sandbox import SandboxStartupConfig
 
 
@@ -131,18 +131,6 @@ class JobResults(BaseModel):
     # Also reused by evaluation (duel) jobs as a typed home for the screening cache verdict.
     screening_status: str | None = None
     screening_reason: str | None = None
-
-    @field_validator("eval_metadata", mode="before")
-    @classmethod
-    def _accept_legacy(cls, v):
-        """Rolling-deploy + APEX-103 compat: an older worker posts a bare dict.
-
-        Routes ANY dict through `coerce_eval_metadata`, including a
-        present-but-invalid `schema_version` payload — a hard raise here means
-        a 422 back to the worker and a lost evaluation result, exactly what the
-        envelope's never-raise contract exists to prevent.
-        """
-        return accept_legacy_eval_metadata(v, "legacy eval_metadata over the wire — old worker or unmigrated runner")
 
 
 class JobFile(BaseModel):

@@ -214,10 +214,16 @@ def test_job_results_defaults_to_a_legacy_envelope():
     assert JobResults().eval_metadata.schema_version == 0
 
 
-def test_job_results_coerces_a_legacy_dict_over_the_wire():
-    jr = JobResults(submission_id=1, eval_metadata={"win_rate": 0.7})
-    assert jr.eval_metadata.schema_version == 0
-    assert jr.eval_metadata.details == {"win_rate": 0.7}
+def test_job_results_rejects_a_bare_legacy_dict():
+    """APEX-103 end state: every deployed worker posts dumped envelopes, so a
+    legacy dict over the wire is a bug to surface, not tolerate."""
+    with pytest.raises(ValidationError):
+        JobResults(submission_id=1, eval_metadata={"win_rate": 0.7})
+
+
+def test_job_results_rejects_a_present_but_invalid_v1_payload():
+    with pytest.raises(ValidationError):
+        JobResults(submission_id=1, eval_metadata={"schema_version": 1, "summary": "not-a-list"})
 
 
 def test_job_results_round_trips_an_envelope_as_json():
@@ -243,40 +249,16 @@ def test_job_results_control_fields_default_to_none():
     assert jr.screening_status is None
 
 
-def test_job_results_present_but_invalid_schema_version_is_wrapped_not_raised():
-    """`schema_version` says v1 but the payload doesn't validate as one. The
-    boundary must degrade to a legacy-wrapped envelope rather than raise —
-    a hard raise here means a 422 back to the worker and a lost result."""
-    jr = JobResults(submission_id=1, eval_metadata={"schema_version": 1, "summary": "not-a-list"})
-    assert jr.eval_metadata.schema_version == 0
-    assert jr.eval_metadata.details == {"schema_version": 1, "summary": "not-a-list"}
-
-
 from common.models.api.submission import SubmissionDetail
 
 
-def test_submission_detail_coerces_a_legacy_dict():
-    """`SubmissionDetail` is the read-path boundary the `apex` CLI validates
-    against and the Redis submission-detail cache deserializes into. Unlike
-    `EvaluationResults`/`JobResults` it previously had no tolerant validator,
-    so a legacy dict (an old cached entry, or a new CLI against an old
-    orchestrator) raised `ValidationError: Extra inputs are not permitted`
-    instead of validating with the payload preserved under `details`."""
-    detail = SubmissionDetail.model_validate({"id": 1, "round_number": 1, "eval_metadata": {"master_seed": 7}})
-    assert detail.eval_metadata.schema_version == 0
-    assert detail.eval_metadata.details == {"master_seed": 7}
-
-
-def test_submission_detail_present_but_invalid_schema_version_is_wrapped_not_raised():
-    detail = SubmissionDetail.model_validate(
-        {
-            "id": 1,
-            "round_number": 1,
-            "eval_metadata": {"schema_version": 1, "summary": "not-a-list"},
-        }
-    )
-    assert detail.eval_metadata.schema_version == 0
-    assert detail.eval_metadata.details == {"schema_version": 1, "summary": "not-a-list"}
+def test_submission_detail_rejects_a_bare_legacy_dict():
+    """SubmissionDetail's tolerant validator existed for the 60s Redis detail
+    cache and old-orchestrator responses. Prod has served envelope-shaped
+    payloads since v4.2.20, and the read path coerces explicitly before
+    constructing the model, so a legacy dict reaching validation is a bug."""
+    with pytest.raises(ValidationError):
+        SubmissionDetail.model_validate({"id": 1, "round_number": 1, "eval_metadata": {"master_seed": 7}})
 
 
 def test_submission_detail_eval_metadata_none_is_still_allowed():
