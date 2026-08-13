@@ -25,9 +25,12 @@ class RoundGenerationPayload(BaseModel):
     competition_id: int
     competition_pkg: str
     round_number: int
-    generator_script_path: str
-    generator_module: str
-    generator_class_name: str
+    # Legacy (EVAL_REGISTRY) round generation only: the per-job generator script the sandbox runs
+    # and the class inside it. Spec-driven round generation (spec_driven=True) takes its command
+    # from the active spec's entrypoints.generate_round instead, so these stay unset there.
+    generator_script_path: str | None = None
+    generator_module: str | None = None
+    generator_class_name: str | None = None
     generator_args: dict = {}
     round_length_in_days: float | None = None
     nodepool: str | None = None
@@ -66,6 +69,13 @@ class RoundGenerationPayload(BaseModel):
     # input_data_generator_args.round_generation_image_variant. None -> the
     # competition's default (miner) image.
     image_variant: str | None = None
+    # Set by the scheduler when this round's input comes from the active spec's
+    # entrypoints.generate_round (an externally onboarded competition with no EVAL_REGISTRY
+    # entry). The worker then REQUIRES spec resolution to succeed: there is no legacy generator
+    # to fall back to, and a silent fallback would produce the wrong round input. The
+    # SPEC_DRIVEN_ROUND_GEN env set remains a separate, fallback-tolerant lever for registry
+    # packages that also have a spec.
+    spec_driven: bool = False
 
 
 class OnnxConversionPayload(BaseModel):
