@@ -60,7 +60,10 @@ class ScorePoint(BaseModel):
     version: int
     hotkey: str
     coldkey: Optional[str] = None
-    has_metadata: bool = False
+    # Whether this point's round has completed, i.e. the reveal gate has
+    # lifted for its submission detail (metadata, artifacts). Formerly the
+    # misleadingly named `has_metadata`.
+    revealed: bool = False
 
 
 class RoundAnnotation(BaseModel):

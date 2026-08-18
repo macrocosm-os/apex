@@ -71,6 +71,12 @@ class SubmissionDetail(BaseModel):
     reveal_at: Optional[datetime] = None
     eval_raw_score: Optional[float] = None
     eval_score: Optional[float] = None
+    # Reveal gate: eval_metadata / eval_score / eval_raw_score / eval_file_paths
+    # are nulled until the round completes. `revealed` tells clients the nulls
+    # are gating (not missing data); round_state/round_end_at say when it lifts.
+    revealed: bool = True
+    round_state: Optional[str] = None
+    round_end_at: Optional[datetime] = None
     is_binary: bool = False
     language: str | None = None
     # True if this submission has a browser-playable artifact (e.g. an
