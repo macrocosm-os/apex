@@ -51,7 +51,3 @@ class TournamentResponse(BaseModel):
     winner: Optional[TournamentWinner] = None
     participants: list[TournamentParticipant]
     matches: list[TournamentMatch]
-
-
-class TournamentCache(BaseModel):
-    response: TournamentResponse

@@ -6,7 +6,8 @@ from textual.binding import Binding
 from textual.message import Message
 
 from common.models.api.competition import CompetitionRecord
-from common.models.api.submission import SubmissionRecord, SubmissionPagination
+from common.models.api.submission import SubmissionRecord
+from common.models.api.pagination import Pagination
 from cli.dashboard.utils import log_success, log_debug, get_state, get_reveal_status, get_top_score_status
 from cli.dashboard.time_utils import format_datetime, get_age
 from cli.dashboard.widgets.round_details import RoundDetailsWidget
@@ -105,7 +106,7 @@ class CompetitionDetailScreen(Screen):
         self,
         competition: CompetitionRecord,
         submissions: list[SubmissionRecord] | None = None,
-        pagination: SubmissionPagination = None,
+        pagination: Pagination = None,
     ) -> None:
         super().__init__()
         self.competition = competition
@@ -269,11 +270,11 @@ class CompetitionDetailScreen(Screen):
                     if sub.hotkey == comp.top_scorer_hotkey
                     else sub.hotkey[:8]
                 )
-                score = f"{sub.eval_score:.7f}" if sub.eval_score is not None else "N/A"
-                if comp.top_score_value is not None and sub.eval_score is not None:
-                    if sub.eval_score >= comp.top_score_value:
+                score = f"{sub.score:.7f}" if sub.score is not None else "N/A"
+                if comp.top_score_value is not None and sub.score is not None:
+                    if sub.score >= comp.top_score_value:
                         score = f"[bold green]{score}[/bold green]"
-                    elif sub.eval_score < comp.top_score_value and sub.top_score:
+                    elif sub.score < comp.top_score_value and sub.top_score:
                         score = f"[bold orange]{score}[/bold orange]"
 
                 top_score = get_top_score_status(sub.top_score, sub.id, comp.curr_top_score_id, compact=True)
@@ -285,7 +286,7 @@ class CompetitionDetailScreen(Screen):
                 version_str = f"v{sub.version}" if sub.version is not None else "N/A"
 
                 # Calculate age using compact format
-                age_str = get_age(sub.submit_at, compact=True)
+                age_str = get_age(sub.submitted_at, compact=True)
 
                 # Determine log icon based on round state
                 # Logs only available when round is completed
@@ -304,7 +305,7 @@ class CompetitionDetailScreen(Screen):
                     get_state(sub.state, compact=True, eval_error=sub.eval_error),
                     reveal_status,
                     log_icon,
-                    format_datetime(sub.submit_at, include_seconds=True),
+                    format_datetime(sub.submitted_at, include_seconds=True),
                 )
 
             submissions_table.cursor_type = "row"
@@ -496,8 +497,8 @@ class CompetitionDetailScreen(Screen):
                 # Use round_number (descending), None rounds sort last
                 round_num = sub.round_number if sub.round_number is not None else float("-inf")
                 # Use a large negative number for None scores so they sort last
-                score = sub.eval_score if sub.eval_score is not None else float("-inf")
-                submit_time = sub.submit_at.timestamp() if sub.submit_at else float("-inf")
+                score = sub.score if sub.score is not None else float("-inf")
+                submit_time = sub.submitted_at.timestamp() if sub.submitted_at else float("-inf")
                 # Negate round for descending order, negate score for descending order
                 # None rounds become inf (sorts last), None scores become inf (sorts last)
                 return (-round_num, -score, submit_time)
@@ -506,7 +507,7 @@ class CompetitionDetailScreen(Screen):
             # Sort by submit time (most recent first)
             def sort_key(sub: SubmissionRecord) -> float:
                 # Use epoch time for comparison, None becomes very old timestamp (sorts last)
-                submit_time = sub.submit_at.timestamp() if sub.submit_at else float("-inf")
+                submit_time = sub.submitted_at.timestamp() if sub.submitted_at else float("-inf")
                 # Negate for descending order (most recent first)
                 # None times become inf (sorts last)
                 return -submit_time
@@ -539,7 +540,7 @@ class CompetitionDetailScreen(Screen):
         self,
         competition: CompetitionRecord,
         submissions: list[SubmissionRecord],
-        pagination: SubmissionPagination = None,
+        pagination: Pagination = None,
     ) -> None:
         """Update the screen with fresh competition and submission data."""
         self.competition = competition
@@ -649,7 +650,7 @@ class RefreshCompetitionData(Message):
         self,
         competition: CompetitionRecord,
         submissions: list[SubmissionRecord],
-        pagination: SubmissionPagination = None,
+        pagination: Pagination = None,
     ) -> None:
         self.competition = competition
         self.submissions = submissions

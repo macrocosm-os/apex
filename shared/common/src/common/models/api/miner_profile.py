@@ -2,22 +2,22 @@ from decimal import Decimal
 from datetime import date, datetime
 from typing import Optional
 
-from pydantic import BaseModel
+from pydantic import BaseModel, computed_field
 
-from common.models.api.submission import SubmissionPagination
+from common.models.api.pagination import Pagination
+from common.models.api.submission import SubmissionBase
 
 
-class SubmissionHistoryRecord(BaseModel):
+class SubmissionHistoryRecord(SubmissionBase):
     """A single submission entry shown on the miner profile page."""
 
-    submission_id: int
-    hotkey: str
     rank: Optional[int] = None
-    round_number: int
-    submitted_at: datetime
-    score: Optional[float] = None
-    state: str
-    version: int
+
+    # Deprecated dual-emitted name — remove in the APEX-106 cleanup PR.
+    @computed_field
+    @property
+    def submission_id(self) -> int:
+        return self.id
 
 
 class ProfileHotkey(BaseModel):
@@ -79,7 +79,7 @@ class MinerProfileResponse(BaseModel):
     summary: ProfileSummary
     activity: ActivityTimeline
     competitions: list[CompetitionHistory] = []
-    pagination: SubmissionPagination
+    pagination: Pagination
 
 
 class ColdkeyExistsResponse(BaseModel):

@@ -1,10 +1,10 @@
 from datetime import date, datetime
 from decimal import Decimal
-from pydantic import BaseModel
-from typing import Optional
+from pydantic import BaseModel, Field
+from typing import Literal, Optional
 
 from common.settings import DEFAULT_BASE_BURN_RATE
-from common.models.api.submission import SubmissionPagination
+from common.models.api.pagination import Pagination
 
 
 class CompetitionRequest(BaseModel):
@@ -46,6 +46,13 @@ class CompetitionRecord(BaseModel):
     ctype: str
     baseline_score: float
     baseline_raw_score: float
+    # Score semantics (APEX-108): what eval_score/baseline_score mean for this
+    # competition. Registry-backed packages normalize to 0-1; spec-driven ones
+    # report the referee's raw score unchanged. baseline_valid gates whether
+    # baseline_score is a meaningful same-scale comparison target for charts.
+    score_scale: Literal["normalized_0_1", "raw"] = "normalized_0_1"
+    score_direction: Literal["higher_is_better", "lower_is_better"] = "higher_is_better"
+    baseline_valid: bool = False
     incentive_weight: float
     burn_factor: float
     burn_factor_reset_at: Optional[datetime] = None
@@ -61,7 +68,16 @@ class CompetitionRecord(BaseModel):
     curr_top_score_id: Optional[int] = None
     top_score_value: Optional[float] = None
     top_scorer_hotkey: Optional[str] = None
-    score_to_beat: Optional[float] = None
+    score_to_beat: Optional[float] = Field(
+        default=None,
+        description=(
+            "Threshold-adjusted score a new submission must clear to take the top spot, on the "
+            "competition's score_scale. Null between rounds: when the reigning top scorer is not "
+            "from the current round, its raw score was produced under different round conditions "
+            "(e.g. max_epoch_time), so no comparable target exists until the new round's "
+            "auto-submission is evaluated."
+        ),
+    )
     total_submissions: int = 0
     active_miners: int = 0
     total_alpha_earned: Optional[float] = None
@@ -77,7 +93,7 @@ class CompetitionRecord(BaseModel):
 
 class CompetitionResponse(BaseModel):
     competitions: list[CompetitionRecord]
-    pagination: SubmissionPagination
+    pagination: Pagination
     total_alpha_earned: Optional[float] = None
     total_agents: int = 0
     daily_submissions: list[int] = []

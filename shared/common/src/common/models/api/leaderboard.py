@@ -3,7 +3,7 @@ from enum import Enum
 
 from pydantic import BaseModel  # type: ignore
 
-from common.models.api.ranks import RanksPagination
+from common.models.api.pagination import Pagination
 
 
 class LeaderboardMode(str, Enum):
@@ -50,7 +50,7 @@ class LeaderboardEntry(BaseModel):
 class LeaderboardResponse(BaseModel):
     mode: LeaderboardMode
     miners: list[LeaderboardEntry]
-    pagination: RanksPagination
+    pagination: Pagination
 
 
 class LeaderboardCache(BaseModel):

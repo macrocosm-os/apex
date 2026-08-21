@@ -1,9 +1,10 @@
 from datetime import datetime
 from decimal import Decimal
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, computed_field, model_validator
 from typing import Optional
 
 from common.models.api.eval_metadata import StandardEvalMetadata
+from common.models.api.pagination import Pagination
 
 
 class SubmitRequest(BaseModel):
@@ -42,38 +43,94 @@ class SubmissionRequest(BaseModel):
     sort_mode: str = "score"
 
 
-class SubmissionRecord(BaseModel):
+class SubmissionBase(BaseModel):
+    """Canonical submission shape (APEX-106). Every submission-bearing
+    response model subclasses this so names and types cannot drift."""
+
     id: int
     competition_id: int
     round_number: int
     state: str
     hotkey: str
+    coldkey: Optional[str] = None
     version: int
-    top_score: bool
-    submit_at: datetime
+    submitted_at: datetime
+    score: Optional[float] = None  # normalized eval score
+    raw_score: Optional[float] = None
+    top_score: bool = False
+
+
+class SubmissionRecord(SubmissionBase):
     eval_at: Optional[datetime] = None
     reveal_at: Optional[datetime] = None
-    eval_raw_score: Optional[float] = None
-    eval_score: Optional[float] = None
     eval_time_in_seconds: Optional[float] = None
     eval_error: Optional[str] = None
 
+    # Deprecated dual-emitted names — remove in the APEX-106 cleanup PR.
+    @computed_field
+    @property
+    def submit_at(self) -> datetime:
+        return self.submitted_at
 
-class SubmissionDetail(BaseModel):
-    id: int
+    @computed_field
+    @property
+    def eval_score(self) -> Optional[float]:
+        return self.score
+
+    @computed_field
+    @property
+    def eval_raw_score(self) -> Optional[float]:
+        return self.raw_score
+
+
+class RankRecord(SubmissionBase):
+    """One row of a competition rank listing. Replaces MinerRankRecord and
+    SubmissionRankMiner — both rank endpoints serve this shape."""
+
+    rank: int
+    # Number of scored submissions by the miner (competition- or round-scoped)
+    submissions_count: int
+    # Miner's first scored submission time in scope
+    join_date: Optional[datetime] = None
+    # True if any of this miner's submissions has a browser-playable artifact
+    # (for example, ONNX-converted round winners). Generic across competitions.
+    can_play: bool = False
+    estimated_current_competition_alpha_earned: float = 0.0
+    estimated_current_round_alpha_earned: float = 0.0
+    # Deprecated presentation-layer value (score * scaled_incentive); the FE
+    # never reads it. Plain field (not computed) because it needs the
+    # competition's incentive weight. Remove in the APEX-106 cleanup PR.
+    score_render: float = 0.0
+
+    # Deprecated dual-emitted names — remove in the APEX-106 cleanup PR.
+    @computed_field
+    @property
+    def top_scorer(self) -> bool:
+        return self.top_score
+
+    @computed_field
+    @property
+    def submission_date(self) -> datetime:
+        return self.submitted_at
+
+
+class SubmissionDetail(SubmissionBase):
     submit_metadata: dict | None = None
     # Typed so the envelope lands in the OpenAPI schema and the dashboard gets
     # generated types instead of `any`.
     eval_metadata: StandardEvalMetadata | None = None
     eval_file_paths: dict | None = None
     code_path: str | None = None
-    round_number: int
     reveal_at: Optional[datetime] = None
-    eval_raw_score: Optional[float] = None
-    eval_score: Optional[float] = None
-    # Reveal gate: eval_metadata / eval_score / eval_raw_score / eval_file_paths
-    # are nulled until the round completes. `revealed` tells clients the nulls
-    # are gating (not missing data); round_state/round_end_at say when it lifts.
+    # Miner's current best-per-miner rank in this competition (same semantics
+    # as /dashboard/competitions/{id}/miners). None while unrevealed or unscored.
+    rank: Optional[int] = None
+    eval_error: Optional[str] = None
+    eval_time_in_seconds: Optional[float] = None
+    # Reveal gate: eval_metadata / score / raw_score / eval_file_paths / rank /
+    # eval_error / eval_time_in_seconds are nulled until the round completes.
+    # `revealed` tells clients the nulls are gating (not missing data);
+    # round_state/round_end_at say when it lifts.
     revealed: bool = True
     round_state: Optional[str] = None
     round_end_at: Optional[datetime] = None
@@ -84,17 +141,21 @@ class SubmissionDetail(BaseModel):
     # `submit_metadata.onnx`.
     can_play: bool = False
 
+    # Deprecated dual-emitted names — remove in the APEX-106 cleanup PR.
+    @computed_field
+    @property
+    def eval_score(self) -> Optional[float]:
+        return self.score
 
-class SubmissionPagination(BaseModel):
-    start_idx: int
-    count: int
-    total: int
-    has_more: bool
+    @computed_field
+    @property
+    def eval_raw_score(self) -> Optional[float]:
+        return self.raw_score
 
 
 class SubmissionResponse(BaseModel):
     submissions: list[SubmissionRecord]
-    pagination: SubmissionPagination
+    pagination: Pagination
 
 
 class SubmissionFeeResponse(BaseModel):
