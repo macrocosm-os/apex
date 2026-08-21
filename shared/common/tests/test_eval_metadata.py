@@ -251,6 +251,16 @@ def test_job_results_control_fields_default_to_none():
 
 from common.models.api.submission import SubmissionDetail
 
+_DETAIL_CORE = {
+    "id": 1,
+    "competition_id": 1,
+    "round_number": 1,
+    "state": "scored",
+    "hotkey": "hk",
+    "version": 1,
+    "submitted_at": "2026-08-01T12:00:00",
+}
+
 
 def test_submission_detail_rejects_a_bare_legacy_dict():
     """SubmissionDetail's tolerant validator existed for the 60s Redis detail
@@ -258,11 +268,11 @@ def test_submission_detail_rejects_a_bare_legacy_dict():
     payloads since v4.2.20, and the read path coerces explicitly before
     constructing the model, so a legacy dict reaching validation is a bug."""
     with pytest.raises(ValidationError):
-        SubmissionDetail.model_validate({"id": 1, "round_number": 1, "eval_metadata": {"master_seed": 7}})
+        SubmissionDetail.model_validate({**_DETAIL_CORE, "eval_metadata": {"master_seed": 7}})
 
 
 def test_submission_detail_eval_metadata_none_is_still_allowed():
     """The reveal gate returns `eval_metadata=None` for a live round; the
     tolerant validator must not turn that into a legacy-wrapped envelope."""
-    detail = SubmissionDetail.model_validate({"id": 1, "round_number": 1, "eval_metadata": None})
+    detail = SubmissionDetail.model_validate({**_DETAIL_CORE, "eval_metadata": None})
     assert detail.eval_metadata is None

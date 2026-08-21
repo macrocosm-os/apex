@@ -243,13 +243,13 @@ class SubmissionDetailScreen(Screen):
 [dim]Top Score:[/dim] {top_score}
 
 [bold underline]Scores:[/bold underline]
-[dim]Raw Score:[/dim] {sub.eval_raw_score if sub.eval_raw_score is not None and sub.eval_raw_score >= 0 else "N/A"}
-[dim]Final Score:[/dim] {sub.eval_score if sub.eval_score is not None and sub.eval_score >= 0 else "N/A"}
+[dim]Raw Score:[/dim] {sub.raw_score if sub.raw_score is not None and sub.raw_score >= 0 else "N/A"}
+[dim]Final Score:[/dim] {sub.score if sub.score is not None and sub.score >= 0 else "N/A"}
 [dim]Evaluation Time:[/dim] {f"{sub.eval_time_in_seconds:.2f}s" if sub.eval_time_in_seconds else "N/A"}
 [dim]Evaluation Error:[/dim] {error_msg}
 
 [bold underline]Timeline:[/bold underline]
-[dim]Submitted:[/dim] {format_datetime(sub.submit_at, include_seconds=True)}
+[dim]Submitted:[/dim] {format_datetime(sub.submitted_at, include_seconds=True)}
 [dim]Evaluated:[/dim] {format_datetime(sub.eval_at, include_seconds=True)}
 [dim]Code Reveal:[/dim] {format_datetime(sub.reveal_at, include_seconds=True)} {get_reveal_status(sub.reveal_at)}
 [dim]Log Reveal:[/dim] {log_status}

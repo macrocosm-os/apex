@@ -1,5 +1,9 @@
-from pydantic import BaseModel  # type: ignore
 from typing import Optional
+
+from pydantic import BaseModel
+
+from common.models.api.pagination import Pagination
+from common.models.api.submission import RankRecord
 
 
 class MinerRanksRequest(BaseModel):
@@ -9,53 +13,31 @@ class MinerRanksRequest(BaseModel):
     round_number: Optional[int] = None
 
 
-class MinerRankRecord(BaseModel):
-    # Miner rank in the leaderboard
-    rank: int
-    # True if current submission is a winner
-    top_scorer: bool
-    hotkey: str
-    coldkey: Optional[str] = None
-    # Miner's best score
-    score: float
-    # Raw (un-normalized) eval score of the ranked submission
-    raw_score: float
-    # Score multiplied by incentive weight (for rendering)
-    score_render: float
-    # Miner's last submission version
-    version: int
-    # Round number of the best submission
-    round_number: int
-    submission_date: str | int | float | None = None
-    join_date: str | int | float | None = None
-    # Number of submissions by the miner
-    submissions_count: int
-    # True if any of this miner's submissions has a browser-playable artifact
-    # (for example, ONNX-converted round winners). Generic across competitions.
-    can_play: bool = False
-    estimated_current_competition_alpha_earned: float = 0.0
-    estimated_current_round_alpha_earned: float = 0.0
+class CompetitionMeta(BaseModel):
+    """Typed replacement for the untyped comp_row dict formerly cached."""
 
-
-class RanksPagination(BaseModel):
-    start_idx: int
-    count: int
-    total: int
-    has_more: bool
-
-
-class MinerRanksResponse(BaseModel):
     competition_id: int
+    curr_top_scorer_hotkey: Optional[str] = None
+    curr_top_scorer_coldkey: Optional[str] = None
+
+
+class RanksResponse(BaseModel):
+    """Envelope for both rank endpoints (/miners and /submissions...)."""
+
+    competition_id: int
+    # Deprecated (FE marks it @deprecated) — remove in the APEX-106 cleanup PR.
     incentive_weight_render: float
     curr_top_scorer_hotkey: Optional[str] = None
     curr_top_scorer_coldkey: Optional[str] = None
-    miners: list[MinerRankRecord]
-    pagination: RanksPagination
+    miners: list[RankRecord]
+    pagination: Pagination
     total_submissions: int
 
 
-class MinerRanksCache(BaseModel):
-    comp_row: dict
-    miners: list[MinerRankRecord]
+class RanksCache(BaseModel):
+    """Full (unsliced) rank listing cached in Redis; responses slice a page."""
+
+    meta: CompetitionMeta
+    records: list[RankRecord]
     scaled_incentive: float
     total_submissions: int

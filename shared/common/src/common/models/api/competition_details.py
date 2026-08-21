@@ -1,8 +1,8 @@
-from pydantic import BaseModel  # type: ignore
-from typing import Optional, List
+from pydantic import BaseModel, Field  # type: ignore
+from typing import Literal, Optional, List
 from datetime import datetime
 from common.models.api.competition import SponsorMetadata
-from common.models.api.submission import SubmissionPagination
+from common.models.api.pagination import Pagination
 
 
 class CompetitionDetailsRequest(BaseModel):
@@ -23,6 +23,13 @@ class CompetitionInfo(BaseModel):
     pkg: str
     baseline_score: float
     baseline_raw_score: float
+    # Score semantics (APEX-108): what eval_score/baseline_score mean for this
+    # competition. Registry-backed packages normalize to 0-1; spec-driven ones
+    # report the referee's raw score unchanged. baseline_valid gates whether
+    # baseline_score is a meaningful same-scale comparison target for charts.
+    score_scale: Literal["normalized_0_1", "raw"] = "normalized_0_1"
+    score_direction: Literal["higher_is_better", "lower_is_better"] = "higher_is_better"
+    baseline_valid: bool = False
     incentive_weight: float
     burn_factor: float
     start_at: Optional[datetime] = None
@@ -73,7 +80,16 @@ class RoundAnnotation(BaseModel):
 
 class CompetitionDetailsResponse(BaseModel):
     top_score: float
-    score_to_beat: Optional[float] = None
+    score_to_beat: Optional[float] = Field(
+        default=None,
+        description=(
+            "Threshold-adjusted score a new submission must clear to take the top spot, on the "
+            "competition's score_scale. Null between rounds: when the reigning top scorer is not "
+            "from the current round, its raw score was produced under different round conditions "
+            "(e.g. max_epoch_time), so no comparable target exists until the new round's "
+            "auto-submission is evaluated."
+        ),
+    )
     competition: CompetitionInfo
     curr_round: Optional[RoundInfo] = None
     rounds: List[RoundAnnotation]
@@ -83,21 +99,11 @@ class CompetitionDetailsResponse(BaseModel):
 
 class TopScoresResponse(BaseModel):
     top_scores: List[ScorePoint]
-    pagination: SubmissionPagination
+    pagination: Pagination
     current_competition_submissions: int = 0
     current_round_submissions: int = 0
     estimated_current_competition_alpha_earned: float = 0.0
     estimated_current_round_alpha_earned: float = 0.0
-    daily_submissions: List[int] = []
-
-
-class CompetitionDetailsCache(BaseModel):
-    competition: CompetitionInfo
-    current_round: Optional[RoundInfo] = None
-    top_score_value: float
-    score_to_beat: Optional[float] = None
-    rounds: List[RoundAnnotation]
-    total_submissions: int
     daily_submissions: List[int] = []
 
 

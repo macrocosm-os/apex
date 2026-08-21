@@ -118,17 +118,17 @@ def list_submissions(
             if top_scorer_hotkey and sub.hotkey == top_scorer_hotkey:
                 hotkey_display = f"[bold green]{hotkey_display}[/bold green]"
 
-            score = f"{sub.eval_score:.7f}" if sub.eval_score is not None else "N/A"
-            if top_score_value is not None and sub.eval_score is not None:
-                if sub.eval_score >= top_score_value:
+            score = f"{sub.score:.7f}" if sub.score is not None else "N/A"
+            if top_score_value is not None and sub.score is not None:
+                if sub.score >= top_score_value:
                     score = f"[bold green]{score}[/bold green]"
-                elif sub.eval_score < top_score_value and sub.top_score:
+                elif sub.score < top_score_value and sub.top_score:
                     score = f"[bold orange]{score}[/bold orange]"
 
             top_score = get_top_score_status(sub.top_score, sub.id, curr_top_score_id, compact=True)
             reveal_status = get_reveal_status(sub.reveal_at, compact=True)
             version_str = f"v{sub.version}" if sub.version is not None else "N/A"
-            age_str = get_age(sub.submit_at, compact=True)
+            age_str = get_age(sub.submitted_at, compact=True)
 
             log_icon = "👁"
             if current_round is not None and sub.round_number == current_round:
@@ -151,7 +151,7 @@ def list_submissions(
                 get_state(sub.state, compact=True, eval_error=sub.eval_error),
                 reveal_status,
                 log_icon,
-                format_datetime(sub.submit_at, include_seconds=True),
+                format_datetime(sub.submitted_at, include_seconds=True),
             )
 
         # Filter/sort status header
