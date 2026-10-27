@@ -22,6 +22,17 @@ console = Console()
 # Binary file extensions that should be base64 encoded
 BINARY_EXTENSIONS = {".pt", ".pth", ".onnx", ".pkl", ".pickle", ".bin", ".h5", ".hdf5", ".safetensors"}
 
+# Text formats whose exact bytes are significant. A unified diff's trailing newline is part of
+# the patch — `git apply` rejects the file without it — so these are never stripped.
+PATCH_EXTENSIONS = {".patch", ".diff"}
+
+
+def read_submission_text(path: Path) -> str:
+    """Read a text submission. Patch/diff files are returned verbatim; other sources are
+    stripped of surrounding whitespace as before."""
+    content = path.read_text(encoding="utf-8")
+    return content if path.suffix.lower() in PATCH_EXTENSIONS else content.strip()
+
 
 PAYMENT_TIMEOUT_SECONDS = 300
 
@@ -106,10 +117,9 @@ def submit(
                     console.print(f"[red]File is empty: {file_path}[/red]")
                     return False
             else:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    code = f.read().strip()
-                    file_size = len(code)
-                if not code:
+                code = read_submission_text(file_path)
+                file_size = len(code)
+                if not code.strip():
                     console.print(f"[red]File is empty: {file_path}[/red]")
                     return False
         except UnicodeDecodeError:
