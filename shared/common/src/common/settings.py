@@ -1,4 +1,5 @@
 import os
+from decimal import Decimal
 from dotenv import load_dotenv
 from loguru import logger
 
@@ -56,6 +57,7 @@ SCORE_THRESHOLD = float(os.getenv("SCORE_THRESHOLD", "0.01"))
 DEFAULT_BASE_BURN_RATE = 0.9
 
 # Submission fee settings
+SUBMISSION_FEE_PRICE_BUFFER = Decimal("1.4")  # 40% buffer against TAO price fluctuation
 SUBMISSION_FEE_ADDRESS = os.getenv(
     "SUBMISSION_FEE_ADDRESS", "5E4bbuhJfvritg1z9Ysi2Ne5Ccg6qFgqeng92JXExCTE4voE"
 )  # prod ss58 hotkey that receives submission fees
