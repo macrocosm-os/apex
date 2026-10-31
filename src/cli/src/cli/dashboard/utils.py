@@ -118,3 +118,12 @@ def get_top_score_status(
         return "🥈" if compact else "🥈 [orange]Previous Top Scorer[/orange]"
     else:
         return "[red]✗[/red]" if compact else "[red][bold]✗[/bold] Not a Top Scorer[/red]"
+
+
+def get_score_text(sub, detail=None) -> tuple[str, str]:
+    """(raw, final) score text. A partner's private score, which only the owner sees before the
+    round reveals, comes from the detail and is labeled as such."""
+    raw, score, note = sub.raw_score, sub.score, ""
+    if detail is not None and detail.private_score:
+        raw, score, note = detail.raw_score, detail.score, " [dim](private until the round reveals)[/dim]"
+    return tuple(f"{v}{note}" if v is not None and v >= 0 else "N/A" for v in (raw, score))

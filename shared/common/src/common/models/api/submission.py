@@ -105,6 +105,9 @@ class SubmissionDetail(SubmissionBase):
     # `revealed` tells clients the nulls are gating (not missing data);
     # round_state/round_end_at say when it lifts.
     revealed: bool = True
+    # True when score/raw_score/eval_metadata are a partner's private feedback, shown only to the
+    # submission's owner before the round reveals. Not a final score or a winner.
+    private_score: bool = False
     round_state: Optional[str] = None
     round_end_at: Optional[datetime] = None
     is_binary: bool = False
