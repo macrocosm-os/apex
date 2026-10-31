@@ -11,7 +11,7 @@ from rich.table import Table
 from cli.utils.config import Config
 from cli.utils.client import Client
 from cli.dashboard.time_utils import format_datetime
-from cli.dashboard.utils import get_state, get_reveal_status, get_top_score_status
+from cli.dashboard.utils import get_state, get_reveal_status, get_top_score_status, get_score_text
 
 console = Console()
 
@@ -101,6 +101,7 @@ def _show_submission_detail(submission, detail, comp):
             log_status = f"{format_datetime(end_at, include_seconds=True)} {get_reveal_status(end_at)}"
 
     version = f"v{sub.version}" if sub.version > 0 else f"v{sub.version} [dim](Auto)[/dim]"
+    raw_score, final_score = get_score_text(sub, detail)
 
     detail_lines = [
         f"[dim]Submission ID:[/dim]    {sub.id}",
@@ -112,8 +113,8 @@ def _show_submission_detail(submission, detail, comp):
         f"[dim]Top Score:[/dim]        {top_score}",
         "",
         "[bold underline]Scores[/bold underline]",
-        f"[dim]Raw Score:[/dim]        {sub.raw_score if sub.raw_score is not None and sub.raw_score >= 0 else 'N/A'}",
-        f"[dim]Final Score:[/dim]      {sub.score if sub.score is not None and sub.score >= 0 else 'N/A'}",
+        f"[dim]Raw Score:[/dim]        {raw_score}",
+        f"[dim]Final Score:[/dim]      {final_score}",
         f"[dim]Evaluation Time:[/dim]  {f'{sub.eval_time_in_seconds:.2f}s' if sub.eval_time_in_seconds else 'N/A'}",
         f"[dim]Evaluation Error:[/dim] {error_msg}",
         "",

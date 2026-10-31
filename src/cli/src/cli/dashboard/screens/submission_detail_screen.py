@@ -13,7 +13,14 @@ from rich.syntax import Syntax
 from common.models.api.submission import SubmissionRecord, SubmissionDetail, FileRequest
 from common.models.api.code import CodeRequest
 from common.models.api.competition import CompetitionRecord
-from cli.dashboard.utils import log_success, log_error, get_state, get_reveal_status, get_top_score_status
+from cli.dashboard.utils import (
+    log_success,
+    log_error,
+    get_state,
+    get_reveal_status,
+    get_top_score_status,
+    get_score_text,
+)
 from cli.dashboard.time_utils import format_datetime
 from cli.utils.client import Client
 from cli.utils.config import Config
@@ -231,6 +238,7 @@ class SubmissionDetailScreen(Screen):
             # Past rounds are completed
             log_status = "🔓 [green]Visible[/green]"
         version = f"v{sub.version}" if sub.version > 0 else f"v{sub.version} [dim](Auto)[/dim]"
+        raw_score, final_score = get_score_text(sub, self.submission_detail)
 
         detail_content = f"""[bold cyan]Submission Details[/bold cyan]
 
@@ -243,8 +251,8 @@ class SubmissionDetailScreen(Screen):
 [dim]Top Score:[/dim] {top_score}
 
 [bold underline]Scores:[/bold underline]
-[dim]Raw Score:[/dim] {sub.raw_score if sub.raw_score is not None and sub.raw_score >= 0 else "N/A"}
-[dim]Final Score:[/dim] {sub.score if sub.score is not None and sub.score >= 0 else "N/A"}
+[dim]Raw Score:[/dim] {raw_score}
+[dim]Final Score:[/dim] {final_score}
 [dim]Evaluation Time:[/dim] {f"{sub.eval_time_in_seconds:.2f}s" if sub.eval_time_in_seconds else "N/A"}
 [dim]Evaluation Error:[/dim] {error_msg}
 
