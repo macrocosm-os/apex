@@ -11,7 +11,7 @@ from rich.table import Table
 from cli.utils.config import Config
 from cli.utils.client import Client
 from cli.dashboard.time_utils import format_datetime
-from cli.dashboard.utils import get_state, get_reveal_status, get_top_score_status, get_score_text
+from cli.dashboard.utils import get_state, get_reveal_status, get_top_score_status, get_score_text, get_error_text
 
 console = Console()
 
@@ -80,7 +80,7 @@ def _show_submission_detail(submission, detail, comp):
     curr_top_score_id = comp.curr_top_score_id if comp else None
     top_score = get_top_score_status(sub.top_score, sub.id, curr_top_score_id)
 
-    error_msg = f"[red]{sub.eval_error}[/red]" if sub.eval_error and sub.eval_error != "Success" else "None"
+    error_msg = get_error_text(sub, detail)
 
     now = datetime.now(timezone.utc)
     log_status = get_reveal_status(now)
