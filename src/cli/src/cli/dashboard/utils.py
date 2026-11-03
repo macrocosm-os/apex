@@ -127,3 +127,12 @@ def get_score_text(sub, detail=None) -> tuple[str, str]:
     if detail is not None and detail.private_score:
         raw, score, note = detail.raw_score, detail.score, " [dim](private until the round reveals)[/dim]"
     return tuple(f"{v}{note}" if v is not None and v >= 0 else "N/A" for v in (raw, score))
+
+
+def get_error_text(sub, detail=None) -> str:
+    """Evaluation error text. A partner's private failure code, which only the owner sees before
+    the round reveals, comes from the detail and is labeled as such."""
+    error, note = sub.eval_error, ""
+    if detail is not None and detail.private_score and detail.eval_error:
+        error, note = detail.eval_error, " [dim](private until the round reveals)[/dim]"
+    return f"[red]{error}[/red]{note}" if error and error != "Success" else "None"

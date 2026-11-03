@@ -19,6 +19,7 @@ from cli.dashboard.utils import (
     get_state,
     get_reveal_status,
     get_top_score_status,
+    get_error_text,
     get_score_text,
 )
 from cli.dashboard.time_utils import format_datetime
@@ -224,7 +225,7 @@ class SubmissionDetailScreen(Screen):
         curr_top_score_id = self.competition.curr_top_score_id if self.competition else None
         top_score = get_top_score_status(sub.top_score, sub.id, curr_top_score_id)
 
-        error_msg = f"[red]{sub.eval_error}[/red]" if sub.eval_error and not sub.eval_error == "Success" else "None"
+        error_msg = get_error_text(sub, self.submission_detail)
 
         # Determine log reveal icon based on round state
         # Logs are only available when the round is completed (not just time-ended/evaluating)
