@@ -85,8 +85,10 @@ class RoundDetailsWidget(Vertical):
         # State formatting
         state_display = get_state(state)
 
+        version = self.round_data.get("version", "N/A")
+
         # Update header
-        self.header_label.update(f"[bold]Round #{round_number}[/bold] - {state_display}")
+        self.header_label.update(f"[bold]Round #{round_number}[/bold] - {state_display}  [dim]Version:[/dim] {version}")
 
         # Update times
         self.times_label.update(f"[dim]Start:[/dim] {start_str}  [dim]End:[/dim] {end_str}")

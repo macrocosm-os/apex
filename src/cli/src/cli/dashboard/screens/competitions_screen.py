@@ -8,7 +8,7 @@ from textual.binding import Binding
 from textual.message import Message
 
 from common.models.api.competition import CompetitionResponse
-from cli.dashboard.utils import log_success, log_debug, get_state
+from cli.dashboard.utils import log_success, log_debug, get_state, get_round_version
 from cli.dashboard.time_utils import get_round_progress, format_datetime
 from cli.dashboard.art import APEX_TITLE
 
@@ -65,6 +65,7 @@ class CompetitionsScreen(Screen):
             "State",
             "Type",
             "Package",
+            "Version",
             "Round Details",
             "Top Score",
             "Alloc. Emission",
@@ -112,6 +113,7 @@ class CompetitionsScreen(Screen):
                 get_state(comp.state),
                 comp.ctype,
                 comp.pkg,
+                get_round_version(comp),
                 round_details,
                 f"{comp.top_score_value:.2f}" if comp.top_score_value else "N/A",
                 f"{emission_allocation:.1f}%",

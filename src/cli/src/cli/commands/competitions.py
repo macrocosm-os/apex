@@ -7,7 +7,7 @@ from rich.table import Table
 from cli.utils.config import Config
 from cli.utils.client import Client
 from cli.dashboard.time_utils import format_datetime, get_age, get_round_progress, get_round_countdown
-from cli.dashboard.utils import get_state
+from cli.dashboard.utils import get_round_version, get_state
 
 console = Console()
 
@@ -78,6 +78,7 @@ def _show_competitions_list(competitions_list, page=1, pagination=None):
     table.add_column("Name", style="cyan")
     table.add_column("State")
     table.add_column("Round")
+    table.add_column("Version")
     table.add_column("Top Score", justify="right")
     table.add_column("Submissions", justify="right")
 
@@ -89,6 +90,7 @@ def _show_competitions_list(competitions_list, page=1, pagination=None):
             comp.name,
             get_state(comp.state),
             round_str,
+            get_round_version(comp),
             top_score_str,
             str(comp.total_submissions),
         )
@@ -154,6 +156,7 @@ def _show_competition_detail(comp):
 
     round_lines = [
         f"[bold]Round #{round_number}[/bold] — {state_display}",
+        f"[dim]Version:[/dim] {get_round_version(comp)}",
         f"[dim]Start:[/dim]  {start_str}    [dim]End:[/dim]  {end_str}",
         f"[dim]Progress:[/dim] {progress:.1f}%",
     ]

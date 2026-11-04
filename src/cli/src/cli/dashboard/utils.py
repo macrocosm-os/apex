@@ -136,3 +136,9 @@ def get_error_text(sub, detail=None) -> str:
     if detail is not None and detail.private_score and detail.eval_error:
         error, note = detail.eval_error, " [dim](private until the round reveals)[/dim]"
     return f"[red]{error}[/red]{note}" if error and error != "Success" else "None"
+
+
+def get_round_version(comp) -> str:
+    """Spec version the competition's current round runs, which can lag the latest release."""
+    version = comp.curr_round.spec_version if comp.curr_round else None
+    return version or "N/A"
