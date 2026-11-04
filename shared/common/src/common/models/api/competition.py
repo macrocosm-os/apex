@@ -28,6 +28,14 @@ class RoundRecord(BaseModel):
     end_at: Optional[datetime] = None
     competed_at: Optional[datetime] = None
     submit_at: Optional[datetime] = None  # For ordering purposes
+    spec_version: Optional[str] = Field(
+        default=None,
+        description=(
+            "Competition spec version this round runs: the version pinned when the round was created, "
+            "else the active version for an unpinned round. Can differ from the latest release while a "
+            "round is in progress. Null for competitions without a spec."
+        ),
+    )
 
 
 class SponsorMetadata(BaseModel):

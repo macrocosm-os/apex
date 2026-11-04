@@ -8,7 +8,14 @@ from textual.message import Message
 from common.models.api.competition import CompetitionRecord
 from common.models.api.submission import SubmissionRecord
 from common.models.api.pagination import Pagination
-from cli.dashboard.utils import log_success, log_debug, get_state, get_reveal_status, get_top_score_status
+from cli.dashboard.utils import (
+    log_success,
+    log_debug,
+    get_state,
+    get_reveal_status,
+    get_top_score_status,
+    get_round_version,
+)
 from cli.dashboard.time_utils import format_datetime, get_age
 from cli.dashboard.widgets.round_details import RoundDetailsWidget
 from cli.dashboard.modals.input_modal import InputModal
@@ -175,6 +182,7 @@ class CompetitionDetailScreen(Screen):
                 "end_at": comp.curr_round.end_at,
                 "burn_factor": comp.burn_factor,
                 "base_burn_rate": comp.base_burn_rate,
+                "version": get_round_version(comp),
             }
         else:
             round_data = {
@@ -184,6 +192,7 @@ class CompetitionDetailScreen(Screen):
                 "end_at": None,
                 "burn_factor": comp.burn_factor,
                 "base_burn_rate": comp.base_burn_rate,
+                "version": get_round_version(comp),
             }
 
         self.round_widget = RoundDetailsWidget(round_data)
